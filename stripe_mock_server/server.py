@@ -19,8 +19,9 @@ import re
 
 import flask
 
-from resources import Card, Coupon, Customer, Invoice, Plan, Subscription, \
-                      SubscriptionItem, Token, extra_apis
+from resources import Card, Charge, Coupon, Customer, Invoice, InvoiceItem, \
+                      Plan, Refund, Subscription, SubscriptionItem, Token, \
+                      extra_apis
 from errors import UserError
 
 
@@ -76,7 +77,7 @@ def unflatten_data(data):
     def transform_lists(data):
         if (len(data) > 0 and
                 all([re.match(r'^[0-9]+$', k) for k in data.keys()])):
-            new_data = [(int(k), v) for k,v in data.items()]
+            new_data = [(int(k), v) for k, v in data.items()]
             new_data.sort(key=lambda k: int(k[0]))
             data = []
             for k, v in sorted(new_data, key=lambda k: int(k[0])):
@@ -118,7 +119,6 @@ def wrap_auth(method, url):
                 data = unflatten_data(get_post_data())
             else:
                 data = unflatten_data(flask.request.args.to_dict())
-            #print(data)#TODO remove
 
             if not is_auth and accept_key_in_post_data:
                 if ('key' in data and type(data['key']) == str and
@@ -187,8 +187,8 @@ def api_extra(func, method, url):
     return f
 
 
-for cls in (Card, Coupon, Customer, Invoice, Plan, Subscription,
-            SubscriptionItem, Token):
+for cls in (Card, Charge, Coupon, Customer, Invoice, InvoiceItem, Plan, Refund,
+            Subscription, SubscriptionItem, Token):
     for method, url, func in (
             ('POST', '/v1/' + cls.object + 's', api_create),
             ('GET', '/v1/' + cls.object + 's/<string:id>', api_retrieve),

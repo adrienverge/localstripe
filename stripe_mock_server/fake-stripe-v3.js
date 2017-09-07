@@ -135,7 +135,7 @@ Stripe = (apiKey) => {
         body.push('payment_user_agent=stripe_mock_server');
         body = body.join('&');
 
-        req.open('POST', 'http://localhost:5000/v1/tokens', true);
+        req.open('POST', 'http://localhost:8420/v1/tokens', true);
         req.setRequestHeader('Content-Type',
                              'application/x-www-form-urlencoded');
         req.send(body);
