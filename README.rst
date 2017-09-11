@@ -119,14 +119,17 @@ Now if you retrieve that customer again, it has an associated subscription:
    ...
  }
 
-Run the server
---------------
+Get started
+-----------
+
+Install stripe_mock_server:
 
 .. code:: shell
 
- git clone git@github.com:tolteck/stripe_mock_server.git
- cd stripe_mock_server
- python3 stripe_mock_server/server.py
+ sudo pip3 install stripe_mock_server
+
+Then simply run the command ``stripe_mock_server``. The fake Stripe server is
+now listening on port 8420.
 
 Integrate with your back-end
 ----------------------------
