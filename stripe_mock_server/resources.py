@@ -19,7 +19,7 @@ import random
 import string
 import time
 
-from errors import UserError
+from .errors import UserError
 
 
 store = {}

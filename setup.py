@@ -14,11 +14,24 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import sys
+from setuptools import setup
+
+from stripe_mock_server import __author__, __version__
 
 
-if sys.version_info < (3, 0):
-    raise RuntimeError('Please run with Python 3')
+setup(
+    name='stripe_mock_server',
+    version=__version__,
+    author=__author__,
+    url='https://github.com/tolteck/stripe_mock_server',
 
-__author__ = 'Adrien Vergé'
-__version__ = '0.0.1'
+    packages=['stripe_mock_server'],
+    entry_points={'console_scripts':
+                  ['stripe_mock_server=stripe_mock_server.server:start']},
+    package_data={
+        'stripe_mock_server': ['fake-stripe-v3.js'],
+    },
+    install_requires=[
+        'Flask >=0.11.1',
+    ],
+)

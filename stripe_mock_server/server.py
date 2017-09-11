@@ -19,10 +19,10 @@ import re
 
 import flask
 
-from resources import Card, Charge, Coupon, Customer, Invoice, InvoiceItem, \
-                      Plan, Refund, Subscription, SubscriptionItem, Token, \
-                      extra_apis
-from errors import UserError
+from .resources import Card, Charge, Coupon, Customer, Invoice, InvoiceItem, \
+                       Plan, Refund, Subscription, SubscriptionItem, Token, \
+                       extra_apis
+from .errors import UserError
 
 
 app = flask.Flask('stripe_mock_server')

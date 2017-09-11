@@ -162,6 +162,17 @@ code into the web page before it creates card elements:
  script.src = 'http://localhost:8420/js.stripe.com/v3/';
  document.head.appendChild(script);
 
+Hacking and contributing
+------------------------
+
+To quickly run stripe_mock_server from source:
+
+.. code:: shell
+
+ python3 setup.py sdist
+ pip3 install --user dist/stripe_mock_server-0.0.1.tar.gz
+ stripe_mock_server
+
 License
 -------
 
