@@ -1,0 +1,12 @@
+---
+language: python
+python:
+  - 3.5
+  - 3.6
+  - nightly
+install:
+  - pip install flake8 flake8-import-order
+  - python setup.py sdist
+  - pip install dist/stripe_mock_server-*.tar.gz
+script:
+  - flake8 .
