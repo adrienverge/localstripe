@@ -156,14 +156,11 @@ overwrite the global ``Stripe`` object, so new elements and card forms will
 actually send data to the ``http://localhost:8420/v1/tokens`` API.
 
 For example if you use a testing tool like Protractor, you need to inject this
-code into the web page before it creates card elements:
+JavaScript source in the web page before it creates card elements:
 
-.. code:: javascript
+.. code:: html
 
- script = document.createElement('script');
- script.type = 'text/javascript';
- script.src = 'http://localhost:8420/js.stripe.com/v3/';
- document.head.appendChild(script);
+ <script src="http://localhost:8420/js.stripe.com/v3/"></script>
 
 Hacking and contributing
 ------------------------
