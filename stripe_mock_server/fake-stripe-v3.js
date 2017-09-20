@@ -81,7 +81,7 @@ class Element {
       inputs[field] = document.createElement('input');
       inputs[field].setAttribute('type', 'text');
       inputs[field].setAttribute('placeholder', field);
-      inputs[field].setAttribute('size', field === 'number' ? 20 :
+      inputs[field].setAttribute('size', field === 'number' ? 16 :
                                          field === 'address_zip' ? 5 :
                                          field === 'cvc' ? 3 : 2);
       inputs[field].onchange = changed;
