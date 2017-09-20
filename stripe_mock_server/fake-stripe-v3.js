@@ -84,8 +84,7 @@ class Element {
       inputs[field].setAttribute('size', field === 'number' ? 16 :
                                          field === 'address_zip' ? 5 :
                                          field === 'cvc' ? 3 : 2);
-      inputs[field].onchange = changed;
-      inputs[field].onkeyup = changed;
+      inputs[field].oninput = changed;
       domElement.appendChild(inputs[field]);
     });
   }
