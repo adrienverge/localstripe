@@ -384,9 +384,23 @@ class Invoice(StripeObject):
     object = 'invoice'
     _id_prefix = 'in_'
 
-    def __init__(self, customer=None, plan_id=None, metadata=None):
+    def __init__(self, customer=None, subscription=None, metadata=None,
+                 subtotal=None, tax_percent=None, date=None, upcoming=False):
+        subtotal = try_convert_to_int(subtotal)
+        tax_percent = try_convert_to_float(tax_percent)
+        date = try_convert_to_int(date)
         try:
             assert type(customer) is str and customer.startswith('cus_')
+            if subscription is not None:
+                assert type(subscription) is str
+                assert subscription.startswith('sub_')
+            assert type(subtotal) is int and subtotal >= 0
+            assert type(tax_percent) is float
+            assert tax_percent >= 0 and tax_percent <= 100
+            if date is not None:
+                assert type(date) is int and date > 1500000000
+            else:
+                date = int(time.time())
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -398,14 +412,16 @@ class Invoice(StripeObject):
         super().__init__()
 
         self.customer = customer
+        self.subscription = subscription
+        self.subtotal = subtotal
+        self.tax_percent = tax_percent
+        self.date = date
         self.metadata = metadata or {}
-        self.amount_due = 3000
         self.application_fee = None
         self.attempt_count = 1
         self.attempted = True
         self.closed = True
         self.currency = 'eur'
-        self.date = int(time.time())
         self.description = None
         self.discount = None
         self.ending_balance = 0
@@ -416,23 +432,30 @@ class Invoice(StripeObject):
         self.receipt_number = None
         self.starting_balance = 0
         self.statement_descriptor = None
-        self.subscription = 'sub_BIMSvXuaWSxokX'
-        self.subtotal = 2500
-        self.tax = 500
-        self.tax_percent = 20.0
-        self.total = 3000
         self.webhooks_delivered_at = self.date
 
         self._charge = None
 
         self.lines = List('/v1/invoices/' + self.id + '/lines')
 
-        self._upcoming = False
+        self._upcoming = upcoming
+
+    @property
+    def tax(self):
+        return int(self.subtotal * self.tax_percent / 100.0)
+
+    @property
+    def total(self):
+        return self.subtotal + self.tax
+
+    @property
+    def amount_due(self):
+        return self.total
 
     @property
     def next_payment_attempt(self):
         if self._upcoming:
-            return int(time.time() + 15 * 24 * 3600)
+            return self.date
 
     @property
     def charge(self):
@@ -468,20 +491,68 @@ class Invoice(StripeObject):
                               subscription_trial_end=None):
         try:
             assert type(customer) is str and customer.startswith('cus_')
+            if subscription_items is not None:
+                assert type(subscription_items) is list
+                for si in subscription_items:
+                    assert type(si.get('plan', None)) is str
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        Customer._api_retrieve(customer)  # to return 404 if not existant
+        # return 404 if not existant
+        customer_obj = Customer._api_retrieve(customer)
 
-        for invoice in [value for key, value in store.items()
-                        if key.startswith(cls.object + ':') and
-                        value.customer == customer]:
-            if invoice._upcoming:
-                return invoice
+        simulation = subscription_items is not None or \
+            subscription_prorate is not None or \
+            subscription_tax_percent is not None or \
+            subscription_trial_end is not None
 
-        if len(customer.subscriptions) > 0:
-            invoice = cls(customer=customer)
-            invoice._upcoming = True
+        current_subscription = None
+        l = [s for s in customer_obj.subscriptions._list
+             if subscription is None or s.id == subscription]
+        if len(l):
+            current_subscription = l[0]
+        elif subscription is not None:
+            raise UserError(404, 'No such subscription for customer')
+
+        subtotal = 0
+        if subscription_items is not None:
+            for si in subscription_items:
+                plan = Plan._api_retrieve(si['plan'])
+                subtotal += plan.amount
+        elif current_subscription:
+            for si in current_subscription.items._list:
+                subtotal += si.plan.amount
+
+        tax_percent = 0.0
+        if subscription_tax_percent is not None:
+            tax_percent = subscription_tax_percent
+        elif current_subscription:
+            tax_percent = current_subscription.tax_percent
+
+        date = int(time.time())  # now
+        if current_subscription:
+            date = current_subscription.current_period_end
+
+        if not simulation and not current_subscription:
+            raise UserError(404, 'No upcoming invoices for customer')
+
+        elif not simulation and current_subscription:
+            invoice = cls(customer=customer,
+                          subscription=current_subscription.id,
+                          subtotal=subtotal,
+                          tax_percent=tax_percent,
+                          date=date,
+                          upcoming=True)
+            del store[cls.object + ':' + invoice.id]  # do not store it
+            return invoice
+
+        else:  # if simulation
+            invoice = cls(customer=customer,
+                          subtotal=subtotal,
+                          tax_percent=tax_percent,
+                          date=date,
+                          upcoming=True)
+            del store[cls.object + ':' + invoice.id]  # do not store it
             return invoice
 
     @classmethod
@@ -718,6 +789,12 @@ class Subscription(StripeObject):
             SubscriptionItem(subscription=self.id,
                              plan=items[0]['plan'],
                              quantity=items[0]['quantity']))
+
+        # Create associated invoice
+        Invoice(customer=self.customer,
+                subtotal=self.items._list[0].plan.amount,
+                tax_percent=self.tax_percent,
+                date=self.current_period_start)
 
     @property
     def plan(self):
