@@ -396,9 +396,7 @@ class Invoice(StripeObject):
         self.total = 3000
         self.webhooks_delivered_at = self.date
 
-        charge_obj = Charge(amount=self.total, currency=self.currency,
-                            source=customer_obj.default_source)
-        self.charge = charge_obj.id
+        self._charge = None
 
         self.lines = List('/v1/invoices/' + self.id + '/lines')
 
@@ -408,6 +406,16 @@ class Invoice(StripeObject):
     def next_payment_attempt(self):
         if self._upcoming:
             return int(time.time() + 15 * 24 * 3600)
+
+    @property
+    def charge(self):
+        if self._charge is None and not self._upcoming:
+            customer_obj = Customer._api_retrieve(self.customer)
+            charge_obj = Charge(amount=self.total, currency=self.currency,
+                                source=customer_obj.default_source)
+            self._charge = charge_obj.id
+
+        return self._charge
 
     @classmethod
     def _api_list_all(cls, url, customer=None, limit=None):
@@ -438,9 +446,16 @@ class Invoice(StripeObject):
 
         Customer._api_retrieve(customer)  # to return 404 if not existant
 
-        invoice = cls(customer=customer)
-        invoice._upcoming = True
-        return invoice
+        for invoice in [value for key, value in store.items()
+                        if key.startswith(cls.object + ':') and
+                        value.customer == customer]:
+            if invoice._upcoming:
+                return invoice
+
+        if len(customer.subscriptions) > 0:
+            invoice = cls(customer=customer)
+            invoice._upcoming = True
+            return invoice
 
     @classmethod
     def _api_pay_invoice(cls, id):
