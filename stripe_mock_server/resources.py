@@ -162,6 +162,8 @@ class Card(StripeObject):
                 assert type(exp_month) is int
                 assert exp_month >= 1 and exp_month <= 12
                 assert type(exp_year) is int
+                if exp_year > 0 and exp_year < 100:
+                    exp_year += 2000
                 assert exp_year >= 2017 and exp_year <= 2100
                 assert type(cvc) is str and len(cvc) == 3
             else:
