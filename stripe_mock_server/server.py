@@ -21,7 +21,7 @@ import flask
 
 from .resources import Card, Charge, Coupon, Customer, Invoice, InvoiceItem, \
                        Plan, Refund, Subscription, SubscriptionItem, Token, \
-                       extra_apis
+                       extra_apis, store
 from .errors import UserError
 
 
@@ -210,6 +210,8 @@ def fake_stripe_js():
 
 
 def start():
+    store.try_load_from_disk()
+
     app.run(port=8420, debug=True)
 
 

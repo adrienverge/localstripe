@@ -15,6 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from datetime import datetime, timedelta
+import pickle
 import random
 import string
 import time
@@ -22,7 +23,33 @@ import time
 from .errors import UserError
 
 
-store = {}
+class Store(dict):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def try_load_from_disk(self):
+        try:
+            with open('/tmp/stripe_mock_server.pickle', 'rb') as f:
+                old = pickle.load(f)
+                self.clear()
+                self.update(old)
+        except FileNotFoundError:
+            pass
+
+    def dump_to_disk(self):
+        with open('/tmp/stripe_mock_server.pickle', 'wb') as f:
+            pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def __setitem__(self, *args, **kwargs):
+        super().__setitem__(*args, **kwargs)
+        self.dump_to_disk()
+
+    def __delitem__(self, *args, **kwargs):
+        super().__delitem__(*args, **kwargs)
+        self.dump_to_disk()
+
+
+store = Store()
 
 
 def random_id(n):
