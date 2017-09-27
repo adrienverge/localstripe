@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import argparse
 import os.path
 import re
 
@@ -210,9 +211,15 @@ def fake_stripe_js():
 
 
 def start():
-    store.try_load_from_disk()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--port', type=int, default=8420)
+    parser.add_argument('--from-scratch', action='store_true')
+    args = parser.parse_args()
 
-    app.run(port=8420, debug=True)
+    if not args.from_scratch:
+        store.try_load_from_disk()
+
+    app.run(port=args.port, debug=True)
 
 
 if __name__ == '__main__':
