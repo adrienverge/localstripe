@@ -471,10 +471,13 @@ class Invoice(StripeObject):
         return self._charge
 
     @classmethod
-    def _api_list_all(cls, url, customer=None, limit=None):
+    def _api_list_all(cls, url, customer=None, subscription=None, limit=None):
         try:
             if customer is not None:
                 assert type(customer) is str and customer.startswith('cus_')
+            if subscription is not None:
+                assert type(subscription) is str
+                assert subscription.startswith('sub_')
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -482,6 +485,10 @@ class Invoice(StripeObject):
         if customer is not None:
             Customer._api_retrieve(customer)  # to return 404 if not existant
             l._list = [i for i in l._list if i.customer == customer]
+        if subscription is not None:
+            # to return 404 if not existant
+            Subscription._api_retrieve(subscription)
+            l._list = [i for i in l._list if i.subscription == subscription]
         l._list.sort(key=lambda i: i.date, reverse=True)
         return l
 
@@ -550,6 +557,16 @@ class Invoice(StripeObject):
             return invoice
 
         else:  # if simulation
+            if subscription is not None:
+                # Get previous invoice for this subscription and customer, and
+                # deduce what is already paid:
+                # TODO: Better not to use limit, but take date into account
+                previous = cls._api_list_all(None, customer=customer,
+                                             subscription=subscription,
+                                             limit=1)
+                if len(previous._list):
+                    subtotal = max(0, subtotal - previous._list[0].subtotal)
+
             invoice = cls(customer=customer,
                           subtotal=subtotal,
                           tax_percent=tax_percent,
@@ -741,6 +758,8 @@ class Subscription(StripeObject):
             if tax_percent is not None:
                 assert type(tax_percent) is float
                 assert tax_percent >= 0 and tax_percent <= 100
+            else:
+                tax_percent = 0
             assert type(items) is list
             for item in items:
                 assert type(item.get('plan', None)) is str
@@ -795,6 +814,7 @@ class Subscription(StripeObject):
 
         # Create associated invoice
         Invoice(customer=self.customer,
+                subscription=self.id,
                 subtotal=self.items._list[0].plan.amount,
                 tax_percent=self.tax_percent,
                 date=self.current_period_start)
