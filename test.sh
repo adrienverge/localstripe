@@ -13,7 +13,7 @@ cus=$(curl -s -u $SK: $HOST/v1/customers \
 curl -s -u $SK: $HOST/v1/plans \
    -d id=basique-mensuel \
    -d name='Abonnement basique (mensuel)' \
-   -d amount=3000 \
+   -d amount=2500 \
    -d currency=eur \
    -d interval=month
 
@@ -21,6 +21,13 @@ curl -s -u $SK: $HOST/v1/plans \
    -d id=basique-annuel \
    -d name='Abonnement basique (annuel)' \
    -d amount=20000 \
+   -d currency=eur \
+   -d interval=year
+
+curl -s -u $SK: $HOST/v1/plans \
+   -d id=pro-annuel \
+   -d name='Abonnement PRO (annuel)' \
+   -d amount=30000 \
    -d currency=eur \
    -d interval=year
 
@@ -40,12 +47,13 @@ tok=$(curl -s $HOST/v1/tokens \
 curl -s -u $SK: $HOST/v1/customers/$cus/sources \
    -d source=$tok
 
-curl -s -u $SK: $HOST/v1/subscriptions \
-   -d customer=$cus \
-   -d items[0][plan]=basique-mensuel
+sub=$(curl -s -u $SK: $HOST/v1/subscriptions \
+         -d customer=$cus \
+         -d items[0][plan]=basique-mensuel \
+      | grep -oE 'sub_\w+' | head -n 1)
 
 curl -s -u $SK: $HOST/v1/invoices/upcoming?customer=$cus
 
-curl -s -u $SK: $HOST/v1/invoices/upcoming?customer=$cus\&subscription_items\[0\]\[plan\]\=pro-annuel&subscription_tax_percent=20
+curl -s -u $SK: $HOST/v1/invoices/upcoming?customer=$cus\&subscription_items%5B0%5D%5Bplan%5D=pro-annuel\&subscription_tax_percent=20
 
-curl -s -u $SK: $HOST/v1/invoices/upcoming?customer=$cus\&subscription=sub_miO4oEkgMFXQ8f\&subscription_items%5B0%5D%5Bid%5D=si_RBrVStcKDimMnp\&subscription_items%5B0%5D%5Bplan%5D=basique-annuel\&subscription_proration_date=1504182686\&subscription_tax_percent=20
+curl -s -u $SK: $HOST/v1/invoices/upcoming?customer=$cus\&subscription=$sub\&subscription_items%5B0%5D%5Bid%5D=si_RBrVStcKDimMnp\&subscription_items%5B0%5D%5Bplan%5D=basique-annuel\&subscription_proration_date=1504182686\&subscription_tax_percent=20
