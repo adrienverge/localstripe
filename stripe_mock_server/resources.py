@@ -426,7 +426,6 @@ class Invoice(StripeObject):
         self.discount = None
         self.ending_balance = 0
         self.forgiven = False
-        self.paid = True
         self.period_start = self.date
         self.period_end = self.date + 30 * 24 * 3600
         self.receipt_number = None
@@ -456,6 +455,10 @@ class Invoice(StripeObject):
     def next_payment_attempt(self):
         if self._upcoming:
             return self.date
+
+    @property
+    def paid(self):
+        return not self._upcoming
 
     @property
     def charge(self):
