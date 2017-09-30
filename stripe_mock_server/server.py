@@ -203,14 +203,20 @@ for method, url, func in extra_apis:
     app.route(url, methods=[method])(api_extra(func, method, url))
 
 
+PORT = None
+
+
 @app.route('/js.stripe.com/v3/')
 def fake_stripe_js():
     path = os.path.dirname(os.path.realpath(__file__)) + '/fake-stripe-v3.js'
     with open(path) as f:
-        return flask.Response(f.read(), mimetype='application/javascript')
+        contents = f.read().replace('{{ PORT }}', str(PORT))
+        return flask.Response(contents, mimetype='application/javascript')
 
 
 def start():
+    global PORT
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', type=int, default=8420)
     parser.add_argument('--from-scratch', action='store_true')
@@ -218,6 +224,8 @@ def start():
 
     if not args.from_scratch:
         store.try_load_from_disk()
+
+    PORT = args.port
 
     app.run(port=args.port, debug=True)
 
