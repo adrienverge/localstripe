@@ -442,6 +442,9 @@ class Invoice(StripeObject):
         self._charge = None
 
         self.lines = List('/v1/invoices/' + self.id + '/lines')
+        self.lines._list.append(
+            InvoiceItem(invoice=self.id, amount=self.subtotal,
+                        currency=self.currency, customer=self.customer))
 
         self._upcoming = upcoming
 
@@ -505,12 +508,17 @@ class Invoice(StripeObject):
                               subscription_proration_date=None,
                               subscription_tax_percent=None,
                               subscription_trial_end=None):
+        subscription_proration_date = \
+            try_convert_to_int(subscription_proration_date)
         try:
             assert type(customer) is str and customer.startswith('cus_')
             if subscription_items is not None:
                 assert type(subscription_items) is list
                 for si in subscription_items:
                     assert type(si.get('plan', None)) is str
+            if subscription_proration_date is not None:
+                assert type(subscription_proration_date) is int
+                assert subscription_proration_date > 1500000000
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -569,9 +577,9 @@ class Invoice(StripeObject):
                 # TODO: Better not to use limit, but take date into account
                 previous = cls._api_list_all(None, customer=customer,
                                              subscription=subscription,
-                                             limit=1)
-                if len(previous._list):
-                    subtotal = max(0, subtotal - previous._list[0].subtotal)
+                                             limit=99)
+                for previous_invoice in previous._list:
+                    subtotal = max(0, subtotal - previous_invoice.subtotal)
 
             invoice = cls(customer=customer,
                           subtotal=subtotal,
@@ -579,6 +587,12 @@ class Invoice(StripeObject):
                           date=date,
                           upcoming=True)
             del store[cls.object + ':' + invoice.id]  # do not store it
+
+            if subscription_proration_date is not None:
+                for ii in invoice.lines._list:
+                    ii.period['start'] = subscription_proration_date
+                    ii.period['end'] = subscription_proration_date
+
             return invoice
 
     @classmethod
@@ -603,9 +617,11 @@ class InvoiceItem(StripeObject):
     object = 'invoiceitem'
     _id_prefix = 'ii_'
 
-    def __init__(self, amount=None, currency=None, customer=None,
-                 metadata=None):
+    def __init__(self, invoice=None, amount=None, currency=None,
+                 customer=None, metadata=None):
         try:
+            if invoice is not None:
+                assert type(invoice) is str and invoice.startswith('in_')
             assert type(amount) is int
             assert type(currency) is str and currency
             assert type(customer) is str and customer.startswith('cus_')
@@ -613,6 +629,8 @@ class InvoiceItem(StripeObject):
             raise UserError(400, 'Bad request')
 
         Customer._api_retrieve(customer)  # to return 404 if not existant
+        if invoice is not None:
+            Invoice._api_retrieve(invoice)  # to return 404 if not existant
 
         # All exceptions must be raised before this point.
         super().__init__()
@@ -621,8 +639,9 @@ class InvoiceItem(StripeObject):
         self.currency = currency
         self.customer = customer
         self.date = int(time.time())
-        self.description = None
-        self.invoice = None
+        self.description = 'Invoice item'
+        self.period = dict(start=int(time.time()), end=int(time.time()))
+        self.invoice = invoice
         self.metadata = metadata or {}
 
     @classmethod
@@ -634,6 +653,7 @@ class InvoiceItem(StripeObject):
             raise UserError(400, 'Bad request')
 
         l = super(InvoiceItem, cls)._api_list_all(url, limit=limit)
+        l._list = [ii for ii in l._list if ii.invoice is None]
         if customer is not None:
             Customer._api_retrieve(customer)  # to return 404 if not existant
             l._list = [ii for ii in l._list if ii.customer == customer]
@@ -834,9 +854,9 @@ class Subscription(StripeObject):
         # deduce what is already paid:
         # TODO: Better not to use limit, but take date into account
         previous = Invoice._api_list_all(None, customer=self.customer,
-                                         subscription=self.id, limit=1)
-        if len(previous._list):
-            subtotal = max(0, subtotal - previous._list[0].subtotal)
+                                         subscription=self.id, limit=99)
+        for previous_invoice in previous._list:
+            subtotal = max(0, subtotal - previous_invoice.subtotal)
 
         # Create associated invoice
         Invoice(customer=self.customer,
