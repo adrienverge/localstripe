@@ -407,6 +407,8 @@ class Invoice(StripeObject):
         customer_obj = Customer._api_retrieve(customer)
         if customer_obj.default_source is None:
             raise UserError(404, 'This customer has no source')
+        if subscription is not None:
+            subscription_obj = Subscription._api_retrieve(subscription)
 
         # All exceptions must be raised before this point.
         super().__init__()
@@ -426,12 +428,16 @@ class Invoice(StripeObject):
         self.discount = None
         self.ending_balance = 0
         self.forgiven = False
-        self.period_start = self.date
-        self.period_end = self.date + 30 * 24 * 3600
         self.receipt_number = None
         self.starting_balance = 0
         self.statement_descriptor = None
         self.webhooks_delivered_at = self.date
+
+        self.period_start = None
+        self.period_end = None
+        if subscription is not None:
+            self.period_start = subscription_obj.current_period_start
+            self.period_end = subscription_obj.current_period_end
 
         self._charge = None
 
@@ -798,9 +804,13 @@ class Subscription(StripeObject):
         elif plan.interval == 'week':
             current_period_end += timedelta(days=7)
         elif plan.interval == 'month':
-            current_period_end += timedelta(days=30)
+            current_period_end = current_period_start.replace(
+                month=(current_period_start.month % 12) + 1,
+                year=current_period_start.year +
+                int(current_period_start.month / 12))
         elif plan.interval == 'year':
-            current_period_end += timedelta(days=365)
+            current_period_end = current_period_start.replace(
+                year=current_period_start.year + 1)
         self.current_period_start = int(current_period_start.timestamp())
         self.current_period_end = int(current_period_end.timestamp())
         self.start = self.current_period_start
