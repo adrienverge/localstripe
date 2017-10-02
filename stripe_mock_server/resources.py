@@ -778,6 +778,9 @@ class Subscription(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
+        if len(items) != 1:
+            raise UserError(500, 'Not implemented')
+
         Customer._api_retrieve(customer)  # to return 404 if not existant
         plan = Plan._api_retrieve(items[0]['plan'])
 
@@ -797,6 +800,14 @@ class Subscription(StripeObject):
         self.trial_end = None
         self.trial_start = None
 
+        self._set_up_subscription_and_invoice(plan)
+        self.start = self.current_period_start
+
+    @property
+    def plan(self):
+        return self.items._list[0].plan
+
+    def _set_up_subscription_and_invoice(self, plan):
         current_period_start = datetime.now()
         current_period_end = current_period_start
         if plan.interval == 'day':
@@ -813,25 +824,26 @@ class Subscription(StripeObject):
                 year=current_period_start.year + 1)
         self.current_period_start = int(current_period_start.timestamp())
         self.current_period_end = int(current_period_end.timestamp())
-        self.start = self.current_period_start
 
         self.items = List('/v1/subscription_items?subscription=' + self.id)
-        # TODO: handle more than one subscription item
         self.items._list.append(
-            SubscriptionItem(subscription=self.id,
-                             plan=items[0]['plan'],
-                             quantity=items[0]['quantity']))
+            SubscriptionItem(subscription=self.id, plan=plan.id, quantity=1))
+
+        subtotal = self.items._list[0].plan.amount
+        # Get previous invoice for this subscription and customer, and
+        # deduce what is already paid:
+        # TODO: Better not to use limit, but take date into account
+        previous = Invoice._api_list_all(None, customer=self.customer,
+                                         subscription=self.id, limit=1)
+        if len(previous._list):
+            subtotal = max(0, subtotal - previous._list[0].subtotal)
 
         # Create associated invoice
         Invoice(customer=self.customer,
                 subscription=self.id,
-                subtotal=self.items._list[0].plan.amount,
+                subtotal=subtotal,
                 tax_percent=self.tax_percent,
                 date=self.current_period_start)
-
-    @property
-    def plan(self):
-        return self.items._list[0].plan
 
     def _update(self, metadata=None, items=None, tax_percent=None):
         tax_percent = try_convert_to_float(tax_percent)
@@ -855,19 +867,12 @@ class Subscription(StripeObject):
 
         if tax_percent is not None:
             self.tax_percent = tax_percent
-        if items is not None:
-            for item in items:
-                id = item.get('id', None)
-                plan = item.get('plan', None)
-                quantity = try_convert_to_int(item.get('quantity', None))
-                if id is not None:
-                    si = SubscriptionItem._api_retrieve(id)
-                    if plan is not None:
-                        si.plan = Plan._api_retrieve(plan)
-                    if quantity is not None:
-                        si.quantity = quantity
-                else:  # TODO: handle more than one subscription item
-                    pass
+
+        if items is None or len(items) != 1 or not items[0]['plan']:
+            raise UserError(500, 'Not implemented')
+
+        plan = Plan._api_retrieve(items[0]['plan'])
+        self._set_up_subscription_and_invoice(plan)
 
     @classmethod
     def _api_list_all(cls, url, customer=None, limit=None):
