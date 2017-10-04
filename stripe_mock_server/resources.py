@@ -385,8 +385,9 @@ class Invoice(StripeObject):
     _id_prefix = 'in_'
 
     def __init__(self, customer=None, subscription=None, metadata=None,
-                 subtotal=None, tax_percent=None, date=None, upcoming=False):
-        subtotal = try_convert_to_int(subtotal)
+                 first_item_amount=None, tax_percent=None, date=None,
+                 upcoming=False):
+        first_item_amount = try_convert_to_int(first_item_amount)
         tax_percent = try_convert_to_float(tax_percent)
         date = try_convert_to_int(date)
         try:
@@ -394,7 +395,7 @@ class Invoice(StripeObject):
             if subscription is not None:
                 assert type(subscription) is str
                 assert subscription.startswith('sub_')
-            assert type(subtotal) is int and subtotal >= 0
+            assert type(first_item_amount) is int and first_item_amount >= 0
             assert type(tax_percent) is float
             assert tax_percent >= 0 and tax_percent <= 100
             if date is not None:
@@ -415,7 +416,6 @@ class Invoice(StripeObject):
 
         self.customer = customer
         self.subscription = subscription
-        self.subtotal = subtotal
         self.tax_percent = tax_percent
         self.date = date
         self.metadata = metadata or {}
@@ -443,10 +443,21 @@ class Invoice(StripeObject):
 
         self.lines = List('/v1/invoices/' + self.id + '/lines')
         self.lines._list.append(
-            InvoiceItem(invoice=self.id, amount=self.subtotal,
+            InvoiceItem(invoice=self.id, amount=first_item_amount,
                         currency=self.currency, customer=self.customer))
 
+        pending_items = [ii for ii in InvoiceItem._api_list_all(
+            None, customer=self.customer, limit=99)._list
+            if ii.invoice is None]
+        for ii in pending_items:
+            ii.invoice = self.id
+            self.lines._list.append(ii)
+
         self._upcoming = upcoming
+
+    @property
+    def subtotal(self):
+        return sum([ii.amount for ii in self.lines._list])
 
     @property
     def tax(self):
@@ -563,7 +574,7 @@ class Invoice(StripeObject):
         elif not simulation and current_subscription:
             invoice = cls(customer=customer,
                           subscription=current_subscription.id,
-                          subtotal=subtotal,
+                          first_item_amount=subtotal,
                           tax_percent=tax_percent,
                           date=date,
                           upcoming=True)
@@ -582,7 +593,7 @@ class Invoice(StripeObject):
                     subtotal = max(0, subtotal - previous_invoice.subtotal)
 
             invoice = cls(customer=customer,
-                          subtotal=subtotal,
+                          first_item_amount=subtotal,
                           tax_percent=tax_percent,
                           date=date,
                           upcoming=True)
@@ -866,7 +877,7 @@ class Subscription(StripeObject):
         # Create associated invoice
         Invoice(customer=self.customer,
                 subscription=self.id,
-                subtotal=subtotal,
+                first_item_amount=subtotal,
                 tax_percent=self.tax_percent,
                 date=self.current_period_start)
 
