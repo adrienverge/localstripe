@@ -618,13 +618,17 @@ class InvoiceItem(StripeObject):
     _id_prefix = 'ii_'
 
     def __init__(self, invoice=None, amount=None, currency=None,
-                 customer=None, metadata=None):
+                 customer=None, description=None, metadata=None):
         try:
             if invoice is not None:
                 assert type(invoice) is str and invoice.startswith('in_')
             assert type(amount) is int
             assert type(currency) is str and currency
             assert type(customer) is str and customer.startswith('cus_')
+            if description is not None:
+                assert type(description) is str
+            else:
+                description = 'Invoice item'
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -639,7 +643,7 @@ class InvoiceItem(StripeObject):
         self.currency = currency
         self.customer = customer
         self.date = int(time.time())
-        self.description = 'Invoice item'
+        self.description = description
         self.period = dict(start=int(time.time()), end=int(time.time()))
         self.invoice = invoice
         self.metadata = metadata or {}
