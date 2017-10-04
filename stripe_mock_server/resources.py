@@ -619,6 +619,7 @@ class InvoiceItem(StripeObject):
 
     def __init__(self, invoice=None, amount=None, currency=None,
                  customer=None, description=None, metadata=None):
+        amount = try_convert_to_int(amount)
         try:
             if invoice is not None:
                 assert type(invoice) is str and invoice.startswith('in_')
