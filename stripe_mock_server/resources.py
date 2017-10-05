@@ -93,7 +93,7 @@ class StripeObject(object):
             else:
                 self.id = id
 
-                self.created = int(time.time())
+            self.created = int(time.time())
 
             self.livemode = False
 
@@ -768,6 +768,9 @@ class Refund(StripeObject):
         self.charge = charge
         self.metadata = metadata or {}
         self.amount = amount
+        self.date = self.created
+        self.currency = charge_obj.currency
+        self.status = 'succeeded'
 
         if self.amount is None:
             self.amount = charge_obj.amount
