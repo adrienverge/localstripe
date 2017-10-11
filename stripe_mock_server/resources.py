@@ -482,7 +482,7 @@ class Invoice(StripeObject):
 
     @property
     def charge(self):
-        if self._charge is None and not self._upcoming:
+        if self._charge is None and not self._upcoming and self.total > 0:
             customer_obj = Customer._api_retrieve(self.customer)
             charge_obj = Charge(amount=self.total, currency=self.currency,
                                 source=customer_obj.default_source)
