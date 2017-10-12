@@ -884,12 +884,17 @@ class Subscription(StripeObject):
                 tax_percent=self.tax_percent,
                 date=self.current_period_start)
 
-    def _update(self, metadata=None, items=None, tax_percent=None):
+    def _update(self, metadata=None, items=None, tax_percent=None,
+                proration_date=None):
         tax_percent = try_convert_to_float(tax_percent)
+        proration_date = try_convert_to_int(proration_date)
         try:
             if tax_percent is not None:
                 assert type(tax_percent) is float
                 assert tax_percent >= 0 and tax_percent <= 100
+            if proration_date is not None:
+                assert type(proration_date) is int
+                assert proration_date > 1500000000
             if items is not None:
                 assert type(items) is list
                 for item in items:
