@@ -227,7 +227,7 @@ def start():
 
     PORT = args.port
 
-    app.run(port=args.port, debug=True)
+    app.run(host='0.0.0.0', port=args.port, debug=True)
 
 
 if __name__ == '__main__':
