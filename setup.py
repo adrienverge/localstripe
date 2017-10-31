@@ -33,5 +33,6 @@ setup(
     },
     install_requires=[
         'Flask >=0.11.1',
+        'python-dateutil >=2.6.1',
     ],
 )
