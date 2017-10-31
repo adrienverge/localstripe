@@ -20,6 +20,8 @@ import random
 import string
 import time
 
+from dateutil.relativedelta import relativedelta
+
 from .errors import UserError
 
 
@@ -854,15 +856,9 @@ class Subscription(StripeObject):
         elif plan.interval == 'week':
             current_period_end += timedelta(days=7)
         elif plan.interval == 'month':
-            current_period_end = current_period_start.replace(
-                month=(current_period_start.month % 12) + 1,
-                year=current_period_start.year +
-                int(current_period_start.month / 12))
+            current_period_end += relativedelta(months=1)
         elif plan.interval == 'year':
-            current_period_end = current_period_start.replace(
-                year=current_period_start.year + 1)
-        self.current_period_start = int(current_period_start.timestamp())
-        self.current_period_end = int(current_period_end.timestamp())
+            current_period_end += relativedelta(years=1)
 
         self.items = List('/v1/subscription_items?subscription=' + self.id)
         self.items._list.append(
