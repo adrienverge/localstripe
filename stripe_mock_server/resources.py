@@ -128,10 +128,10 @@ class StripeObject(object):
 
     @classmethod
     def _api_list_all(cls, url, limit=None):
-        l = List(url, limit=limit)
-        l._list = [value for key, value in store.items()
-                   if key.startswith(cls.object + ':')]
-        return l
+        li = List(url, limit=limit)
+        li._list = [value for key, value in store.items()
+                    if key.startswith(cls.object + ':')]
+        return li
 
     def _update(self, **data):
         # Do not modify object during checks -> do two loops
@@ -501,16 +501,16 @@ class Invoice(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        l = super(Invoice, cls)._api_list_all(url, limit=limit)
+        li = super(Invoice, cls)._api_list_all(url, limit=limit)
         if customer is not None:
             Customer._api_retrieve(customer)  # to return 404 if not existant
-            l._list = [i for i in l._list if i.customer == customer]
+            li._list = [i for i in li._list if i.customer == customer]
         if subscription is not None:
             # to return 404 if not existant
             Subscription._api_retrieve(subscription)
-            l._list = [i for i in l._list if i.subscription == subscription]
-        l._list.sort(key=lambda i: i.date, reverse=True)
-        return l
+            li._list = [i for i in li._list if i.subscription == subscription]
+        li._list.sort(key=lambda i: i.date, reverse=True)
+        return li
 
     @classmethod
     def _api_upcoming_invoice(cls, customer=None, coupon=None,
@@ -542,10 +542,10 @@ class Invoice(StripeObject):
             subscription_trial_end is not None
 
         current_subscription = None
-        l = [s for s in customer_obj.subscriptions._list
-             if subscription is None or s.id == subscription]
-        if len(l):
-            current_subscription = l[0]
+        li = [s for s in customer_obj.subscriptions._list
+              if subscription is None or s.id == subscription]
+        if len(li):
+            current_subscription = li[0]
         elif subscription is not None:
             raise UserError(404, 'No such subscription for customer')
 
@@ -668,13 +668,13 @@ class InvoiceItem(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        l = super(InvoiceItem, cls)._api_list_all(url, limit=limit)
-        l._list = [ii for ii in l._list if ii.invoice is None]
+        li = super(InvoiceItem, cls)._api_list_all(url, limit=limit)
+        li._list = [ii for ii in li._list if ii.invoice is None]
         if customer is not None:
             Customer._api_retrieve(customer)  # to return 404 if not existant
-            l._list = [ii for ii in l._list if ii.customer == customer]
-        l._list.sort(key=lambda i: i.date, reverse=True)
-        return l
+            li._list = [ii for ii in li._list if ii.customer == customer]
+        li._list.sort(key=lambda i: i.date, reverse=True)
+        return li
 
 
 class List(StripeObject):
@@ -783,12 +783,12 @@ class Refund(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        l = super(Refund, cls)._api_list_all(url, limit=limit)
+        li = super(Refund, cls)._api_list_all(url, limit=limit)
         if charge is not None:
             Charge._api_retrieve(charge)  # to return 404 if not existant
-            l._list = [r for r in l._list if r.charge == charge]
-        l._list.sort(key=lambda i: i.date, reverse=True)
-        return l
+            li._list = [r for r in li._list if r.charge == charge]
+        li._list.sort(key=lambda i: i.date, reverse=True)
+        return li
 
 
 class Subscription(StripeObject):
@@ -926,12 +926,12 @@ class Subscription(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        l = super(Subscription, cls)._api_list_all(url, limit=limit)
+        li = super(Subscription, cls)._api_list_all(url, limit=limit)
         if customer is not None:
             Customer._api_retrieve(customer)  # to return 404 if not existant
-            l._list = [invoice for invoice in l._list
-                       if invoice.customer == customer]
-        return l
+            li._list = [invoice for invoice in li._list
+                        if invoice.customer == customer]
+        return li
 
 
 class SubscriptionItem(StripeObject):
