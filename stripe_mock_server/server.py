@@ -19,6 +19,7 @@ import os.path
 import re
 
 import flask
+from werkzeug.exceptions import BadRequest
 
 from .resources import Card, Charge, Coupon, Customer, Invoice, InvoiceItem, \
                        Plan, Refund, Subscription, SubscriptionItem, Token, \
@@ -52,7 +53,7 @@ def after_request(response):
 def get_post_data():
     try:
         return flask.request.get_json(force=True)
-    except:
+    except BadRequest:
         return flask.request.form.to_dict()
 
 
