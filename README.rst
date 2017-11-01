@@ -170,7 +170,7 @@ To quickly run stripe_mock_server from source:
 .. code:: shell
 
  python3 setup.py sdist
- pip3 install --user dist/stripe_mock_server-0.0.1.tar.gz
+ pip3 install --user --upgrade dist/stripe_mock_server-*.tar.gz
  stripe_mock_server
 
 License
