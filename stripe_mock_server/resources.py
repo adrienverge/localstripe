@@ -859,6 +859,8 @@ class Subscription(StripeObject):
             current_period_end += relativedelta(months=1)
         elif plan.interval == 'year':
             current_period_end += relativedelta(years=1)
+        self.current_period_start = int(current_period_start.timestamp())
+        self.current_period_end = int(current_period_end.timestamp())
 
         self.items = List('/v1/subscription_items?subscription=' + self.id)
         self.items._list.append(
