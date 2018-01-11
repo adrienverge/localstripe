@@ -140,6 +140,14 @@ class StripeObject(object):
         for key, value in data.items():
             if key.startswith('_') or not hasattr(self, key):
                 raise UserError(400, 'Bad request')
+        # Treat metadata differently: do not delete absent fields
+        metadata = data.pop('metadata', None)
+        if metadata:
+            if type(metadata) is not dict:
+                raise UserError(400, 'Bad request')
+            self.metadata = self.metadata or {}
+            for key, value in metadata.items():
+                self.metadata[key] = value
         for key, value in data.items():
             setattr(self, key, value)
 
