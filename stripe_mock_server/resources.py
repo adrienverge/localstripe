@@ -270,13 +270,23 @@ class Charge(StripeObject):
             raise UserError(400, 'Bad request')
 
         if source is not None:
-            card_obj = Card._api_retrieve(source)
-            customer = card_obj._customer
+            card = Card._api_retrieve(source)
+            customer = card._customer
         else:
             customer_obj = Customer._api_retrieve(customer)
-            source = customer_obj.default_source
-            if source is None:
+            if customer_obj.default_source is None:
                 raise UserError(404, 'This customer has no source')
+            card = Card._api_retrieve(customer_obj.default_source)
+
+        decline = {
+            '4000000000000002': 'card_declined',
+            '4000000000000127': 'incorrect_cvc',
+            '4000000000000069': 'expired_card',
+            '4000000000000119': 'processing_error',
+            '4242424242424241': 'incorrect_number',
+        }.get(card._number, None)
+        if decline:
+            raise UserError(402, 'Your card was declined.', {'code': decline})
 
         # All exceptions must be raised before this point.
         super().__init__()
