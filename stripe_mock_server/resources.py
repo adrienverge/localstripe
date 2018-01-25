@@ -125,8 +125,10 @@ class StripeObject(object):
 
     @classmethod
     def _api_delete(cls, id):
-        # TODO
-        pass
+        key = cls.object + ':' + id
+        if key not in store.keys():
+            raise UserError(404, 'Not Found')
+        del store[key]
 
     @classmethod
     def _api_list_all(cls, url, limit=None):
@@ -897,12 +899,16 @@ class Subscription(StripeObject):
         for previous_invoice in previous._list:
             subtotal = max(0, subtotal - previous_invoice.subtotal)
 
-        # Create associated invoice
-        Invoice(customer=self.customer,
-                subscription=self.id,
-                first_item_amount=subtotal,
-                tax_percent=self.tax_percent,
-                date=self.current_period_start)
+        try:
+            # Create associated invoice
+            Invoice(customer=self.customer,
+                    subscription=self.id,
+                    first_item_amount=subtotal,
+                    tax_percent=self.tax_percent,
+                    date=self.current_period_start)
+        except UserError as e:
+            Subscription._api_delete(self.id)
+            raise e
 
     def _update(self, metadata=None, items=None, tax_percent=None,
                 proration_date=None):
