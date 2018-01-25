@@ -279,7 +279,8 @@ class Charge(StripeObject):
             card = Card._api_retrieve(customer_obj.default_source)
 
         decline = {
-            '4000000000000002': 'card_declined',
+            '4000000000000002': 'card_declined',  # fails when adding card
+            '4000000000000341': 'card_declined',  # fails only at payment
             '4000000000000127': 'incorrect_cvc',
             '4000000000000069': 'expired_card',
             '4000000000000119': 'processing_error',
