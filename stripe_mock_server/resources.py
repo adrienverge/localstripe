@@ -465,6 +465,9 @@ class Invoice(StripeObject):
 
         self._upcoming = upcoming
 
+        if not self._upcoming:
+            self.charge  # trigger creation of charge
+
     @property
     def subtotal(self):
         return sum([ii.amount for ii in self.lines._list])
