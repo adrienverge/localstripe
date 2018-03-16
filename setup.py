@@ -32,7 +32,7 @@ setup(
         'localstripe': ['fake-stripe-v3.js'],
     },
     install_requires=[
-        'Flask >=0.11.1',
+        'aiohttp >=2.3.0',
         'python-dateutil >=2.6.1',
     ],
 )

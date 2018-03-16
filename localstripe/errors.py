@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import flask
+from aiohttp import web
 
 
 class UserError(Exception):
@@ -26,7 +26,5 @@ class UserError(Exception):
         if message is not None:
             self.body['error']['message'] = message
 
-    def to_flask_response(self):
-        response = flask.jsonify(self.body)
-        response.status_code = self.code
-        return response
+    def to_response(self):
+        return web.json_response(self.body, status=self.code)
