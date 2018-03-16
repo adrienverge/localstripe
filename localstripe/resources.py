@@ -400,7 +400,7 @@ class Customer(StripeObject):
 
 
 extra_apis.append(
-    ('POST', '/v1/customers/<string:id>/sources', Customer._api_add_source))
+    ('POST', '/v1/customers/{id}/sources', Customer._api_add_source))
 
 
 class Invoice(StripeObject):
@@ -647,7 +647,7 @@ class Invoice(StripeObject):
 
 extra_apis.extend((
     ('GET', '/v1/invoices/upcoming', Invoice._api_upcoming_invoice),
-    ('POST', '/v1/invoices/<string:id>/pay', Invoice._api_pay_invoice)))
+    ('POST', '/v1/invoices/{id}/pay', Invoice._api_pay_invoice)))
 
 
 class InvoiceItem(StripeObject):
