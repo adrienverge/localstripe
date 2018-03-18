@@ -21,4 +21,4 @@ if sys.version_info < (3, 0):
     raise RuntimeError('Please run with Python 3')
 
 __author__ = 'Adrien Vergé'
-__version__ = '0.1.8'
+__version__ = '1.0.0'
