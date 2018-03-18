@@ -7,6 +7,6 @@ python:
 install:
   - pip install flake8 flake8-import-order
   - python setup.py sdist
-  - pip install dist/stripe_mock_server-*.tar.gz
+  - pip install dist/localstripe-*.tar.gz
 script:
   - flake8 .

@@ -27,7 +27,7 @@ from .resources import Card, Charge, Coupon, Customer, Invoice, InvoiceItem, \
 from .errors import UserError
 
 
-app = flask.Flask('stripe_mock_server')
+app = flask.Flask('localstripe')
 
 
 @app.errorhandler(UserError)

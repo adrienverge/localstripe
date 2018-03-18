@@ -1,14 +1,16 @@
-stripe_mock_server
-==================
+localstripe
+===========
 
-*A fake but stateful Stripe server that you can run locally*
+*A fake but stateful Stripe server that you can run locally, for testing
+purposes.*
 
 This is a program that you can launch to simulate a Stripe server locally,
 without touching real Stripe servers nor the Internet.
 
-Unlike other mock projects, stripe_mock_server is *stateful*: it keeps track
-of the actions performed (creating a customer, adding a card, etc.) so that
-these actions have an impact on the next queries.
+Unlike other test/mock software like `stripe-mock
+<https://github.com/stripe/stripe-mock>`_, localstripe is *stateful*: it keeps
+track of the actions performed (creating a customer, adding a card, etc.) so
+that these actions have an impact on the next queries.
 
 The goal is to have a ready-to-use mock server for end-to-end testing any
 application.
@@ -16,14 +18,26 @@ application.
 Features
 --------
 
-- **works with any language**: stripe_mock_server is not a library that you
-  include, but a real server that you can query at http://localhost:8420, using
+- **works with any language**: localstripe is not a library that you include,
+  but a real server that you can query at ``http://localhost:8420``, using
   regular Stripe API requests
 - **stateful**: if you create a Stripe object (let's say, a customer), you will
   get it back on future requests
-- **integrates with Stripe Elements**: stripe_mock_server includes a JavaScript
-  file that can mock Stripe Elements on any webpage, allowing you to create
-  tokens on the fake server, from your webpage
+- **integrates with Stripe Elements**: localstripe includes a JavaScript file
+  that can mock Stripe Elements on any webpage, allowing you to create tokens on
+  the fake server, from your webpage
+
+Get started
+-----------
+
+Install localstripe:
+
+.. code:: shell
+
+ sudo pip3 install localstripe
+
+Then simply run the command ``localstripe``. The fake Stripe server is now
+listening on port 8420.
 
 Examples
 --------
@@ -119,18 +133,6 @@ Now if you retrieve that customer again, it has an associated subscription:
    ...
  }
 
-Get started
------------
-
-Install stripe_mock_server:
-
-.. code:: shell
-
- sudo pip3 install stripe_mock_server
-
-Then simply run the command ``stripe_mock_server``. The fake Stripe server is
-now listening on port 8420.
-
 Integrate with your back-end
 ----------------------------
 
@@ -165,13 +167,13 @@ JavaScript source in the web page before it creates card elements:
 Hacking and contributing
 ------------------------
 
-To quickly run stripe_mock_server from source:
+To quickly run localstripe from source:
 
 .. code:: shell
 
  python3 setup.py sdist
- pip3 install --user --upgrade dist/stripe_mock_server-*.tar.gz
- stripe_mock_server
+ pip3 install --user --upgrade dist/localstripe-*.tar.gz
+ localstripe
 
 License
 -------

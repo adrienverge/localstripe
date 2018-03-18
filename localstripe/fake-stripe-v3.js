@@ -21,11 +21,11 @@
 
   for (var i = 0; i < iframes.length; i++) {
     if (iframes[i].getAttribute('name').startsWith('__privateStripeFrame')) {
-      console.log('stripe_mock_server: Stripe seems to be already used in ' +
-                  'page (found a <iframe name="' +
-                  iframes[i].getAttribute('name') + '"> in document). For the' +
-                  ' mock service to work, you need to include its JavaScript ' +
-                  'library *before* creating Stripe elements in the page.');
+      console.log('localstripe: Stripe seems to be already used in page ' +
+                  '(found a <iframe name="' + iframes[i].getAttribute('name') +
+                  '"> in document). For the mock service to work, you need to' +
+                  ' include its JavaScript library *before* creating Stripe ' +
+                  'elements in the page.');
       //var fakeInput = document.createElement('input');
       //fakeInput.setAttribute('type', 'text');
       //fakeInput.setAttribute('value', 'coucou toi');
@@ -98,13 +98,13 @@ Stripe = (apiKey) => {
     elements: () => {
       return {
         create: (type, options) => {
-          console.log('stripe_mock_server: Stripe().elements().create()');
+          console.log('localstripe: Stripe().elements().create()');
           return new Element();
         },
       };
     },
     createToken: (card) => {
-      console.log('stripe_mock_server: Stripe().createToken()');
+      console.log('localstripe: Stripe().createToken()');
       return new Promise(resolve => {
         const req = new XMLHttpRequest();
         req.onerror = event => {
@@ -131,7 +131,7 @@ Stripe = (apiKey) => {
           body.push('card[' + field + ']=' + card.value[field]);
         });
         body.push('key=' + apiKey);
-        body.push('payment_user_agent=stripe_mock_server');
+        body.push('payment_user_agent=localstripe');
         body = body.join('&');
 
         req.open('POST', 'http://localhost:{{ PORT }}/v1/tokens', true);
@@ -145,6 +145,6 @@ Stripe = (apiKey) => {
   };
 };
 
-console.log('stripe_mock_server: The Stripe object was just replaced in the ' +
-            'page. Stripe elements created from now on will be fake ones, ' +
+console.log('localstripe: The Stripe object was just replaced in the page. ' +
+            'Stripe elements created from now on will be fake ones, ' +
             'communicating with the mock server.');

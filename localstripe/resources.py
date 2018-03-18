@@ -31,7 +31,7 @@ class Store(dict):
 
     def try_load_from_disk(self):
         try:
-            with open('/tmp/stripe_mock_server.pickle', 'rb') as f:
+            with open('/tmp/localstripe.pickle', 'rb') as f:
                 old = pickle.load(f)
                 self.clear()
                 self.update(old)
@@ -39,7 +39,7 @@ class Store(dict):
             pass
 
     def dump_to_disk(self):
-        with open('/tmp/stripe_mock_server.pickle', 'wb') as f:
+        with open('/tmp/localstripe.pickle', 'wb') as f:
             pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     def __setitem__(self, *args, **kwargs):

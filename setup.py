@@ -16,20 +16,20 @@
 
 from setuptools import setup
 
-from stripe_mock_server import __author__, __version__
+from localstripe import __author__, __version__
 
 
 setup(
-    name='stripe_mock_server',
+    name='localstripe',
     version=__version__,
     author=__author__,
-    url='https://github.com/tolteck/stripe_mock_server',
+    url='https://github.com/adrienverge/localstripe',
 
-    packages=['stripe_mock_server'],
+    packages=['localstripe'],
     entry_points={'console_scripts':
-                  ['stripe_mock_server=stripe_mock_server.server:start']},
+                  ['localstripe=localstripe.server:start']},
     package_data={
-        'stripe_mock_server': ['fake-stripe-v3.js'],
+        'localstripe': ['fake-stripe-v3.js'],
     },
     install_requires=[
         'Flask >=0.11.1',
