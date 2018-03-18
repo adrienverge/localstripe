@@ -24,6 +24,8 @@ setup(
     version=__version__,
     author=__author__,
     url='https://github.com/adrienverge/localstripe',
+    description=('A fake but stateful Stripe server that you can run locally, '
+                 'for testing purposes.'),
 
     packages=['localstripe'],
     entry_points={'console_scripts':
