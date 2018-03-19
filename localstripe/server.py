@@ -29,6 +29,13 @@ from .resources import Card, Charge, Coupon, Customer, Invoice, InvoiceItem, \
 from .errors import UserError
 
 
+def json_response(*args, **kwargs):
+    return web.json_response(
+        *args,
+        dumps=lambda x: json.dumps(x, indent=2, sort_keys=True) + '\n',
+        **kwargs)
+
+
 async def add_cors_headers(request, response):
     origin = request.headers.get('Origin')
     if origin:
@@ -161,7 +168,7 @@ def api_create(cls, url):
         data = await get_post_data(request)
         if not data:
             raise UserError(400, 'Bad request')
-        return web.json_response(cls._api_create(**data)._export())
+        return json_response(cls._api_create(**data)._export())
     return f
 
 
@@ -169,7 +176,7 @@ def api_retrieve(cls, url):
     def f(request):
         id = request.match_info['id']
         data = unflatten_data(request.query)
-        return web.json_response(cls._api_retrieve(id, **data)._export())
+        return json_response(cls._api_retrieve(id, **data)._export())
     return f
 
 
@@ -179,21 +186,21 @@ def api_update(cls, url):
         data = await get_post_data(request)
         if not data:
             raise UserError(400, 'Bad request')
-        return web.json_response(cls._api_update(id, **data)._export())
+        return json_response(cls._api_update(id, **data)._export())
     return f
 
 
 def api_delete(cls, url):
     def f(request):
         id = request.match_info['id']
-        return web.json_response(cls._api_delete(id)._export())
+        return json_response(cls._api_delete(id)._export())
     return f
 
 
 def api_list_all(cls, url):
     def f(request):
         data = unflatten_data(request.query)
-        return web.json_response(cls._api_list_all(url, **data)._export())
+        return json_response(cls._api_list_all(url, **data)._export())
     return f
 
 
@@ -203,7 +210,7 @@ def api_extra(func, url):
         data.update(unflatten_data(request.query) or {})
         if 'id' in request.match_info:
             data['id'] = request.match_info['id']
-        return web.json_response(func(**data)._export())
+        return json_response(func(**data)._export())
     return f
 
 

@@ -14,7 +14,16 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import json
+
 from aiohttp import web
+
+
+def json_response(*args, **kwargs):
+    return web.json_response(
+        *args,
+        dumps=lambda x: json.dumps(x, indent=2, sort_keys=True) + '\n',
+        **kwargs)
 
 
 class UserError(Exception):
@@ -27,4 +36,4 @@ class UserError(Exception):
             self.body['error']['message'] = message
 
     def to_response(self):
-        return web.json_response(self.body, status=self.code)
+        return json_response(self.body, status=self.code)
