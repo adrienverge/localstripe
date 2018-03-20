@@ -420,9 +420,8 @@ class Invoice(StripeObject):
     _id_prefix = 'in_'
 
     def __init__(self, customer=None, subscription=None, metadata=None,
-                 first_item_amount=None, tax_percent=None, date=None,
+                 items=[], tax_percent=None, date=None,
                  upcoming=False):
-        first_item_amount = try_convert_to_int(first_item_amount)
         tax_percent = try_convert_to_float(tax_percent)
         date = try_convert_to_int(date)
         try:
@@ -430,7 +429,6 @@ class Invoice(StripeObject):
             if subscription is not None:
                 assert type(subscription) is str
                 assert subscription.startswith('sub_')
-            assert type(first_item_amount) is int and first_item_amount >= 0
             assert type(tax_percent) is float
             assert tax_percent >= 0 and tax_percent <= 100
             if date is not None:
@@ -477,9 +475,9 @@ class Invoice(StripeObject):
         self._charge = None
 
         self.lines = List('/v1/invoices/' + self.id + '/lines')
-        self.lines._list.append(
-            InvoiceItem(invoice=self.id, amount=first_item_amount,
-                        currency=self.currency, customer=self.customer))
+        for item in items:
+            item.invoice = self.id
+            self.lines._list.append(item)
 
         pending_items = [ii for ii in InvoiceItem._api_list_all(
             None, customer=self.customer, limit=99)._list
@@ -489,6 +487,7 @@ class Invoice(StripeObject):
             self.lines._list.append(ii)
 
         self._upcoming = upcoming
+        self._refunded_by_proration = False
 
         if not self._upcoming:
             self.charge  # trigger creation of charge
@@ -587,14 +586,18 @@ class Invoice(StripeObject):
         elif subscription is not None:
             raise UserError(404, 'No such subscription for customer')
 
-        subtotal = 0
-        if subscription_items is not None:
-            for si in subscription_items:
+        invoice_items = []
+        items = subscription_items or \
+            (current_subscription and current_subscription.items._list) or []
+        for si in items:
+            if subscription_items is not None:
                 plan = Plan._api_retrieve(si['plan'])
-                subtotal += plan.amount
-        elif current_subscription:
-            for si in current_subscription.items._list:
-                subtotal += si.plan.amount
+            else:
+                plan = si.plan
+            invoice_items.append(
+                InvoiceItem(subscription=subscription, plan=plan.id,
+                            amount=plan.amount, currency=plan.currency,
+                            description=plan.name, customer=customer))
 
         tax_percent = 0.0
         if subscription_tax_percent is not None:
@@ -612,7 +615,7 @@ class Invoice(StripeObject):
         elif not simulation and current_subscription:
             invoice = cls(customer=customer,
                           subscription=current_subscription.id,
-                          first_item_amount=subtotal,
+                          items=invoice_items,
                           tax_percent=tax_percent,
                           date=date,
                           upcoming=True)
@@ -628,10 +631,16 @@ class Invoice(StripeObject):
                                              subscription=subscription,
                                              limit=99)
                 for previous_invoice in previous._list:
-                    subtotal = max(0, subtotal - previous_invoice.subtotal)
+                    invoice_items.append(
+                        InvoiceItem(amount=- previous_invoice.subtotal,
+                                    currency=previous_invoice.currency,
+                                    description='Unused time',
+                                    customer=customer,
+                                    period_start=previous_invoice.period_start,
+                                    period_end=previous_invoice.period_end))
 
             invoice = cls(customer=customer,
-                          first_item_amount=subtotal,
+                          items=invoice_items,
                           tax_percent=tax_percent,
                           date=date,
                           upcoming=True)
@@ -666,15 +675,30 @@ class InvoiceItem(StripeObject):
     object = 'invoiceitem'
     _id_prefix = 'ii_'
 
-    def __init__(self, invoice=None, amount=None, currency=None,
-                 customer=None, description=None, metadata=None):
+    def __init__(self, invoice=None, subscription=None, plan=None, amount=None,
+                 currency=None, customer=None, period_start=None,
+                 period_end=None, proration=False, description=None,
+                 metadata=None):
         amount = try_convert_to_int(amount)
+        period_start = try_convert_to_int(period_start)
+        period_end = try_convert_to_int(period_end)
         try:
             if invoice is not None:
                 assert type(invoice) is str and invoice.startswith('in_')
+            if subscription is not None:
+                assert type(subscription) is str
+                assert subscription.startswith('sub_')
+            if plan is not None:
+                assert type(plan) is str and plan
             assert type(amount) is int
             assert type(currency) is str and currency
             assert type(customer) is str and customer.startswith('cus_')
+            if period_start is not None:
+                assert type(period_start) is int and period_start > 1500000000
+                assert type(period_end) is int and period_end > 1500000000
+            else:
+                period_start = period_end = int(time.time())
+            assert type(proration) is bool
             if description is not None:
                 assert type(description) is str
             else:
@@ -685,17 +709,22 @@ class InvoiceItem(StripeObject):
         Customer._api_retrieve(customer)  # to return 404 if not existant
         if invoice is not None:
             Invoice._api_retrieve(invoice)  # to return 404 if not existant
+        if plan is not None:
+            plan = Plan._api_retrieve(plan)  # to return 404 if not existant
 
         # All exceptions must be raised before this point.
         super().__init__()
 
+        self.invoice = invoice
+        self.subscription = subscription
+        self.plan = plan
         self.amount = amount
         self.currency = currency
         self.customer = customer
         self.date = int(time.time())
+        self.period = dict(start=period_start, end=period_end)
+        self.proration = proration
         self.description = description
-        self.period = dict(start=int(time.time()), end=int(time.time()))
-        self.invoice = invoice
         self.metadata = metadata or {}
 
     @classmethod
@@ -902,20 +931,34 @@ class Subscription(StripeObject):
         self.items._list.append(
             SubscriptionItem(subscription=self.id, plan=plan.id, quantity=1))
 
-        subtotal = self.items._list[0].plan.amount
+        invoice_items = []
+        for si in self.items._list:
+            invoice_items.append(
+                InvoiceItem(subscription=self.id, plan=si.plan.id,
+                            amount=si.plan.amount, currency=si.plan.currency,
+                            description=si.plan.name, customer=self.customer,
+                            period_start=self.current_period_start,
+                            period_end=self.current_period_end))
+
         # Get previous invoice for this subscription and customer, and
         # deduce what is already paid:
         # TODO: Better not to use limit, but take date into account
         previous = Invoice._api_list_all(None, customer=self.customer,
                                          subscription=self.id, limit=99)
         for previous_invoice in previous._list:
-            subtotal = max(0, subtotal - previous_invoice.subtotal)
+            if not previous_invoice._refunded_by_proration:
+                previous_invoice._refunded_by_proration = True
+                invoice_items.append(
+                    InvoiceItem(amount=- previous_invoice.subtotal,
+                                currency=previous_invoice.currency,
+                                description='Unused time',
+                                customer=self.customer))
 
         try:
             # Create associated invoice
             Invoice(customer=self.customer,
                     subscription=self.id,
-                    first_item_amount=subtotal,
+                    items=invoice_items,
                     tax_percent=self.tax_percent,
                     date=self.current_period_start)
         except UserError as e:
@@ -987,10 +1030,12 @@ class SubscriptionItem(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
+        plan = Plan._api_retrieve(plan)  # to return 404 if not existant
+
         # All exceptions must be raised before this point.
         super().__init__()
 
-        self.plan = Plan._api_retrieve(plan)
+        self.plan = plan
         self.quantity = quantity
         self.metadata = metadata or {}
 

@@ -52,10 +52,18 @@ tok=$(curl -sSf $HOST/v1/tokens \
 curl -sSf -u $SK: $HOST/v1/customers/$cus/sources \
    -d source=$tok
 
+curl -sSf -u $SK: $HOST/v1/invoices?customer=$cus
+
+code=$(curl -s -o /dev/null -w "%{http_code}" -u $SK: \
+            $HOST/v1/invoices/upcoming?customer=$cus)
+[ "$code" = 404 ]
+
 sub=$(curl -sSf -u $SK: $HOST/v1/subscriptions \
          -d customer=$cus \
          -d items[0][plan]=basique-mensuel \
       | grep -oE 'sub_\w+' | head -n 1)
+
+curl -sSf -u $SK: $HOST/v1/invoices?customer=$cus
 
 curl -sSf -u $SK: $HOST/v1/invoices/upcoming?customer=$cus
 
