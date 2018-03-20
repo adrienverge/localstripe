@@ -169,7 +169,13 @@ JavaScript source in the web page before it creates card elements:
 Hacking and contributing
 ------------------------
 
-To quickly run localstripe from source:
+To quickly run localstripe from source, and reload when a file changed:
+
+.. code:: shell
+
+ find -name '*.py' | entr -r python3 -m localstripe
+
+To quickly build and run localstripe from source:
 
 .. code:: shell
 
