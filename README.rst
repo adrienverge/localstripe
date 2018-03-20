@@ -175,6 +175,34 @@ To quickly run localstripe from source:
  pip3 install --user --upgrade dist/localstripe-*.tar.gz
  localstripe
 
+Using docker container
+------------------------
+To download image, run ``docker pull kerak19/localstripe``.
+
+To run container, use ``docker run -p 8420:8420 -it --rm kerak19/localstripe``
+
+Now you can start making requests, for example: 
+``
+$ curl localhost:8420/v1/plans -u sk_test_12345:      -d id=pro-plan      -d amount=2500      -d currency=eur      -d interval=month      -d name="Plan for professionals"
+``
+Response:
+``
+{
+  "amount": 2500,
+  "created": 1521543338,
+  "currency": "eur",
+  "id": "pro-plan",
+  "interval": "month",
+  "interval_count": 1,
+  "livemode": false,
+  "metadata": {},
+  "name": "Plan for professionals",
+  "object": "plan",
+  "statement_descriptor": null,
+  "trial_period_days": null
+}
+``
+
 License
 -------
 
