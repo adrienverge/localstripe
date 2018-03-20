@@ -178,7 +178,9 @@ Register a webhook using the special ``/_config`` route:
       -d url=http://localhost:8888/api/url -d secret=whsec_s3cr3t
 
 Then, localstripe will send webhooks to this url. Only a few event types are
-currently supported (like ``invoice.create`` and ``invoice.payment_succeeded``).
+currently supported (these include ``customer.created``, ``customer.updated``,
+``customer.deleted``, ``customer.source.created``, ``invoice.created``,
+``invoice.payment_succeeded``).
 
 Hacking and contributing
 ------------------------

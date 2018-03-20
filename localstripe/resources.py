@@ -394,10 +394,24 @@ class Customer(StripeObject):
 
         self.sources = List('/v1/customers/' + self.id + '/sources')
 
+        schedule_webhook(Event('customer.created', self))
+
     @property
     def subscriptions(self):
         return Subscription._api_list_all(
             '/v1/customers/' + self.id + '/subscriptions', customer=self.id)
+
+    @classmethod
+    def _api_update(cls, id, **data):
+        obj = super()._api_update(id, **data)
+        schedule_webhook(Event('customer.updated', obj))
+        return obj
+
+    @classmethod
+    def _api_delete(cls, id):
+        obj = super()._api_retrieve(id)
+        schedule_webhook(Event('customer.deleted', obj))
+        return super()._api_delete(id)
 
     @classmethod
     def _api_add_source(cls, id, *args, **kwargs):
@@ -409,6 +423,8 @@ class Customer(StripeObject):
 
         if obj.default_source is None:
             obj.default_source = card.id
+
+        schedule_webhook(Event('customer.source.created', card))
 
         return card
 
