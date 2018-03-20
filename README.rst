@@ -34,6 +34,8 @@ Install localstripe:
 
 .. code:: shell
 
+ pip3 install --user -U localstripe
+ # or, to install globally:
  sudo pip3 install localstripe
 
 Then simply run the command ``localstripe``. The fake Stripe server is now
