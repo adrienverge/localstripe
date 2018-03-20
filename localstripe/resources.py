@@ -130,6 +130,7 @@ class StripeObject(object):
         if key not in store.keys():
             raise UserError(404, 'Not Found')
         del store[key]
+        return {"deleted": True, "id": id}
 
     @classmethod
     def _api_list_all(cls, url, limit=None):
