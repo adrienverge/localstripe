@@ -10,6 +10,11 @@ cus=$(curl -s -u $SK: $HOST/v1/customers \
           -d email=james.robinson@example.com \
       | grep -oE 'cus_\w+' | head -n 1)
 
+curl -s -u $SK: $HOST/v1/customers \
+     -d description='This customer is a company' \
+     -d email=foo@bar.com \
+     -d business_vat_id=FR1234567890
+
 curl -s -u $SK: $HOST/v1/plans \
    -d id=basique-mensuel \
    -d name='Abonnement basique (mensuel)' \

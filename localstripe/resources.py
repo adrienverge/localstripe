@@ -364,12 +364,24 @@ class Customer(StripeObject):
     object = 'customer'
     _id_prefix = 'cus_'
 
-    def __init__(self, description=None, email=None, metadata=None):
+    def __init__(self, description=None, email=None, business_vat_id=None,
+                 metadata=None):
+        try:
+            if description is not None:
+                assert type(description) is str
+            if email is not None:
+                assert type(email) is str
+            if business_vat_id is not None:
+                assert type(business_vat_id) is str
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
         # All exceptions must be raised before this point.
         super().__init__()
 
         self.description = description or ''
         self.email = email or ''
+        self.business_vat_id = business_vat_id
         self.metadata = metadata or {}
         self.account_balance = 0
         self.currency = 'eur'
