@@ -26,6 +26,7 @@ Features
 - **integrates with Stripe Elements**: localstripe includes a JavaScript file
   that can mock Stripe Elements on any webpage, allowing you to create tokens on
   the fake server, from your webpage
+- **supports webhooks** that you can customize using a special API route
 
 Get started
 -----------
@@ -165,6 +166,19 @@ JavaScript source in the web page before it creates card elements:
 .. code:: html
 
  <script src="http://localhost:8420/js.stripe.com/v3/"></script>
+
+Use webhooks
+------------
+
+Register a webhook using the special ``/_config`` route:
+
+.. code:: shell
+
+ curl localhost:8420/_config/webhooks/mywebhook1 \
+      -d url=http://localhost:8888/api/url -d secret=whsec_s3cr3t
+
+Then, localstripe will send webhooks to this url. Only a few event types are
+currently supported (like ``invoice.create`` and ``invoice.payment_succeeded``).
 
 Hacking and contributing
 ------------------------

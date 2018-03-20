@@ -23,6 +23,7 @@ import time
 from dateutil.relativedelta import relativedelta
 
 from .errors import UserError
+from .webhooks import schedule_webhook
 
 
 class Store(dict):
@@ -415,6 +416,23 @@ extra_apis.append(
     ('POST', '/v1/customers/{id}/sources', Customer._api_add_source))
 
 
+class Event(StripeObject):
+    object = 'event'
+    _id_prefix = 'evt_'
+
+    def __init__(self, type, data):
+        # All exceptions must be raised before this point.
+        super().__init__()
+
+        self.type = type
+        self.data = {'object': data._export()}
+        self.api_version = '2017-08-15'
+
+    @classmethod
+    def _api_create(cls, **data):
+        raise UserError(400, 'Bad request')
+
+
 class Invoice(StripeObject):
     object = 'invoice'
     _id_prefix = 'in_'
@@ -492,6 +510,8 @@ class Invoice(StripeObject):
         self._upcoming = False
 
         if not simulation:
+            schedule_webhook(Event('invoice.created', self))
+
             self.charge  # trigger creation of charge
 
     @property
@@ -526,6 +546,8 @@ class Invoice(StripeObject):
             charge_obj = Charge(amount=self.total, currency=self.currency,
                                 source=customer_obj.default_source)
             self._charge = charge_obj.id
+
+            schedule_webhook(Event('invoice.payment_succeeded', self))
 
         return self._charge
 

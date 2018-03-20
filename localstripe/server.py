@@ -27,6 +27,7 @@ from .resources import Card, Charge, Coupon, Customer, Invoice, InvoiceItem, \
                        Plan, Refund, Subscription, SubscriptionItem, Token, \
                        extra_apis, store
 from .errors import UserError
+from .webhooks import register_webhook
 
 
 def json_response(*args, **kwargs):
@@ -132,7 +133,10 @@ def get_api_key(request):
 
 @web.middleware
 async def auth_middleware(request, handler):
-    if request.path.startswith('/js.stripe.com'):
+    if request.path.startswith('/js.stripe.com/'):
+        is_auth = True
+
+    elif request.path.startswith('/_config/'):
         is_auth = True
 
     else:
@@ -242,6 +246,20 @@ def fake_stripe_js(request):
 
 
 app.router.add_get('/js.stripe.com/v3/', fake_stripe_js)
+
+
+async def config_webhook(request):
+    id = request.match_info['id']
+    data = await get_post_data(request) or {}
+    url = data.get('url', None)
+    secret = data.get('secret', None)
+    if not url or not secret or not url.startswith('http'):
+        raise UserError(400, 'Bad request')
+    register_webhook(id, url, secret)
+    return web.Response()
+
+
+app.router.add_post('/_config/webhooks/{id}', config_webhook)
 
 
 def start():
