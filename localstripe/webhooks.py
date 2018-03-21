@@ -37,7 +37,8 @@ def register_webhook(id, url, secret):
 
 
 async def _send_webhook(event):
-    payload = json.dumps(event._export()).encode('utf-8')
+    payload = json.dumps(event._export(), indent=2, sort_keys=True)
+    payload = payload.encode('utf-8')
     signed_payload = b'%d.%s' % (event.created, payload)
 
     await asyncio.sleep(1)
@@ -48,7 +49,7 @@ async def _send_webhook(event):
         signature = hmac.new(webhook.secret.encode('utf-8'),
                              signed_payload, hashlib.sha256).hexdigest()
         headers = {
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/json; charset=utf-8',
             'Stripe-Signature': 't=%d,v1=%s' % (event.created, signature)}
         async with aiohttp.ClientSession() as session:
             try:
