@@ -432,6 +432,9 @@ class Customer(StripeObject):
 extra_apis.append(
     ('POST', '/v1/customers/{id}/sources', Customer._api_add_source))
 
+extra_apis.append(  # this is the old API route:
+    ('POST', '/v1/customers/{id}/cards', Customer._api_add_source))
+
 
 class Event(StripeObject):
     object = 'event'

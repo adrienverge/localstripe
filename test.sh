@@ -67,6 +67,13 @@ tok=$(curl -sSf $HOST/v1/tokens \
 curl -sSf -u $SK: $HOST/v1/customers/$cus/sources \
    -d source=$tok
 
+curl -sSf -u $SK: $HOST/v1/customers/$cus/cards \
+          -d source[object]=card \
+          -d source[number]=4242424242424242 \
+          -d source[exp_month]=12 \
+          -d source[exp_year]=2020 \
+          -d source[cvc]=123
+
 curl -sSf -u $SK: $HOST/v1/invoices?customer=$cus
 
 code=$(curl -s -o /dev/null -w "%{http_code}" -u $SK: \
