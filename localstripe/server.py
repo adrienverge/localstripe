@@ -20,6 +20,7 @@ import json
 import logging
 import os.path
 import re
+import socket
 
 from aiohttp import web
 
@@ -274,12 +275,15 @@ def start():
         store.try_load_from_disk()
 
     PORT = args.port
+    # Listen on both IPv4 and IPv6
+    sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+    sock.bind(('::', PORT))
 
     logger = logging.getLogger('aiohttp.access')
     logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler())
 
-    web.run_app(app, host='::', port=args.port, access_log=logger)
+    web.run_app(app, sock=sock, access_log=logger)
 
 
 if __name__ == '__main__':
