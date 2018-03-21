@@ -10,3 +10,9 @@ install:
   - pip install dist/localstripe-*.tar.gz
 script:
   - flake8 .
+  - python3 -m localstripe &
+  -  # wait for server to be up:
+    timeout=5; while [ $((timeout--)) -ge 0 ]; do
+      nc -z -w 1 localhost 8420; r=$?; [ $r -eq 0 ] && break; sleep 1;
+    done; return $r
+  - ./test.sh
