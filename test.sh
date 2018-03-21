@@ -42,6 +42,15 @@ curl -sSf -u $SK: $HOST/v1/plans \
    -d currency=eur \
    -d interval=year
 
+curl -sSf -u $SK: $HOST/v1/plans \
+   -d id=delete-me \
+   -d name='Delete me' \
+   -d amount=30000 \
+   -d currency=eur \
+   -d interval=year
+
+curl -sSf -u $SK: -X DELETE $HOST/v1/plans/delete-me
+
 curl -sSf -u $SK: $HOST/v1/coupons \
    -d id=PARRAIN \
    -d percent_off=30 \
