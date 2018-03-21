@@ -279,7 +279,7 @@ def start():
     logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler())
 
-    web.run_app(app, host='::', port=args.port, access_log=logger)
+    web.run_app(app, host='0.0.0.0', port=args.port, access_log=logger)
 
 
 if __name__ == '__main__':
