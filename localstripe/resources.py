@@ -917,6 +917,55 @@ class Plan(StripeObject):
         self.statement_descriptor = statement_descriptor
 
 
+class Product(StripeObject):
+    object = 'product'
+    _id_prefix = 'prod_'
+
+    # Save built-in keyword `type`, because the `type` property will
+    # override it:
+    _type = type
+
+    def __init__(self, name=None, type=None, active=True, caption=None,
+                 description=None, attributes=None, shippable=True, url=None,
+                 statement_descriptor=None, metadata=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            assert self._type(name) is str and name
+            assert type in ('good', 'service')
+            assert self._type(active) is bool
+            if caption is not None:
+                assert self._type(caption) is str
+            if description is not None:
+                assert self._type(description) is str
+            if attributes is not None:
+                assert self._type(attributes) is list
+                assert all(self._type(a) is str for a in attributes)
+            assert self._type(shippable) is bool
+            if url is not None:
+                assert self._type(url) is str
+            if statement_descriptor is not None:
+                assert self._type(statement_descriptor) is str
+                assert len(statement_descriptor) <= 22
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        # All exceptions must be raised before this point.
+        super().__init__()
+
+        self.name = name
+        self.type = type
+        self.active = active
+        self.caption = caption
+        self.description = description
+        self.attributes = attributes
+        self.shippable = shippable
+        self.url = url
+        self.statement_descriptor = statement_descriptor
+        self.metadata = metadata or {}
+
+
 class Refund(StripeObject):
     object = 'refund'
     _id_prefix = 're_'
