@@ -78,8 +78,23 @@ async def get_post_data(request, remove_auth=True):
 
 # Try to decode values like
 #    curl -d card[cvc]=123 -d subscription_items[0][plan]=pro-yearly
-def unflatten_data(data):
-    data = dict(data)
+def unflatten_data(multidict):
+    # Transform `{'attributes[]': 'size', 'attributes[]': 'gender'}` into
+    # `{'attributes': ['size', 'gender']}`
+    def handle_multiple_keys(multidict):
+        data = dict()
+        for k in multidict.keys():
+            values = multidict.getall(k)
+            values = [handle_multiple_keys(v) if hasattr(v, 'keys') else v
+                      for v in values]
+            if len(k) > 2 and k.endswith('[]'):
+                k = k[:-2]
+            else:
+                values = values[0]
+            data[k] = values
+        return data
+
+    data = handle_multiple_keys(multidict)
 
     def make_tree(data):
         for k, v in list(data.items()):
@@ -104,7 +119,10 @@ def unflatten_data(data):
             new_data.sort(key=lambda k: int(k[0]))
             data = []
             for k, v in sorted(new_data, key=lambda k: int(k[0])):
-                data.append(transform_lists(v))
+                if type(v) is dict:
+                    data.append(transform_lists(v))
+                else:
+                    data.append(v)
             return data
         else:
             for k in data.keys():
