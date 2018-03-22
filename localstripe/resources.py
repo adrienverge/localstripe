@@ -106,6 +106,13 @@ class StripeObject(object):
             store[key] = self
 
     @classmethod
+    def _get_class_for_id(cls, id):
+        for child in cls.__subclasses__():
+            if hasattr(child, '_id_prefix'):
+                if id.startswith(child._id_prefix):
+                    return child
+
+    @classmethod
     def _api_create(cls, **data):
         return cls(**data)
 
@@ -158,7 +165,15 @@ class StripeObject(object):
         for key, value in data.items():
             setattr(self, key, value)
 
-    def _export(self):
+    def _export(self, expand=None):
+        try:
+            if expand is None:
+                expand = []
+            assert type(expand) is list
+            assert all([type(e) is str for e in expand])
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
         obj = {}
 
         # Take basic properties
@@ -177,6 +192,25 @@ class StripeObject(object):
                     obj[prop] = value._export()
                 else:
                     obj[prop] = value
+
+        def do_expand(path, obj):
+            if type(obj) is list:
+                for i in obj:
+                    do_expand(path, i)
+            else:
+                k, path = path.split('.', 1) if '.' in path else (path, None)
+                if path is None:
+                    id = obj[k]
+                    assert type(id) is str
+                    cls = StripeObject._get_class_for_id(id)
+                    obj[k] = cls._api_retrieve(id)._export()
+                else:
+                    do_expand(path, obj[k])
+        try:
+            for path in expand:
+                do_expand(path, obj)
+        except KeyError as e:
+            raise UserError(400, 'Bad expand %s' % e)
 
         return obj
 

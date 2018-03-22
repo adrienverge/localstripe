@@ -198,7 +198,9 @@ def api_create(cls, url):
 def api_retrieve(cls, url):
     def f(request):
         id = request.match_info['id']
-        return json_response(cls._api_retrieve(id)._export())
+        data = unflatten_data(request.query)
+        expand = data.pop('expand', None)
+        return json_response(cls._api_retrieve(id)._export(expand=expand))
     return f
 
 
@@ -222,7 +224,9 @@ def api_delete(cls, url):
 def api_list_all(cls, url):
     def f(request):
         data = unflatten_data(request.query)
-        return json_response(cls._api_list_all(url, **data)._export())
+        expand = data.pop('expand', None)
+        return json_response(cls._api_list_all(url, **data)
+                             ._export(expand=expand))
     return f
 
 
