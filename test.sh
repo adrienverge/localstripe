@@ -59,6 +59,13 @@ code=$(curl -so /dev/null -w '%{http_code}' -u $SK: \
             $HOST/v1/plans?doesnotexist=1)
 [ "$code" -eq 400 ]
 
+curl -sSf -u $SK: $HOST/v1/products \
+     -d name=T-shirt \
+     -d type=good \
+     -d description='Comfortable cotton t-shirt' \
+     -d attributes[]=size \
+     -d attributes[]=gender
+
 curl -sSf -u $SK: $HOST/v1/coupons \
    -d id=PARRAIN \
    -d percent_off=30 \
