@@ -23,7 +23,7 @@ cus=$(curl -sSf -u $SK: $HOST/v1/customers \
 
 curl -sSf -u $SK: $HOST/v1/plans \
    -d id=basique-mensuel \
-   -d name='Abonnement basique (mensuel)' \
+   -d product[name]='Abonnement basique (mensuel)' \
    -d amount=2500 \
    -d currency=eur \
    -d interval=month
@@ -37,14 +37,15 @@ curl -sSf -u $SK: $HOST/v1/plans \
 
 curl -sSf -u $SK: $HOST/v1/plans \
    -d id=pro-annuel \
-   -d name='Abonnement PRO (annuel)' \
+   -d product[name]='Abonnement PRO (annuel)' \
+   -d product[statement_descriptor]='abonnement pro' \
    -d amount=30000 \
    -d currency=eur \
    -d interval=year
 
 curl -sSf -u $SK: $HOST/v1/plans \
    -d id=delete-me \
-   -d name='Delete me' \
+   -d product[name]='Delete me' \
    -d amount=30000 \
    -d currency=eur \
    -d interval=year
