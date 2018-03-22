@@ -879,18 +879,25 @@ class List(StripeObject):
 class Plan(StripeObject):
     object = 'plan'
 
-    def __init__(self, id=None, name=None, metadata=None, amount=None,
+    def __init__(self, id=None, metadata=None, amount=None, product=None,
                  currency=None, interval=None, interval_count=1,
-                 trial_period_days=None, statement_descriptor=None, **kwargs):
+                 trial_period_days=None,
+                 # Legacy arguments, before Stripe API 2018-02-05:
+                 name=None, statement_descriptor=None,
+                 **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        # Support Stripe API <= 2018-02-05:
+        if product is None and name is not None:
+            product = dict(name=name, metadata=metadata,
+                           statement_descriptor=statement_descriptor)
 
         amount = try_convert_to_int(amount)
         interval_count = try_convert_to_int(interval_count)
         trial_period_days = try_convert_to_int(trial_period_days)
         try:
             assert type(id) is str and id
-            assert type(name) is str and name
             assert type(amount) is int and amount >= 0
             assert type(currency) is str and currency
             assert type(interval) is str
@@ -898,23 +905,32 @@ class Plan(StripeObject):
             assert type(interval_count) is int
             if trial_period_days is not None:
                 assert type(trial_period_days) is int
-            if statement_descriptor is not None:
-                assert type(statement_descriptor) is str
-                assert len(statement_descriptor) <= 22
         except AssertionError:
             raise UserError(400, 'Bad request')
+
+        if type(product) is str:
+            Product._api_retrieve(product)  # to return 404 if not existant
+        else:
+            product = Product(type='service', **product).id
 
         # All exceptions must be raised before this point.
         super().__init__(id)
 
         self.metadata = metadata or {}
-        self.name = name or ''
+        self.product = product
         self.amount = amount
         self.currency = currency
         self.interval = interval
         self.interval_count = interval_count
         self.trial_period_days = trial_period_days
-        self.statement_descriptor = statement_descriptor
+
+    @property
+    def name(self):  # Support Stripe API <= 2018-02-05
+        return Product._api_retrieve(self.product).name
+
+    @property
+    def statement_descriptor(self):  # Support Stripe API <= 2018-02-05
+        return Product._api_retrieve(self.product).statement_descriptor
 
 
 class Product(StripeObject):
