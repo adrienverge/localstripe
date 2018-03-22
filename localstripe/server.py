@@ -180,8 +180,7 @@ def api_create(cls, url):
 def api_retrieve(cls, url):
     def f(request):
         id = request.match_info['id']
-        data = unflatten_data(request.query)
-        return json_response(cls._api_retrieve(id, **data)._export())
+        return json_response(cls._api_retrieve(id)._export())
     return f
 
 

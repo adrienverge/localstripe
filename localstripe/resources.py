@@ -133,7 +133,10 @@ class StripeObject(object):
         return {"deleted": True, "id": id}
 
     @classmethod
-    def _api_list_all(cls, url, limit=None):
+    def _api_list_all(cls, url, limit=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
         li = List(url, limit=limit)
         li._list = [value for key, value in store.items()
                     if key.startswith(cls.object + ':')]
@@ -182,7 +185,10 @@ class Card(StripeObject):
     object = 'card'
     _id_prefix = 'card_'
 
-    def __init__(self, source=None, metadata=None):
+    def __init__(self, source=None, metadata=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
         try:
             if type(source) is str:
                 assert source.startswith('tok_')
@@ -258,7 +264,10 @@ class Charge(StripeObject):
     _id_prefix = 'ch_'
 
     def __init__(self, amount=None, currency=None, description=None,
-                 metadata=None, customer=None, source=None):
+                 metadata=None, customer=None, source=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
         amount = try_convert_to_int(amount)
         try:
             assert type(amount) is int and amount >= 0
@@ -326,7 +335,10 @@ class Coupon(StripeObject):
 
     def __init__(self, id=None, duration=None, amount_off=None,
                  percent_off=None, currency=None, metadata=None,
-                 duration_in_months=None):
+                 duration_in_months=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
         amount_off = try_convert_to_int(amount_off)
         percent_off = try_convert_to_int(percent_off)
         duration_in_months = try_convert_to_int(duration_in_months)
@@ -367,7 +379,10 @@ class Customer(StripeObject):
     _id_prefix = 'cus_'
 
     def __init__(self, description=None, email=None, business_vat_id=None,
-                 metadata=None):
+                 metadata=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
         try:
             if description is not None:
                 assert type(description) is str
@@ -459,7 +474,10 @@ class Invoice(StripeObject):
 
     def __init__(self, customer=None, subscription=None, metadata=None,
                  items=[], tax_percent=None, date=None, description=None,
-                 simulation=False):
+                 simulation=False, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
         tax_percent = try_convert_to_float(tax_percent)
         date = try_convert_to_int(date)
         try:
@@ -757,7 +775,10 @@ class InvoiceItem(StripeObject):
     def __init__(self, invoice=None, subscription=None, plan=None, amount=None,
                  currency=None, customer=None, period_start=None,
                  period_end=None, proration=False, description=None,
-                 metadata=None):
+                 metadata=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
         amount = try_convert_to_int(amount)
         period_start = try_convert_to_int(period_start)
         period_end = try_convert_to_int(period_end)
@@ -860,7 +881,10 @@ class Plan(StripeObject):
 
     def __init__(self, id=None, name=None, metadata=None, amount=None,
                  currency=None, interval=None, interval_count=1,
-                 trial_period_days=None, statement_descriptor=None):
+                 trial_period_days=None, statement_descriptor=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
         amount = try_convert_to_int(amount)
         interval_count = try_convert_to_int(interval_count)
         trial_period_days = try_convert_to_int(trial_period_days)
@@ -897,7 +921,10 @@ class Refund(StripeObject):
     object = 'refund'
     _id_prefix = 're_'
 
-    def __init__(self, charge=None, amount=None, metadata=None):
+    def __init__(self, charge=None, amount=None, metadata=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
         amount = try_convert_to_int(amount)
         try:
             assert type(charge) is str and charge.startswith('ch_')
@@ -942,7 +969,10 @@ class Subscription(StripeObject):
     _id_prefix = 'sub_'
 
     def __init__(self, customer=None, metadata=None, items=None,
-                 tax_percent=None):
+                 tax_percent=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
         tax_percent = try_convert_to_float(tax_percent)
         try:
             assert type(customer) is str and customer.startswith('cus_')
@@ -1104,7 +1134,10 @@ class SubscriptionItem(StripeObject):
     _id_prefix = 'si_'
 
     def __init__(self, subscription=None, plan=None, quantity=1,
-                 metadata=None):
+                 metadata=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
         quantity = try_convert_to_int(quantity)
         try:
             assert type(subscription) is str
@@ -1130,7 +1163,10 @@ class Token(StripeObject):
     object = 'token'
     _id_prefix = 'tok_'
 
-    def __init__(self, card=None, customer=None):
+    def __init__(self, card=None, customer=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
         try:
             assert type(card) is dict
             if customer is not None:

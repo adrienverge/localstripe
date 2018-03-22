@@ -51,6 +51,14 @@ curl -sSf -u $SK: $HOST/v1/plans \
 
 curl -sSf -u $SK: -X DELETE $HOST/v1/plans/delete-me
 
+code=$(curl -so /dev/null -w '%{http_code}' -u $SK: $HOST/v1/plans \
+            -d doesnotexist=1)
+[ "$code" -eq 400 ]
+
+code=$(curl -so /dev/null -w '%{http_code}' -u $SK: \
+            $HOST/v1/plans?doesnotexist=1)
+[ "$code" -eq 400 ]
+
 curl -sSf -u $SK: $HOST/v1/coupons \
    -d id=PARRAIN \
    -d percent_off=30 \
