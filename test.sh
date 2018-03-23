@@ -78,6 +78,7 @@ curl -sSf -u $SK: $HOST/v1/coupons \
    -d percent_off=30 \
    -d duration=once
 
+# This is what a Stripe.js request does:
 tok=$(curl -sSf $HOST/v1/tokens \
           -d key=pk_test_sldkjflaksdfj \
           -d card[number]=4242424242424242 \
@@ -95,6 +96,32 @@ curl -sSf -u $SK: $HOST/v1/customers/$cus/cards \
           -d source[exp_month]=12 \
           -d source[exp_year]=2020 \
           -d source[cvc]=123
+
+sepa_cus=$(
+  curl -sSf -u $SK: $HOST/v1/customers \
+       -d description='I pay with SEPA debit' \
+       -d email=sepa@euro.fr \
+  | grep -oE 'cus_\w+' | head -n 1)
+
+src=$(curl -sSf -u $SK: $HOST/v1/sources \
+           -d type=ach_credit_transfer \
+           -d currency=usd \
+           -d owner[email]='jenny.rosen@example.com' \
+      | grep -oE 'src_\w+')
+
+curl -sSf -u $SK: $HOST/v1/customers/$sepa_cus/sources \
+     -d source=$src
+
+# This is what a Stripe.js request does:
+src=$(curl -sSf -u $SK: $HOST/v1/sources \
+           -d type=sepa_debit \
+           -d sepa_debit[iban]=DE89370400440532013000 \
+           -d currency=eur \
+           -d owner[name]='Jenny Rosen' \
+      | grep -oE 'src_\w+')
+
+curl -sSf -u $SK: $HOST/v1/customers/$sepa_cus/sources \
+     -d source=$src
 
 curl -sSf -u $SK: $HOST/v1/invoices?customer=$cus
 
