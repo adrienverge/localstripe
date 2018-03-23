@@ -159,10 +159,12 @@ async def auth_middleware(request, handler):
         is_auth = True
 
     else:
-        # There is an exception for POST /v1/tokens: the auth is made using the
-        # public key, that is passed in POST data.
+        # There is an exception for POST /v1/tokens and POST /v1/sources:
+        # authentication can be done using the public key, that is passed in
+        # POST data.
         accept_key_in_post_data = (
-            request.method == 'POST' and request.path == '/v1/tokens')
+            request.method == 'POST' and
+            request.path in ('/v1/tokens', '/v1/sources'))
 
         is_auth = get_api_key(request) is not None
 
