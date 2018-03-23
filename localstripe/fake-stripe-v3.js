@@ -140,7 +140,34 @@ Stripe = (apiKey) => {
         req.send(body);
       });
     },
-    createSource: () => {}, // TODO
+    createSource: (source) => {
+      console.log('localstripe: Stripe().createSource()');
+      return new Promise(resolve => {
+        const req = new XMLHttpRequest();
+        req.onerror = event => {
+          resolve({error: event.target.responseText});
+        };
+        req.onload = event => {
+          let res = event.target.responseText;
+          try {
+            res = JSON.parse(res);
+          } catch (e) {}
+          if (event.target.status === 200) {
+            resolve({source: res});
+          } else {
+            if (typeof res === 'object' && res.error) {
+              resolve(res);
+            } else {
+              resolve({error: res});
+            }
+          }
+        };
+        source.key = apiKey;
+        source.payment_user_agent = 'localstripe';
+        req.open('POST', 'http://localhost:{{ PORT }}/v1/sources', true);
+        req.send(JSON.stringify(source));
+      });
+    },
     retrieveSource: () => {}, // TODO
   };
 };
