@@ -25,8 +25,8 @@ import socket
 from aiohttp import web
 
 from .resources import Card, Charge, Coupon, Customer, Invoice, InvoiceItem, \
-                       Plan, Product, Refund, Subscription, SubscriptionItem, \
-                       Token, extra_apis, store
+                       Plan, Product, Refund, Source, Subscription, \
+                       SubscriptionItem, Token, extra_apis, store
 from .errors import UserError
 from .webhooks import register_webhook
 
@@ -247,7 +247,7 @@ for method, url, func in extra_apis:
 
 
 for cls in (Card, Charge, Coupon, Customer, Invoice, InvoiceItem, Plan,
-            Product, Refund, Subscription, SubscriptionItem, Token):
+            Product, Refund, Source, Subscription, SubscriptionItem, Token):
     for method, url, func in (
             ('POST', '/v1/' + cls.object + 's', api_create),
             ('GET', '/v1/' + cls.object + 's/{id}', api_retrieve),

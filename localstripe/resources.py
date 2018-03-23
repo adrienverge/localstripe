@@ -219,74 +219,62 @@ class Card(StripeObject):
     object = 'card'
     _id_prefix = 'card_'
 
-    def __init__(self, source=None, metadata=None, **kwargs):
+    def __init__(self, source=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         try:
-            if type(source) is str:
-                assert source.startswith('tok_')
-            elif type(source) is dict:
-                assert source.get('object', None) == 'card'
-                number = source.get('number', None)
-                exp_month = try_convert_to_int(source.get('exp_month', None))
-                exp_year = try_convert_to_int(source.get('exp_year', None))
-                cvc = source.get('cvc', None)
-                address_city = source.get('address_city', None)
-                address_country = source.get('address_country', None)
-                address_line1 = source.get('address_line1', None)
-                address_line2 = source.get('address_line2', None)
-                address_state = source.get('address_state', None)
-                address_zip = source.get('address_zip', None)
-                name = source.get('name', None)
-                assert type(number) is str and len(number) == 16
-                assert type(exp_month) is int
-                assert exp_month >= 1 and exp_month <= 12
-                assert type(exp_year) is int
-                if exp_year > 0 and exp_year < 100:
-                    exp_year += 2000
-                assert exp_year >= 2017 and exp_year <= 2100
-                assert type(cvc) is str and len(cvc) == 3
-            else:
-                raise AssertionError()
+            assert type(source) is dict
+            assert source.get('object', None) == 'card'
+            number = source.get('number', None)
+            exp_month = try_convert_to_int(source.get('exp_month', None))
+            exp_year = try_convert_to_int(source.get('exp_year', None))
+            cvc = source.get('cvc', None)
+            address_city = source.get('address_city', None)
+            address_country = source.get('address_country', None)
+            address_line1 = source.get('address_line1', None)
+            address_line2 = source.get('address_line2', None)
+            address_state = source.get('address_state', None)
+            address_zip = source.get('address_zip', None)
+            name = source.get('name', None)
+            assert type(number) is str and len(number) == 16
+            assert type(exp_month) is int
+            assert exp_month >= 1 and exp_month <= 12
+            assert type(exp_year) is int
+            if exp_year > 0 and exp_year < 100:
+                exp_year += 2000
+            assert exp_year >= 2017 and exp_year <= 2100
+            assert type(cvc) is str and len(cvc) == 3
         except AssertionError:
             raise UserError(400, 'Bad request')
-
-        if type(source) is str:
-            source = Token._api_retrieve(source).card
-        else:
-            source = None
 
         # All exceptions must be raised before this point.
         super().__init__()
 
-        if source:
-            for key, value in vars(source).items():
-                setattr(self, key, value)
-        else:
-            self._number = number
+        self._number = number
 
-            self.metadata = metadata or {}
-            self.address_city = address_city
-            self.address_country = address_country
-            self.address_line1 = address_line1
-            self.address_line1_check = None
-            self.address_line2 = address_line2
-            self.address_state = address_state
-            self.address_zip = address_zip
-            self.address_zip_check = None
-            self.brand = 'Visa'
-            self.country = 'US'
-            self.cvc_check = 'pass'
-            self.dynamic_last4 = None
-            self.exp_month = exp_month
-            self.exp_year = exp_year
-            self.fingerprint = random_id(16)
-            self.funding = 'credit'
-            self.name = name
-            self.tokenization_method = None
+        self.type = 'card'
+        self.metadata = {}
+        self.address_city = address_city
+        self.address_country = address_country
+        self.address_line1 = address_line1
+        self.address_line1_check = None
+        self.address_line2 = address_line2
+        self.address_state = address_state
+        self.address_zip = address_zip
+        self.address_zip_check = None
+        self.brand = 'Visa'
+        self.country = 'US'
+        self.cvc_check = 'pass'
+        self.dynamic_last4 = None
+        self.exp_month = exp_month
+        self.exp_year = exp_year
+        self.fingerprint = random_id(16)
+        self.funding = 'credit'
+        self.name = name
+        self.tokenization_method = None
 
-        self._customer = None
+        self.customer = None
 
     @property
     def last4(self):
@@ -318,7 +306,7 @@ class Charge(StripeObject):
 
         if source is not None:
             card = Card._api_retrieve(source)
-            customer = card._customer
+            customer = card.customer
         else:
             customer_obj = Customer._api_retrieve(customer)
             if customer_obj.default_source is None:
@@ -463,19 +451,37 @@ class Customer(StripeObject):
         return super()._api_delete(id)
 
     @classmethod
-    def _api_add_source(cls, id, *args, **kwargs):
+    def _api_add_source(cls, id, source=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            if type(source) is str:
+                assert source[:4] in ('src_', 'tok_')
+            else:
+                assert type(source) is dict
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
         obj = cls._api_retrieve(id)
 
-        card = Card(*args, **kwargs)
-        card._customer = obj.id
-        obj.sources._list.append(card)
+        if type(source) is str and source.startswith('src_'):
+            source_obj = Source._api_retrieve(source)
+        elif type(source) is str and source.startswith('tok_'):
+            source_obj = Token._api_retrieve(source).card
+            source_obj.customer = id
+        else:
+            source_obj = Card(source=source)
+            source_obj.customer = id
+
+        obj.sources._list.append(source_obj)
 
         if obj.default_source is None:
-            obj.default_source = card.id
+            obj.default_source = source_obj.id
 
-        schedule_webhook(Event('customer.source.created', card))
+        schedule_webhook(Event('customer.source.created', source_obj))
 
-        return card
+        return source_obj
 
 
 extra_apis.append(
@@ -1063,6 +1069,60 @@ class Refund(StripeObject):
         return li
 
 
+class Source(StripeObject):
+    object = 'source'
+    _id_prefix = 'src_'
+
+    # Save built-in keyword `type`, because the `type` property will
+    # override it:
+    _type = type
+
+    def __init__(self, type=None, currency=None, owner=None, metadata=None,
+                 # custom arguments depending on the type:
+                 sepa_debit=None,
+                 **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            assert type in (
+                'ach_credit_transfer', 'ach_debit', 'alipay', 'bancontact',
+                'bitcoin', 'card', 'eps', 'giropay', 'ideal', 'multibanco',
+                'p24', 'sepa_debit', 'sofort', 'three_d_secure')
+            assert self._type(currency) is str and currency
+            if owner is not None:
+                assert self._type(owner) is dict
+                assert self._type(owner.get('name', '')) is str
+                assert self._type(owner.get('email', '')) is str
+            if type == 'sepa_debit':
+                assert self._type(sepa_debit) is dict
+                assert 'iban' in sepa_debit
+                assert self._type(sepa_debit['iban']) is str
+                assert 14 <= len(sepa_debit['iban']) <= 34
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        # All exceptions must be raised before this point.
+        super().__init__()
+
+        self.type = type
+        self.currency = currency
+        self.owner = owner
+        self.metadata = metadata or {}
+        self.status = 'chargeable'
+        self.usage = 'reusable'
+
+        if self.type == 'sepa_debit':
+            self.sepa_debit = {
+                'country': sepa_debit['iban'][:2],
+                'bank_code': sepa_debit['iban'][4:12],
+                'last4': sepa_debit['iban'][-4:],
+                'fingerprint': random_id(16),
+                'mandate_reference': 'NXDSYREGC9PSMKWY',
+                'mandate_url': 'https://fake/NXDSYREGC9PSMKWY',
+            }
+
+
 class Subscription(StripeObject):
     object = 'subscription'
     _id_prefix = 'sub_'
@@ -1276,10 +1336,11 @@ class Token(StripeObject):
         # If this raises, abort and don't create the token
         card['object'] = 'card'
         card_obj = Card(source=card)
+        if customer is not None:
+            card_obj.customer = customer
 
         # All exceptions must be raised before this point.
         super().__init__()
 
         self.type = 'card'
         self.card = card_obj
-        self.customer = customer
