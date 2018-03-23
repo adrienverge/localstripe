@@ -34,7 +34,7 @@ setup(
         'localstripe': ['fake-stripe-v3.js'],
     },
     install_requires=[
-        'aiohttp >=2.3.0',
+        'aiohttp >=2.3.2',
         'python-dateutil >=2.6.1',
     ],
 )
