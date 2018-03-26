@@ -300,6 +300,7 @@ def start():
     PORT = args.port
     # Listen on both IPv4 and IPv6
     sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(('::', PORT))
 
     logger = logging.getLogger('aiohttp.access')
