@@ -521,7 +521,7 @@ class Invoice(StripeObject):
 
     def __init__(self, customer=None, subscription=None, metadata=None,
                  items=[], tax_percent=None, date=None, description=None,
-                 simulation=False, **kwargs):
+                 upcoming=False, simulation=False, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -592,9 +592,9 @@ class Invoice(StripeObject):
                 ii.invoice = self.id
             self.lines._list.append(ii)
 
-        self._upcoming = False
+        self._upcoming = upcoming
 
-        if not simulation:
+        if not upcoming and not simulation:
             schedule_webhook(Event('invoice.created', self))
 
             self.charge  # trigger creation of charge
@@ -641,6 +641,7 @@ class Invoice(StripeObject):
     def _get_next_invoice(cls, customer=None, subscription=None,
                           tax_percent=None, description=None, metadata=None,
                           # /upcoming route properties:
+                          upcoming=False,
                           coupon=None,
                           subscription_items=None,
                           subscription_prorate=None,
@@ -711,7 +712,8 @@ class Invoice(StripeObject):
                        items=invoice_items,
                        tax_percent=tax_percent,
                        date=date,
-                       description=description)
+                       description=description,
+                       upcoming=upcoming)
 
         else:  # if simulation
             if subscription is not None:
@@ -736,6 +738,7 @@ class Invoice(StripeObject):
                           tax_percent=tax_percent,
                           date=date,
                           description=description,
+                          upcoming=upcoming,
                           simulation=True)
 
             if subscription_proration_date is not None:
@@ -784,13 +787,12 @@ class Invoice(StripeObject):
                               subscription_trial_end=None):
         invoice = cls._get_next_invoice(
             customer=customer, subscription=subscription,
+            upcoming=True,
             coupon=coupon, subscription_items=subscription_items,
             subscription_prorate=subscription_prorate,
             subscription_proration_date=subscription_proration_date,
             subscription_tax_percent=subscription_tax_percent,
             subscription_trial_end=subscription_trial_end)
-
-        invoice._upcoming = True
 
         # Do not store this invoice
         del store[cls.object + ':' + invoice.id]
