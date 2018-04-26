@@ -296,33 +296,40 @@ class Charge(StripeObject):
             assert type(currency) is str and currency
             if description is not None:
                 assert type(description) is str
-            assert (customer is None) != (source is None)
-            if source is not None:
-                assert type(source) is str and source.startswith('card_')
-            else:
+            if customer is not None:
                 assert type(customer) is str and customer.startswith('cus_')
+            if source is not None:
+                assert type(source) is str
+                assert source.startswith('src_') or source.startswith('card_')
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        if source is not None:
-            card = Card._api_retrieve(source)
-            customer = card.customer
-        else:
+        if source is None:
             customer_obj = Customer._api_retrieve(customer)
             if customer_obj.default_source is None:
                 raise UserError(404, 'This customer has no source')
-            card = Card._api_retrieve(customer_obj.default_source)
+            source = customer_obj.default_source
 
-        decline = {
-            '4000000000000002': 'card_declined',  # fails when adding card
-            '4000000000000341': 'card_declined',  # fails only at payment
-            '4000000000000127': 'incorrect_cvc',
-            '4000000000000069': 'expired_card',
-            '4000000000000119': 'processing_error',
-            '4242424242424241': 'incorrect_number',
-        }.get(card._number, None)
-        if decline:
-            raise UserError(402, 'Your card was declined.', {'code': decline})
+        if source.startswith('src_'):
+            source = Source._api_retrieve(source)
+        elif source.startswith('card_'):
+            source = Card._api_retrieve(source)
+
+        if customer is None:
+            customer = source.customer
+
+        if source.object == 'card':
+            decline = {
+                '4000000000000002': 'card_declined',  # fails when adding card
+                '4000000000000341': 'card_declined',  # fails only at payment
+                '4000000000000127': 'incorrect_cvc',
+                '4000000000000069': 'expired_card',
+                '4000000000000119': 'processing_error',
+                '4242424242424241': 'incorrect_number',
+            }.get(source._number, None)
+            if decline:
+                raise UserError(402, 'Your card was declined.',
+                                {'code': decline})
 
         # All exceptions must be raised before this point.
         super().__init__()
@@ -622,6 +629,7 @@ class Invoice(StripeObject):
         if self._charge is None and not self._upcoming and self.total > 0:
             customer_obj = Customer._api_retrieve(self.customer)
             charge_obj = Charge(amount=self.total, currency=self.currency,
+                                customer=self.customer,
                                 source=customer_obj.default_source)
             self._charge = charge_obj.id
 
