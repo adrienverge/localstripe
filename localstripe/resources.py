@@ -14,9 +14,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import asyncio
 from datetime import datetime, timedelta
 import pickle
 import random
+import re
 import string
 import time
 
@@ -286,7 +288,8 @@ class Charge(StripeObject):
     _id_prefix = 'ch_'
 
     def __init__(self, amount=None, currency=None, description=None,
-                 metadata=None, customer=None, source=None, **kwargs):
+                 metadata=None, customer=None, source=None,
+                 on_succeed=None, on_fail=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -340,12 +343,37 @@ class Charge(StripeObject):
         self.description = description
         self.invoice = None
         self.metadata = metadata or {}
-        self.paid = True
+        self.paid = False
+        self.status = 'pending'
         self.receipt_email = None
         self.receipt_number = None
         self.refunds = List('/v1/customers/' + self.id + '/sources')
         self.source = source
-        self.status = 'succeeded'
+
+    def _set_callbacks(self, on_succeed, on_fail):
+        if self.source.object == 'source' and self.source.type == 'sepa_debit':
+            # From Stripe docs:
+            # The charge status transitions from pending to failed.
+            if self.source._sepa_debit_iban == 'DE62370400440532013001':
+                async def callback():
+                    await asyncio.sleep(0.5)
+                    self.paid = False
+                    self.status = 'failed'
+                    if on_fail:
+                        on_fail()
+            else:
+                async def callback():
+                    await asyncio.sleep(0.5)
+                    self.paid = True
+                    self.status = 'succeeded'
+                    if on_succeed:
+                        on_succeed()
+            asyncio.ensure_future(callback())
+        else:
+            self.paid = True
+            self.status = 'succeeded'
+            if on_succeed:
+                on_succeed()
 
     @property
     def amount_refunded(self):
@@ -521,7 +549,8 @@ class Invoice(StripeObject):
 
     def __init__(self, customer=None, subscription=None, metadata=None,
                  items=[], tax_percent=None, date=None, description=None,
-                 upcoming=False, simulation=False, **kwargs):
+                 upcoming=False, simulation=False, on_payment_fail=None,
+                 **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -594,6 +623,8 @@ class Invoice(StripeObject):
 
         self._upcoming = upcoming
 
+        self._on_payment_fail = on_payment_fail
+
         if not upcoming and not simulation:
             schedule_webhook(Event('invoice.created', self))
 
@@ -622,6 +653,8 @@ class Invoice(StripeObject):
 
     @property
     def paid(self):
+        if self._charge is not None:
+            return Charge._api_retrieve(self._charge).paid
         return not self._upcoming
 
     @property
@@ -633,7 +666,15 @@ class Invoice(StripeObject):
                                 source=customer_obj.default_source)
             self._charge = charge_obj.id
 
-            schedule_webhook(Event('invoice.payment_succeeded', self))
+            def on_succeed():
+                schedule_webhook(Event('invoice.payment_succeeded', self))
+
+            def on_fail():
+                schedule_webhook(Event('invoice.payment_failed', self))
+                if self._on_payment_fail:
+                    self._on_payment_fail()
+
+            charge_obj._set_callbacks(on_succeed, on_fail)
 
         return self._charge
 
@@ -803,12 +844,15 @@ class Invoice(StripeObject):
     @classmethod
     def _api_pay_invoice(cls, id):
         obj = Invoice._api_retrieve(id)
-        try:
-            assert not obj.paid
-        except AssertionError:
-            raise UserError(400, 'Bad request')
 
-        obj.paid = True
+        if obj.total > 0:
+            charge = Charge._api_retrieve(obj.charge)
+            try:
+                assert not charge.paid
+            except AssertionError:
+                raise UserError(400, 'Bad request')
+
+            charge.paid = True
 
         return obj
 
@@ -1123,10 +1167,12 @@ class Source(StripeObject):
         self.usage = 'reusable'
 
         if self.type == 'sepa_debit':
+            self._sepa_debit_iban = \
+                re.sub(r'\s', '', sepa_debit['iban']).upper()
             self.sepa_debit = {
-                'country': sepa_debit['iban'][:2],
-                'bank_code': sepa_debit['iban'][4:12],
-                'last4': sepa_debit['iban'][-4:],
+                'country': self._sepa_debit_iban[:2],
+                'bank_code': self._sepa_debit_iban[4:12],
+                'last4': self._sepa_debit_iban[-4:],
                 'fingerprint': random_id(16),
                 'mandate_reference': 'NXDSYREGC9PSMKWY',
                 'mandate_url': 'https://fake/NXDSYREGC9PSMKWY',
@@ -1187,6 +1233,8 @@ class Subscription(StripeObject):
         self._set_up_subscription_and_invoice(plan)
         self.start = self.current_period_start
 
+        schedule_webhook(Event('customer.subscription.created', self))
+
     @property
     def plan(self):
         return self.items._list[0].plan
@@ -1240,10 +1288,14 @@ class Subscription(StripeObject):
                         subscription=self.id,
                         items=invoice_items,
                         tax_percent=self.tax_percent,
-                        date=self.current_period_start)
+                        date=self.current_period_start,
+                        on_payment_fail=self._on_first_payment_failed)
             except UserError as e:
-                Subscription._api_delete(self.id)
+                self._on_first_payment_failed()
                 raise e
+
+    def _on_first_payment_failed(self):
+        Subscription._api_delete(self.id)
 
     def _update(self, metadata=None, items=None, tax_percent=None,
                 proration_date=None):
@@ -1281,6 +1333,14 @@ class Subscription(StripeObject):
         # is not automatically generated. To achieve that, an invoice has to
         # be manually created using the POST /invoices route.
         self._set_up_subscription_and_invoice(plan, create_an_invoice=False)
+
+    @classmethod
+    def _api_delete(cls, id):
+        obj = super()._api_retrieve(id)
+        obj.ended_at = int(time.time())
+        obj.status = 'canceled'
+        schedule_webhook(Event('customer.subscription.deleted', obj))
+        return super()._api_delete(id)
 
     @classmethod
     def _api_list_all(cls, url, customer=None, limit=None):
