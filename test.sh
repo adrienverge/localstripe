@@ -88,7 +88,18 @@ tok=$(curl -sSf $HOST/v1/tokens \
       | grep -oE 'tok_\w+')
 
 curl -sSf -u $SK: $HOST/v1/customers/$cus/sources \
-   -d source=$tok
+     -d source=$tok
+
+# This is what a request from back-end does:
+tok=$(curl -sSf -u $SK: $HOST/v1/tokens \
+           -d card[number]=4242424242424242 \
+           -d card[exp_month]=12 \
+           -d card[exp_year]=2019 \
+           -d card[cvc]=123 \
+      | grep -oE 'tok_\w+')
+
+curl -sSf -u $SK: $HOST/v1/customers/$cus/sources \
+     -d source=$tok
 
 curl -sSf -u $SK: $HOST/v1/customers/$cus/cards \
           -d source[object]=card \
