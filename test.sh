@@ -134,6 +134,17 @@ src=$(curl -sSf -u $SK: $HOST/v1/sources \
 curl -sSf -u $SK: $HOST/v1/customers/$sepa_cus/sources \
      -d source=$src
 
+tok=$(curl -sSf -u $SK: $HOST/v1/tokens \
+           -d card[number]=4242424242424242 \
+           -d card[exp_month]=12 \
+           -d card[exp_year]=2020 \
+           -d card[cvc]=123 \
+      | grep -oE 'tok_\w+')
+
+curl -sSf -u $SK: $HOST/v1/customers \
+     -d description='Customer with already existing source' \
+     -d source=$tok
+
 curl -sSf -u $SK: $HOST/v1/invoices?customer=$cus
 
 code=$(curl -s -o /dev/null -w "%{http_code}" -u $SK: \

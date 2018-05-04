@@ -474,6 +474,15 @@ class Customer(StripeObject):
             '/v1/customers/' + self.id + '/subscriptions', customer=self.id)
 
     @classmethod
+    def _api_create(cls, source=None, **data):
+        obj = super()._api_create(**data)
+
+        if source:
+            cls._api_add_source(obj.id, source)
+
+        return obj
+
+    @classmethod
     def _api_update(cls, id, **data):
         obj = super()._api_update(id, **data)
         schedule_webhook(Event('customer.updated', obj))
