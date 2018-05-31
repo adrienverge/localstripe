@@ -984,7 +984,7 @@ class Plan(StripeObject):
 
     def __init__(self, id=None, metadata=None, amount=None, product=None,
                  currency=None, interval=None, interval_count=1,
-                 trial_period_days=None,
+                 trial_period_days=None, nickname=None,
                  # Legacy arguments, before Stripe API 2018-02-05:
                  name=None, statement_descriptor=None,
                  **kwargs):
@@ -1008,6 +1008,8 @@ class Plan(StripeObject):
             assert type(interval_count) is int
             if trial_period_days is not None:
                 assert type(trial_period_days) is int
+            if nickname is not None:
+                assert type(nickname) is str
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -1026,6 +1028,7 @@ class Plan(StripeObject):
         self.interval = interval
         self.interval_count = interval_count
         self.trial_period_days = trial_period_days
+        self.nickname = nickname
 
     @property
     def name(self):  # Support Stripe API <= 2018-02-05
