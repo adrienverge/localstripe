@@ -28,6 +28,12 @@ Features
   the fake server, from your webpage
 - **supports webhooks** that you can customize using a special API route
 
+Limitations
+-----------
+
+- **no Stripe Connect support**: localstripe currently only supports Stripe
+  Payments, and does not support Stripe Connect
+
 Get started
 -----------
 
