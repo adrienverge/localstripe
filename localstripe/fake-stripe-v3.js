@@ -15,6 +15,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// First, get the domain from which this script is pulled:
+const LOCALSTRIPE_SOURCE = (function () {
+  const scripts = document.getElementsByTagName('script');
+  const src = scripts[scripts.length - 1].src;
+  return src.match(/https?:\/\/[^\/]*/)[0];
+})();
+
 // Check and warn if the real Stripe is already used in webpage
 (function () {
   var iframes = document.getElementsByTagName('iframe');
@@ -134,7 +141,7 @@ Stripe = (apiKey) => {
         body.push('payment_user_agent=localstripe');
         body = body.join('&');
 
-        req.open('POST', 'http://localhost:{{ PORT }}/v1/tokens', true);
+        req.open('POST', `${LOCALSTRIPE_SOURCE}/v1/tokens`, true);
         req.setRequestHeader('Content-Type',
                              'application/x-www-form-urlencoded');
         req.send(body);
@@ -164,7 +171,7 @@ Stripe = (apiKey) => {
         };
         source.key = apiKey;
         source.payment_user_agent = 'localstripe';
-        req.open('POST', 'http://localhost:{{ PORT }}/v1/sources', true);
+        req.open('POST', `${LOCALSTRIPE_SOURCE}/v1/sources`, true);
         req.send(JSON.stringify(source));
       });
     },
@@ -174,4 +181,4 @@ Stripe = (apiKey) => {
 
 console.log('localstripe: The Stripe object was just replaced in the page. ' +
             'Stripe elements created from now on will be fake ones, ' +
-            'communicating with the mock server.');
+            `communicating with the mock server at ${LOCALSTRIPE_SOURCE}.`);

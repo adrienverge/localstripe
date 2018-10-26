@@ -259,13 +259,10 @@ for cls in (Charge, Coupon, Customer, Invoice, InvoiceItem, Plan, Product,
         app.router.add_route(method, url, func(cls, url))
 
 
-PORT = None
-
-
 def fake_stripe_js(request):
     path = os.path.dirname(os.path.realpath(__file__)) + '/fake-stripe-v3.js'
     with open(path) as f:
-        return web.Response(text=f.read().replace('{{ PORT }}', str(PORT)),
+        return web.Response(text=f.read(),
                             content_type='application/javascript')
 
 
@@ -287,8 +284,6 @@ app.router.add_post('/_config/webhooks/{id}', config_webhook)
 
 
 def start():
-    global PORT
-
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', type=int, default=8420)
     parser.add_argument('--from-scratch', action='store_true')
@@ -297,11 +292,10 @@ def start():
     if not args.from_scratch:
         store.try_load_from_disk()
 
-    PORT = args.port
     # Listen on both IPv4 and IPv6
     sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(('::', PORT))
+    sock.bind(('::', args.port))
 
     logger = logging.getLogger('aiohttp.access')
     logger.setLevel(logging.DEBUG)
