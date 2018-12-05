@@ -1030,6 +1030,8 @@ class Plan(StripeObject):
         self.trial_period_days = trial_period_days
         self.nickname = nickname
 
+        schedule_webhook(Event('plan.created', self))
+
     @property
     def name(self):  # Support Stripe API <= 2018-02-05
         return Product._api_retrieve(self.product).name
@@ -1086,6 +1088,8 @@ class Product(StripeObject):
         self.url = url
         self.statement_descriptor = statement_descriptor
         self.metadata = metadata or {}
+
+        schedule_webhook(Event('product.created', self))
 
 
 class Refund(StripeObject):
