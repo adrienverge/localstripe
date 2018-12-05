@@ -1322,7 +1322,7 @@ class Subscription(StripeObject):
                 items=[item]
             )
             schedule_webhook(
-                Event('customer.subscription.updated', source_obj)
+                Event('customer.subscription.updated', obj)
             )
         return obj
 
