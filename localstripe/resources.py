@@ -1309,6 +1309,19 @@ class Subscription(StripeObject):
     def _on_first_payment_failed(self):
         Subscription._api_delete(self.id)
 
+    @classmethod
+    def _api_update(cls, id, **data):
+        obj = cls._api_retrieve(id)
+        for item in data['items']:
+            obj._update(
+                metadata=data['metadata'],
+                items=[item]
+            )
+            schedule_webhook(
+                Event('customer.subscription.updated', source_obj)
+            )
+        return obj
+
     def _update(self, metadata=None, items=None, tax_percent=None,
                 proration_date=None):
         tax_percent = try_convert_to_float(tax_percent)
