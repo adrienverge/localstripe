@@ -282,7 +282,13 @@ async def config_webhook(request):
     return web.Response()
 
 
+async def flush_store(request):
+    store.clear()
+    return web.Response()
+
+
 app.router.add_post('/_config/webhooks/{id}', config_webhook)
+app.router.add_delete('/_config/data', flush_store)
 
 
 def start():

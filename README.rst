@@ -209,6 +209,19 @@ Only those events types are currently supported:
 - Subscription: ``customer.subscription.created`` and ``customer.subscription.deleted``
 - Invoice: ``invoice.created``, ``invoice.payment_succeeded`` and ``invoice.payment_failed``
 
+Flush stored data
+-----------------
+
+Flushing data programmatically can be useful to reset localstripe if your are
+using it with any test framework.
+
+Flushing stored data can be performed using the ``/_config/data`` route
+with DELETE http method:
+
+.. code:: shell
+
+ curl -X DELETE localhost:8420/_config/data
+
 Hacking and contributing
 ------------------------
 
