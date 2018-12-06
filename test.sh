@@ -90,6 +90,8 @@ tok=$(curl -sSf $HOST/v1/tokens \
 curl -sSf -u $SK: $HOST/v1/customers/$cus/sources \
      -d source=$tok
 
+curl -sSf -u $SK: $HOST/v1/customers/$cus?expand%5B%5D=default_source
+
 # This is what a request from back-end does:
 tok=$(curl -sSf -u $SK: $HOST/v1/tokens \
            -d card[number]=4242424242424242 \
