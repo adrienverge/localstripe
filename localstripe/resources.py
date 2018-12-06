@@ -549,7 +549,15 @@ class Event(StripeObject):
 
     @classmethod
     def _api_create(cls, **data):
-        raise UserError(400, 'Bad request')
+        raise UserError(405, 'Method Not Allowed')
+
+    @classmethod
+    def _api_update(cls, id, **data):
+        raise UserError(405, 'Method Not Allowed')
+
+    @classmethod
+    def _api_delete(cls, id):
+        raise UserError(405, 'Method Not Allowed')
 
 
 class Invoice(StripeObject):
