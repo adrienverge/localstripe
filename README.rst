@@ -201,6 +201,7 @@ Register a webhook using the special ``/_config`` route:
 
 Then, localstripe will send webhooks to this url.
 Only those events types are currently supported:
+
 - Product: ``product.created``
 - Plan: ``plan.created``
 - Customer: ``customer.created``, ``customer.updated`` and ``customer.deleted``
