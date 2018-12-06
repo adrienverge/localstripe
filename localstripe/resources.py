@@ -986,7 +986,7 @@ class Plan(StripeObject):
                  currency=None, interval=None, interval_count=1,
                  trial_period_days=None, nickname=None,
                  # Legacy arguments, before Stripe API 2018-02-05:
-                 name=None, statement_descriptor=None,
+                 name=None, statement_descriptor=None, usage_type="licensed",
                  **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
@@ -1010,6 +1010,7 @@ class Plan(StripeObject):
                 assert type(trial_period_days) is int
             if nickname is not None:
                 assert type(nickname) is str
+            assert usage_type in ['licensed', 'metered']
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -1029,6 +1030,7 @@ class Plan(StripeObject):
         self.interval_count = interval_count
         self.trial_period_days = trial_period_days
         self.nickname = nickname
+        self.usage_type = usage_type
 
         schedule_webhook(Event('plan.created', self))
 
