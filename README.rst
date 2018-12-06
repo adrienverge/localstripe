@@ -199,11 +199,15 @@ Register a webhook using the special ``/_config`` route:
  curl localhost:8420/_config/webhooks/mywebhook1 \
       -d url=http://localhost:8888/api/url -d secret=whsec_s3cr3t
 
-Then, localstripe will send webhooks to this url. Only a few event types are
-currently supported (these include ``customer.created``, ``customer.updated``,
-``customer.deleted``, ``customer.source.created``, 
-``customer.subscription.created``, ``customer.subscription.deleted``
-``invoice.created``, ``invoice.payment_succeeded``, ``invoice.payment_failed``).
+Then, localstripe will send webhooks to this url.
+Only those events types are currently supported:
+
+- Product: ``product.created``
+- Plan: ``plan.created``
+- Customer: ``customer.created``, ``customer.updated`` and ``customer.deleted``
+- Source: ``customer.source.created``
+- Subscription: ``customer.subscription.created`` and ``customer.subscription.deleted``
+- Invoice: ``invoice.created``, ``invoice.payment_succeeded`` and ``invoice.payment_failed``
 
 Hacking and contributing
 ------------------------
