@@ -984,7 +984,7 @@ class Plan(StripeObject):
 
     def __init__(self, id=None, metadata=None, amount=None, product=None,
                  currency=None, interval=None, interval_count=1,
-                 trial_period_days=None, nickname=None,
+                 trial_period_days=None, nickname=None, usage_type='licensed',
                  # Legacy arguments, before Stripe API 2018-02-05:
                  name=None, statement_descriptor=None,
                  **kwargs):
@@ -1010,6 +1010,7 @@ class Plan(StripeObject):
                 assert type(trial_period_days) is int
             if nickname is not None:
                 assert type(nickname) is str
+            assert usage_type in ['licensed', 'metered']
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -1029,6 +1030,7 @@ class Plan(StripeObject):
         self.interval_count = interval_count
         self.trial_period_days = trial_period_days
         self.nickname = nickname
+        self.usage_type = usage_type
 
         schedule_webhook(Event('plan.created', self))
 
