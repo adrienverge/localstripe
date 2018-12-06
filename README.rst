@@ -205,6 +205,17 @@ currently supported (these include ``customer.created``, ``customer.updated``,
 ``customer.subscription.created``, ``customer.subscription.deleted``
 ``invoice.created``, ``invoice.payment_succeeded``, ``invoice.payment_failed``).
 
+Flush stored data
+------------
+Flushing data programmatically can be useful
+if your are using localstripe with any test framework.
+
+Flushing stored data can be performed using the ``/_config`` route with DELETE http method:
+
+.. code:: shell
+
+curl -X DELETE localhost:8420/_config/store
+
 Hacking and contributing
 ------------------------
 
