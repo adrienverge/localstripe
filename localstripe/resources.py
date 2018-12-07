@@ -990,7 +990,6 @@ class List(StripeObject):
 class Plan(StripeObject):
     object = 'plan'
 
-
     def __init__(self, id=None, metadata=None, active=True, amount=None,
                  product=None, currency=None, interval=None, interval_count=1,
                  trial_period_days=None, nickname=None,
