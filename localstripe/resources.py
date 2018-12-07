@@ -992,7 +992,7 @@ class Plan(StripeObject):
 
     def __init__(self, id=None, metadata=None, active=True, amount=None,
                  product=None, currency=None, interval=None, interval_count=1,
-                 trial_period_days=None, nickname=None,
+                 trial_period_days=None, nickname=None, usage_type='licensed',
                  # Legacy arguments, before Stripe API 2018-02-05:
                  name=None, statement_descriptor=None,
                  **kwargs):
