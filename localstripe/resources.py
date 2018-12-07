@@ -1298,7 +1298,8 @@ class Subscription(StripeObject):
                             description='Unused time',
                             customer=self.customer))
 
-        if create_an_invoice:
+        # Don't charge for a free plan
+        if create_an_invoice and plan.amount != 0:
             for si in self.items._list:
                 invoice_items.append(
                     InvoiceItem(subscription=self.id, plan=si.plan.id,
