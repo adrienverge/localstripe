@@ -24,7 +24,8 @@ import socket
 
 from aiohttp import web
 
-from .resources import Charge, Coupon, Customer, Invoice, InvoiceItem, Plan, \
+from .resources import Charge, Coupon, Customer, \
+                       Event, Invoice, InvoiceItem, Plan, \
                        Product, Refund, Source, Subscription, \
                        SubscriptionItem, Token, extra_apis, store
 from .errors import UserError
@@ -248,7 +249,8 @@ for method, url, func in extra_apis:
     app.router.add_route(method, url, api_extra(func, url))
 
 
-for cls in (Charge, Coupon, Customer, Invoice, InvoiceItem, Plan, Product,
+for cls in (Charge, Coupon, Customer,
+            Event, Invoice, InvoiceItem, Plan, Product,
             Refund, Source, Subscription, SubscriptionItem, Token):
     for method, url, func in (
             ('POST', '/v1/' + cls.object + 's', api_create),
