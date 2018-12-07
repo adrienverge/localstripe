@@ -982,8 +982,8 @@ class List(StripeObject):
 class Plan(StripeObject):
     object = 'plan'
 
-    def __init__(self, id=None, metadata=None, amount=None, product=None,
-                 currency=None, interval=None, interval_count=1,
+    def __init__(self, id=None, metadata=None, active=True, amount=None,
+                 product=None, currency=None, interval=None, interval_count=1,
                  trial_period_days=None, nickname=None,
                  # Legacy arguments, before Stripe API 2018-02-05:
                  name=None, statement_descriptor=None,
@@ -1001,6 +1001,7 @@ class Plan(StripeObject):
         trial_period_days = try_convert_to_int(trial_period_days)
         try:
             assert type(id) is str and id
+            assert type(active) is bool
             assert type(amount) is int and amount >= 0
             assert type(currency) is str and currency
             assert type(interval) is str
@@ -1023,6 +1024,7 @@ class Plan(StripeObject):
 
         self.metadata = metadata or {}
         self.product = product
+        self.active = active
         self.amount = amount
         self.currency = currency
         self.interval = interval
