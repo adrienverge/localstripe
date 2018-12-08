@@ -5,11 +5,12 @@ python:
   - 3.6
   - nightly
 install:
-  - pip install flake8 flake8-import-order
+  - pip install flake8 flake8-import-order doc8 Pygments
   - python setup.py sdist
   - pip install dist/localstripe-*.tar.gz
 script:
   - flake8 .
+  - doc8 README.rst
   - python3 -m localstripe &
   -  # wait for server to be up:
     timeout=5; while [ $((timeout--)) -ge 0 ]; do
