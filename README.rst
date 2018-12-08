@@ -24,8 +24,8 @@ Features
 - **stateful**: if you create a Stripe object (let's say, a customer), you will
   get it back on future requests
 - **integrates with Stripe Elements**: localstripe includes a JavaScript file
-  that can mock Stripe Elements on any webpage, allowing you to create tokens on
-  the fake server, from your webpage
+  that can mock Stripe Elements on any webpage, allowing you to create tokens
+  on the fake server, from your webpage
 - **supports webhooks** that you can customize using a special API route
 
 Limitations
@@ -67,8 +67,8 @@ Docker image can be rebuilt using:
 Examples
 --------
 
-In the following example, let's create a ``Plan``, a ``Customer``, and subscribe
-the latter to the former:
+In the following example, let's create a ``Plan``, a ``Customer``, and
+subscribe the latter to the former:
 
 .. code:: shell
 
@@ -206,8 +206,10 @@ Only those events types are currently supported:
 - Plan: ``plan.created``
 - Customer: ``customer.created``, ``customer.updated`` and ``customer.deleted``
 - Source: ``customer.source.created``
-- Subscription: ``customer.subscription.created`` and ``customer.subscription.deleted``
-- Invoice: ``invoice.created``, ``invoice.payment_succeeded`` and ``invoice.payment_failed``
+- Subscription: ``customer.subscription.created`` and
+  ``customer.subscription.deleted``
+- Invoice: ``invoice.created``, ``invoice.payment_succeeded`` and
+  ``invoice.payment_failed``
 
 Hacking and contributing
 ------------------------
