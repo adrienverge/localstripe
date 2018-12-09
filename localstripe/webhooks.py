@@ -27,13 +27,14 @@ _webhooks = {}
 
 
 class Webhook(object):
-    def __init__(self, url, secret):
+    def __init__(self, url, secret, events):
         self.url = url
         self.secret = secret
+        self.events = events
 
 
-def register_webhook(id, url, secret):
-    _webhooks[id] = Webhook(url, secret)
+def register_webhook(id, url, secret, events):
+    _webhooks[id] = Webhook(url, secret, events)
 
 
 async def _send_webhook(event):
@@ -46,6 +47,9 @@ async def _send_webhook(event):
     logger = logging.getLogger('aiohttp.access')
 
     for webhook in _webhooks.values():
+        if webhook.events is not None and event.type not in webhook.events:
+            continue
+
         signature = hmac.new(webhook.secret.encode('utf-8'),
                              signed_payload, hashlib.sha256).hexdigest()
         headers = {

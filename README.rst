@@ -199,7 +199,8 @@ Register a webhook using the special ``/_config`` route:
  curl localhost:8420/_config/webhooks/mywebhook1 \
       -d url=http://localhost:8888/api/url -d secret=whsec_s3cr3t
 
-Then, localstripe will send webhooks to this url.
+Then, localstripe will send webhooks to this url, signed using ``secret``. The
+``events`` option can be used to filter events to be sent.
 Only those events types are currently supported:
 
 - Product: ``product.created``
