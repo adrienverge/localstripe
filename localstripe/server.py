@@ -276,9 +276,12 @@ async def config_webhook(request):
     data = await get_post_data(request) or {}
     url = data.get('url', None)
     secret = data.get('secret', None)
+    events = data.get('events', None)
     if not url or not secret or not url.startswith('http'):
         raise UserError(400, 'Bad request')
-    register_webhook(id, url, secret)
+    if events is not None and type(events) is not list:
+        raise UserError(400, 'Bad request')
+    register_webhook(id, url, secret, events)
     return web.Response()
 
 
