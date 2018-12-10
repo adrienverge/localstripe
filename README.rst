@@ -175,7 +175,8 @@ Integrate with Stripe Elements
 ------------------------------
 
 If your application takes card numbers on a web page using Stripe Elements, you
-may want tokens to be sent to the mock server inside of the real Stripe server.
+may want tokens to be sent to the mock server instead of the real Stripe
+server.
 
 To achieve this, you need to load the
 ``http://localhost:8420/js.stripe.com/v3/`` script into your page. It will
