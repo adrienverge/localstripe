@@ -239,6 +239,8 @@ def api_extra(func, url):
         data.update(unflatten_data(request.query) or {})
         if 'id' in request.match_info:
             data['id'] = request.match_info['id']
+        if 'source_id' in request.match_info:
+            data['source_id'] = request.match_info['source_id']
         return json_response(func(**data)._export())
     return f
 

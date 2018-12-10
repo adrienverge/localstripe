@@ -504,6 +504,25 @@ class Customer(StripeObject):
         return super()._api_delete(id)
 
     @classmethod
+    def _api_retrieve_source(cls, id, source_id, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        # return 404 if does not exist
+        Customer._api_retrieve(id)
+
+        if type(source_id) is str and source_id.startswith('src_'):
+            source_obj = Source._api_retrieve(source_id)
+        elif type(source_id) is str and source_id.startswith('card_'):
+            source_obj = Card._api_retrieve(source_id)
+            if source_obj.customer != id:
+                raise UserError(404, 'This customer does not own this card')
+        else:
+            raise UserError(400, 'Bad request')
+
+        return source_obj
+
+    @classmethod
     def _api_add_source(cls, id, source=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
@@ -537,11 +556,13 @@ class Customer(StripeObject):
         return source_obj
 
 
-extra_apis.append(
-    ('POST', '/v1/customers/{id}/sources', Customer._api_add_source))
-
-extra_apis.append(  # this is the old API route:
-    ('POST', '/v1/customers/{id}/cards', Customer._api_add_source))
+extra_apis.extend((
+    ('POST', '/v1/customers/{id}/sources', Customer._api_add_source),
+    # Retrieve single source by id:
+    ('GET', '/v1/customers/{id}/sources/{source_id}',
+     Customer._api_retrieve_source),
+    # This is the old API route:
+    ('POST', '/v1/customers/{id}/cards', Customer._api_add_source)))
 
 
 class Event(StripeObject):
