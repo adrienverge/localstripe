@@ -134,6 +134,15 @@ src=$(curl -sSf -u $SK: $HOST/v1/sources \
 curl -sSf -u $SK: $HOST/v1/customers/$sepa_cus/sources \
      -d source=$src
 
+# Get a customer source directly:
+curl -sSf -u $SK: $HOST/v1/customers/$sepa_cus/sources/$src
+code=$(curl -s -o /dev/null -w "%{http_code}" -u $SK: \
+            $HOST/v1/customers/cus_doesnotexist/sources/$src)
+[ "$code" = 404 ]
+code=$(curl -s -o /dev/null -w "%{http_code}" -u $SK: \
+            $HOST/v1/customers/$sepa_cus/sources/src_doesnotexist)
+[ "$code" = 404 ]
+
 tok=$(curl -sSf -u $SK: $HOST/v1/tokens \
            -d card[number]=4242424242424242 \
            -d card[exp_month]=12 \
