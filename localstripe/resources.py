@@ -615,7 +615,6 @@ class Invoice(StripeObject):
         self.attempt_count = 1
         self.attempted = True
         self.closed = True
-        self.currency = 'eur'
         self.description = description
         self.discount = None
         self.ending_balance = 0
@@ -645,6 +644,11 @@ class Invoice(StripeObject):
             if not simulation:
                 ii.invoice = self.id
             self.lines._list.append(ii)
+
+        if len(self.lines._list):
+            self.currency = self.lines._list[0].currency
+        else:
+            self.currency = 'eur'  # arbitrary default
 
         self._upcoming = upcoming
 
