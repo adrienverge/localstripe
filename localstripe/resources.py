@@ -458,7 +458,6 @@ class Customer(StripeObject):
         self.business_vat_id = business_vat_id
         self.metadata = metadata or {}
         self.account_balance = 0
-        self.currency = 'eur'
         self.delinquent = False
         self.discount = None
         self.shipping = None
@@ -467,6 +466,15 @@ class Customer(StripeObject):
         self.sources = List('/v1/customers/' + self.id + '/sources')
 
         schedule_webhook(Event('customer.created', self))
+
+    @property
+    def currency(self):
+        if self.default_source is not None:
+            source = [s for s in self.sources._list
+                      if s.id == self.default_source][0]
+            if isinstance(source, Source):  # not Card
+                return source.currency
+        return 'eur'  # arbitrary default
 
     @property
     def subscriptions(self):
