@@ -11,7 +11,7 @@ install:
   - python setup.py sdist
   - pip install dist/localstripe-*.tar.gz
 script:
-  - flake8 .
+  - if [[ $TRAVIS_PYTHON_VERSION != nightly ]]; then flake8 .; fi
   - doc8 README.rst
   - python3 -m localstripe &
   -  # wait for server to be up:
