@@ -202,10 +202,11 @@ class StripeObject(object):
             else:
                 k, path = path.split('.', 1) if '.' in path else (path, None)
                 if path is None:
-                    id = obj[k]
-                    assert type(id) is str
-                    cls = StripeObject._get_class_for_id(id)
-                    obj[k] = cls._api_retrieve(id)._export()
+                    if obj[k] is not None:
+                        id = obj[k]
+                        assert type(id) is str
+                        cls = StripeObject._get_class_for_id(id)
+                        obj[k] = cls._api_retrieve(id)._export()
                 else:
                     do_expand(path, obj[k])
         try:
