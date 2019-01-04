@@ -1027,6 +1027,8 @@ class Plan(StripeObject):
     def __init__(self, id=None, metadata=None, amount=None, product=None,
                  currency=None, interval=None, interval_count=1,
                  trial_period_days=None, nickname=None, usage_type='licensed',
+                 billing_scheme='per_unit', tiers=None, tiers_mode=None,
+                 unit_amount=0, flat_amount=0,
                  active=True,
                  # Legacy arguments, before Stripe API 2018-02-05:
                  name=None, statement_descriptor=None,
@@ -1045,7 +1047,21 @@ class Plan(StripeObject):
         try:
             assert type(id) is str and id
             assert type(active) is bool
-            assert type(amount) is int and amount >= 0
+            assert billing_scheme in ['per_unit', 'tiered']
+            if billing_scheme == 'per_unit':
+                assert type(amount) is int and amount >= 0
+            else:
+                assert tiers_mode in ['graduated', 'volume']
+                assert type(tiers) is list and len(tiers) > 0
+                for t in tiers:
+                    assert \
+                        type(t) is dict and 'up_to' in t and \
+                        (t['up_to'] == 'inf' or
+                         type(try_convert_to_int(t['up_to'])) is int)
+                    unit_amount = try_convert_to_int(t.get('unit_amount', 0))
+                    assert type(unit_amount) is int and unit_amount >= 0
+                    flat_amount = try_convert_to_int(t.get('flat_amount', 0))
+                    assert type(flat_amount) is int and flat_amount >= 0
             assert type(currency) is str and currency
             assert type(interval) is str
             assert interval in ('day', 'week', 'month', 'year')
@@ -1076,6 +1092,8 @@ class Plan(StripeObject):
         self.trial_period_days = trial_period_days
         self.nickname = nickname
         self.usage_type = usage_type
+        self.billing_scheme = billing_scheme
+        self.tiers = tiers
 
         schedule_webhook(Event('plan.created', self))
 
