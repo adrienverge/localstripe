@@ -36,6 +36,21 @@ curl -sSf -u $SK: $HOST/v1/plans \
    -d interval=year
 
 curl -sSf -u $SK: $HOST/v1/plans \
+   -d id=annual-tiered \
+   -d name='Annual tiered' \
+   -d currency=eur \
+   -d interval=year \
+   -d interval_count=1 \
+   -d usage_type=licensed \
+   -d billing_scheme=tiered \
+   -d tiers_mode=volume \
+   -d tiers[0][unit_amount]=0 \
+   -d tiers[0][up_to]=1 \
+   -d tiers[1][flat_amount]=1200 \
+   -d tiers[1][unit_amount]=1500 \
+   -d tiers[1][up_to]=inf
+
+curl -sSf -u $SK: $HOST/v1/plans \
    -d id=pro-annuel \
    -d product[name]='Abonnement PRO (annuel)' \
    -d product[statement_descriptor]='abonnement pro' \
