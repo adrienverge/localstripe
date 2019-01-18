@@ -59,6 +59,13 @@ curl -sSf -u $SK: $HOST/v1/plans \
    -d interval=year
 
 curl -sSf -u $SK: $HOST/v1/plans \
+   -d product[name]='Without id' \
+   -d product[statement_descriptor]='Without id' \
+   -d amount=30000 \
+   -d currency=eur \
+   -d interval=year
+
+curl -sSf -u $SK: $HOST/v1/plans \
    -d id=delete-me \
    -d product[name]='Delete me' \
    -d amount=30000 \
