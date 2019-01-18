@@ -1023,6 +1023,7 @@ class List(StripeObject):
 
 class Plan(StripeObject):
     object = 'plan'
+    _id_prefix = 'plan_'
 
     def __init__(self, id=None, metadata=None, amount=None, product=None,
                  currency=None, interval=None, interval_count=1,
@@ -1043,7 +1044,7 @@ class Plan(StripeObject):
         interval_count = try_convert_to_int(interval_count)
         trial_period_days = try_convert_to_int(trial_period_days)
         try:
-            assert type(id) is str and id
+            assert id is None or type(id) is str and id
             assert type(active) is bool
             assert type(amount) is int and amount >= 0
             assert type(currency) is str and currency
