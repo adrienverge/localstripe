@@ -1373,11 +1373,11 @@ class Subscription(StripeObject):
                         date=self.current_period_start,
                         on_payment_fail=self._on_first_payment_failed)
             except UserError as e:
-                self._on_first_payment_failed()
+                self._on_first_payment_failed(_send_event=False)
                 raise e
 
-    def _on_first_payment_failed(self):
-        Subscription._api_delete(self.id)
+    def _on_first_payment_failed(self, _send_event=True):
+        Subscription._api_delete(self.id, _send_event)
 
     def _update(self, metadata=None, items=None, tax_percent=None,
                 proration_date=None):
@@ -1417,11 +1417,12 @@ class Subscription(StripeObject):
         self._set_up_subscription_and_invoice(plan, create_an_invoice=False)
 
     @classmethod
-    def _api_delete(cls, id):
+    def _api_delete(cls, id, _send_event=True):
         obj = super()._api_retrieve(id)
         obj.ended_at = int(time.time())
         obj.status = 'canceled'
-        schedule_webhook(Event('customer.subscription.deleted', obj))
+        if _send_event:
+            schedule_webhook(Event('customer.subscription.deleted', obj))
         return super()._api_delete(id)
 
     @classmethod
