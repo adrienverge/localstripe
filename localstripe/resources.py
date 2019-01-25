@@ -322,19 +322,6 @@ class Charge(StripeObject):
         if customer is None:
             customer = source.customer
 
-        if source.object == 'card':
-            decline = {
-                '4000000000000002': 'card_declined',  # fails when adding card
-                '4000000000000341': 'card_declined',  # fails only at payment
-                '4000000000000127': 'incorrect_cvc',
-                '4000000000000069': 'expired_card',
-                '4000000000000119': 'processing_error',
-                '4242424242424241': 'incorrect_number',
-            }.get(source._number, None)
-            if decline:
-                raise UserError(402, 'Your card was declined.',
-                                {'code': decline})
-
         # All exceptions must be raised before this point.
         super().__init__()
 
@@ -351,7 +338,7 @@ class Charge(StripeObject):
         self.refunds = List('/v1/customers/' + self.id + '/sources')
         self.source = source
 
-    def _set_callbacks(self, on_succeed, on_fail):
+    def _trigger_payment(self, on_succeed=None, on_fail=None):
         if self.source.object == 'source' and self.source.type == 'sepa_debit':
             # From Stripe docs:
             # The charge status transitions from pending to failed.
@@ -370,7 +357,21 @@ class Charge(StripeObject):
                     if on_succeed:
                         on_succeed()
             asyncio.ensure_future(callback())
+
         else:
+            if self.source.object == 'card':
+                decline = {
+                    '4000000000000002': 'card_declined',  # when adding card
+                    '4000000000000341': 'card_declined',  # only at payment
+                    '4000000000000127': 'incorrect_cvc',
+                    '4000000000000069': 'expired_card',
+                    '4000000000000119': 'processing_error',
+                    '4242424242424241': 'incorrect_number',
+                }.get(self.source._number, None)
+                if decline:
+                    raise UserError(402, 'Your card was declined.',
+                                    {'code': decline})
+
             self.paid = True
             self.status = 'succeeded'
             if on_succeed:
@@ -725,7 +726,7 @@ class Invoice(StripeObject):
                 if self._on_payment_fail:
                     self._on_payment_fail()
 
-            charge_obj._set_callbacks(on_succeed, on_fail)
+            charge_obj._trigger_payment(on_succeed, on_fail)
 
         return self._charge
 
