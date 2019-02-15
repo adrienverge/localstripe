@@ -36,19 +36,40 @@ curl -sSf -u $SK: $HOST/v1/plans \
    -d interval=year
 
 curl -sSf -u $SK: $HOST/v1/plans \
-   -d id=annual-tiered \
-   -d name='Annual tiered' \
+   -d id=annual-tiered-volume \
+   -d name='Annual tiered volume' \
    -d currency=eur \
    -d interval=year \
    -d interval_count=1 \
    -d usage_type=licensed \
    -d billing_scheme=tiered \
    -d tiers_mode=volume \
-   -d tiers[0][unit_amount]=0 \
+   -d tiers[0][from]=0 \
    -d tiers[0][up_to]=1 \
-   -d tiers[1][flat_amount]=1200 \
-   -d tiers[1][unit_amount]=1500 \
-   -d tiers[1][up_to]=inf
+   -d tiers[0][unit_amount]=500 \
+   -d tiers[0][flat_amount]=1000 \
+   -d tiers[1][from]=2 \
+   -d tiers[1][up_to]=inf \
+   -d tiers[1][unit_amount]=1000 \
+   -d tiers[1][flat_amount]=1200
+
+curl -sSf -u $SK: $HOST/v1/plans \
+   -d id=monthly-tiered-graduated \
+   -d name='Monthly tiered graduated' \
+   -d currency=eur \
+   -d interval=month \
+   -d interval_count=1 \
+   -d usage_type=licensed \
+   -d billing_scheme=tiered \
+   -d tiers_mode=graduated \
+   -d tiers[0][from]=0 \
+   -d tiers[0][up_to]=1 \
+   -d tiers[0][unit_amount]=500 \
+   -d tiers[0][flat_amount]=1000 \
+   -d tiers[1][from]=2 \
+   -d tiers[1][up_to]=inf \
+   -d tiers[1][unit_amount]=1000 \
+   -d tiers[1][flat_amount]=1200
 
 curl -sSf -u $SK: $HOST/v1/plans \
    -d id=pro-annuel \
@@ -210,3 +231,37 @@ curl -sSf -u $SK: $HOST/v1/invoices/upcoming?customer=$cus
 curl -sSf -u $SK: $HOST/v1/invoices/upcoming?customer=$cus\&subscription_items%5B0%5D%5Bplan%5D=pro-annuel\&subscription_tax_percent=20
 
 curl -sSf -u $SK: $HOST/v1/invoices/upcoming?customer=$cus\&subscription=$sub\&subscription_items%5B0%5D%5Bid%5D=si_RBrVStcKDimMnp\&subscription_items%5B0%5D%5Bplan%5D=basique-annuel\&subscription_proration_date=1504182686\&subscription_tax_percent=20
+
+cus=$(curl -sSf -u $SK: $HOST/v1/customers \
+           -d description='This customer will have a subscription with volume tiered pricing' \
+           -d email=tiered@bar.com \
+      | grep -oE 'cus_\w+' | head -n 1)
+
+curl -sSf -u $SK: $HOST/v1/customers/$cus/sources \
+     -d source=$tok
+
+curl -sSf -u $SK: $HOST/v1/subscriptions \
+      -d customer=$cus \
+      -d items[0][plan]=annual-tiered-volume \
+      -d items[0][quantity]=5
+
+curl -sSf -u $SK: $HOST/v1/invoices?customer=$cus
+
+cus=$(curl -sSf -u $SK: $HOST/v1/customers \
+           -d description='This customer will have a subscription with graduated tiered pricing' \
+           -d email=tiered@bar.com \
+      | grep -oE 'cus_\w+' | head -n 1)
+
+curl -sSf -u $SK: $HOST/v1/customers/$cus/sources \
+     -d source=$tok
+
+sub=$(curl -sSf -u $SK: $HOST/v1/subscriptions \
+           -d customer=$cus \
+           -d items[0][plan]=monthly-tiered-graduated \
+           -d items[0][quantity]=5 \
+      | grep -oE 'sub_\w+' | head -n 1)
+
+curl -sSf -u $SK: $HOST/v1/subscriptions/$sub \
+     -d items[0][plan]=annual-tiered-volume
+
+curl -sSf -u $SK: $HOST/v1/invoices?customer=$cus
