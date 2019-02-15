@@ -1096,6 +1096,7 @@ class Plan(StripeObject):
         self.usage_type = usage_type
         self.billing_scheme = billing_scheme
         self.tiers = tiers
+        self.tiers_mode = tiers_mode
 
         schedule_webhook(Event('plan.created', self))
 
@@ -1308,7 +1309,7 @@ class Subscription(StripeObject):
         self.canceled_at = None
         self.discount = None
         self.ended_at = None
-        self.quantity = 1
+        self.quantity = items[0]['quantity']
         self.status = 'active'
         self.trial_end = None
         self.trial_start = None
@@ -1338,7 +1339,10 @@ class Subscription(StripeObject):
 
         self.items = List('/v1/subscription_items?subscription=' + self.id)
         self.items._list.append(
-            SubscriptionItem(subscription=self.id, plan=plan.id, quantity=1))
+            SubscriptionItem(
+                subscription=self.id,
+                plan=plan.id,
+                quantity=self.quantity))
 
         invoice_items = []
 
@@ -1359,7 +1363,7 @@ class Subscription(StripeObject):
             for si in self.items._list:
                 invoice_items.append(
                     InvoiceItem(subscription=self.id, plan=si.plan.id,
-                                amount=si.plan.amount,
+                                amount=si._calculate_amount(),
                                 currency=si.plan.currency,
                                 description=si.plan.name,
                                 customer=self.customer,
@@ -1396,12 +1400,15 @@ class Subscription(StripeObject):
                 for item in items:
                     id = item.get('id', None)
                     plan = item.get('plan', None)
-                    quantity = try_convert_to_int(item.get('quantity', None))
                     assert id is not None or plan is not None
                     if id is not None:
                         assert type(id) is str and id.startswith('si_')
-                    if quantity is not None:
-                        assert type(quantity) is int and quantity > 0
+                    if item.get('quantity', None) is not None:
+                        item['quantity'] = try_convert_to_int(item['quantity'])
+                        assert type(item['quantity']) is int
+                        assert item['quantity'] > 0
+                    else:
+                        item['quantity'] = 1
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -1410,6 +1417,8 @@ class Subscription(StripeObject):
 
         if items is None or len(items) != 1 or not items[0]['plan']:
             raise UserError(500, 'Not implemented')
+
+        self.quantity = items[0]['quantity']
 
         plan = Plan._api_retrieve(items[0]['plan'])
         # If the subscription is updated to a more expensive plan, an invoice
@@ -1470,6 +1479,42 @@ class SubscriptionItem(StripeObject):
         self.metadata = metadata or {}
 
         self._subscription = subscription
+
+    def _calculate_amount(self):
+        if self.plan.billing_scheme == 'per_unit':
+            return self.plan.amount * self.quantity
+
+        if self.plan.tiers_mode == 'volume':
+            index = next(
+                (i for i, t in enumerate(self.plan.tiers)
+                    if t['up_to'] == 'inf'
+                    or int(t['from']) <= self.quantity <= int(t['up_to'])))
+            return self._calculate_amount_in_tier(
+                self.quantity, index)
+
+        if self.plan.tiers_mode == 'graduated':
+            quantity = self.quantity
+            amount = 0
+
+            for i, t in enumerate(self.plan.tiers):
+                if quantity <= 0 or int(t['from']) > quantity:
+                    break
+
+                amount += self._calculate_amount_in_tier(
+                    quantity - int(t['from']), i)
+
+                if t['up_to'] == 'inf':
+                    quantity = 0
+                else:
+                    quantity -= int(t['up_to'])
+
+            return amount
+
+        return 0
+
+    def _calculate_amount_in_tier(self, quantity, index):
+        t = self.plan.tiers[index]
+        return int(t['unit_amount']) * quantity + int(t['flat_amount'])
 
 
 class Token(StripeObject):
