@@ -637,11 +637,9 @@ class Invoice(StripeObject):
         self.application_fee = None
         self.attempt_count = 1
         self.attempted = True
-        self.closed = True
         self.description = description
         self.discount = None
         self.ending_balance = 0
-        self.forgiven = False
         self.receipt_number = None
         self.starting_balance = 0
         self.statement_descriptor = None
@@ -704,10 +702,14 @@ class Invoice(StripeObject):
             return self.date
 
     @property
-    def paid(self):
-        if self._charge is not None:
-            return Charge._api_retrieve(self._charge).paid
-        return not self._upcoming
+    def status(self):
+        if self._upcoming:
+            return 'draft'
+        if self._charge and Charge._api_retrieve(self._charge).paid:
+            return 'paid'
+        if self.total <= 0:
+            return 'paid'
+        return 'open'
 
     @property
     def charge(self):
