@@ -437,8 +437,13 @@ class Customer(StripeObject):
     object = 'customer'
     _id_prefix = 'cus_'
 
+    # Save built-in keyword `type`, because the `type` property will
+    # override it:
+    _type = type
+
     def __init__(self, description=None, email=None, business_vat_id=None,
-                 preferred_locales=None, metadata=None, **kwargs):
+                 preferred_locales=None, tax_id_data=None, metadata=None,
+                 **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -452,6 +457,14 @@ class Customer(StripeObject):
             if preferred_locales is not None:
                 assert type(preferred_locales) is list
                 assert all(type(l) is str for l in preferred_locales)
+            if tax_id_data is None:
+                tax_id_data = []
+            assert type(tax_id_data) is list
+            for data in tax_id_data:
+                assert type(data) is dict
+                assert set(data.keys()) == {'type', 'value'}
+                assert data['type'] in ('eu_vat', 'nz_gst', 'au_abn')
+                assert type(data['value']) is str and len(data['value']) > 10
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -470,6 +483,9 @@ class Customer(StripeObject):
         self.default_source = None
 
         self.sources = List('/v1/customers/' + self.id + '/sources')
+        self.tax_ids = List('/v1/customers/' + self.id + '/tax_ids')
+        self.tax_ids._list = [TaxId(customer=self.id, **data)
+                              for data in tax_id_data]
 
         schedule_webhook(Event('customer.created', self))
 
@@ -560,6 +576,32 @@ class Customer(StripeObject):
 
         return source_obj
 
+    @classmethod
+    def _api_add_tax_id(cls, id, type=None, value=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            assert type in ('eu_vat', 'nz_gst', 'au_abn')
+            assert cls._type(value) is str and len(value) > 10
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        obj = cls._api_retrieve(id)
+
+        tax_id = TaxId(customer=id, type=type, value=value)
+        obj.tax_ids._list.append(tax_id)
+
+        return tax_id
+
+    @classmethod
+    def _api_list_tax_ids(cls, id, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        obj = cls._api_retrieve(id)
+        return obj.tax_ids
+
 
 extra_apis.extend((
     ('POST', '/v1/customers/{id}/sources', Customer._api_add_source),
@@ -567,7 +609,9 @@ extra_apis.extend((
     ('GET', '/v1/customers/{id}/sources/{source_id}',
      Customer._api_retrieve_source),
     # This is the old API route:
-    ('POST', '/v1/customers/{id}/cards', Customer._api_add_source)))
+    ('POST', '/v1/customers/{id}/cards', Customer._api_add_source),
+    ('POST', '/v1/customers/{id}/tax_ids', Customer._api_add_tax_id),
+    ('GET', '/v1/customers/{id}/tax_ids', Customer._api_list_tax_ids)))
 
 
 class Event(StripeObject):
@@ -1520,6 +1564,42 @@ class SubscriptionItem(StripeObject):
     def _calculate_amount_in_tier(self, quantity, index):
         t = self.plan.tiers[index]
         return int(t['unit_amount']) * quantity + int(t['flat_amount'])
+
+
+class TaxId(StripeObject):
+    object = 'tax_id'
+    _id_prefix = 'txi_'
+
+    # Save built-in keyword `type`, because the `type` property will
+    # override it:
+    _type = type
+
+    def __init__(self, country=None, customer=None, type=None, value=None,
+                 **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            assert self._type(customer) is str
+            assert customer.startswith('cus_')
+            assert type in ('eu_vat', 'nz_gst', 'au_abn')
+            assert self._type(value) is str and len(value) > 10
+            if country is None:
+                country = value[0:2]
+            assert self._type(country) is str
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        Customer._api_retrieve(customer)  # to return 404 if not existant
+
+        # All exceptions must be raised before this point.
+        super().__init__()
+
+        self.country = country
+        self.customer = customer
+        self.type = type
+        self.value = value
+        self.verification = {'status': 'pending'}
 
 
 class Token(StripeObject):

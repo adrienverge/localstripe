@@ -21,8 +21,11 @@ curl -sSf -u $SK: -X DELETE $HOST/v1/customers/$cus
 cus=$(curl -sSf -u $SK: $HOST/v1/customers \
            -d description='This customer is a company' \
            -d email=foo@bar.com \
-           -d business_vat_id=FR1234567890 \
+           -d tax_id_data[0][type]=eu_vat -d tax_id_data[0][value]=FR12345678901 \
       | grep -oE 'cus_\w+' | head -n 1)
+
+curl -sSf -u $SK: $HOST/v1/customers/$cus/tax_ids \
+     -d type=eu_vat -d value=DE123456789
 
 curl -sSf -u $SK: $HOST/v1/plans \
    -d id=basique-mensuel \
