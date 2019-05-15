@@ -49,7 +49,8 @@ Install localstripe:
 Then simply run the command ``localstripe``. The fake Stripe server is now
 listening on port 8420.
 
-Or launch a Docker container:
+Or launch a container using `the Docker image
+<https://hub.docker.com/r/adrienverge/localstripe/>`_:
 
 .. code:: shell
 
@@ -59,7 +60,7 @@ Docker image can be rebuilt using:
 
 .. code::
 
- docker build -t adrienverge/localstripe -<<EOF
+ docker build --no-cache -t adrienverge/localstripe -<<EOF
  FROM python:3
  RUN pip install localstripe
  CMD ["localstripe"]
