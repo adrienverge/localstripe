@@ -438,7 +438,7 @@ class Customer(StripeObject):
     _id_prefix = 'cus_'
 
     def __init__(self, description=None, email=None, business_vat_id=None,
-                 metadata=None, **kwargs):
+                 preferred_locales=None, metadata=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -449,6 +449,9 @@ class Customer(StripeObject):
                 assert type(email) is str
             if business_vat_id is not None:
                 assert type(business_vat_id) is str
+            if preferred_locales is not None:
+                assert type(preferred_locales) is list
+                assert all(type(l) is str for l in preferred_locales)
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -458,6 +461,7 @@ class Customer(StripeObject):
         self.description = description or ''
         self.email = email or ''
         self.business_vat_id = business_vat_id
+        self.preferred_locales = preferred_locales
         self.metadata = metadata or {}
         self.account_balance = 0
         self.delinquent = False
@@ -1135,7 +1139,6 @@ class Product(StripeObject):
                 assert self._type(description) is str
             if attributes is not None:
                 assert self._type(attributes) is list
-                assert all(self._type(a) is str for a in attributes)
             assert self._type(shippable) is bool
             if url is not None:
                 assert self._type(url) is str
