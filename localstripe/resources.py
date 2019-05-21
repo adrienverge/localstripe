@@ -1317,7 +1317,10 @@ class Subscription(StripeObject):
     _id_prefix = 'sub_'
 
     def __init__(self, customer=None, metadata=None, items=None,
-                 tax_percent=None, **kwargs):
+                 tax_percent=None,
+                 # Currently unimplemented, only False works as expected:
+                 enable_incomplete_payments=False,
+                 **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
