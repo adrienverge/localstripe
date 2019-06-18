@@ -32,6 +32,7 @@ Limitations
 -----------
 
 - only the **latest version of Stripe API** is supported (on best effort)
+- deprecated properties and features may or may not be supported
 - **no Stripe Connect support**: localstripe currently only supports Stripe
   Payments, and does not support Stripe Connect
 
