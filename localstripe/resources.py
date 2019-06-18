@@ -1616,6 +1616,42 @@ class TaxId(StripeObject):
         self.verification = {'status': 'pending'}
 
 
+class TaxRate(StripeObject):
+    object = 'tax_rate'
+    _id_prefix = 'txr_'
+
+    def __init__(self, display_name=None, inclusive=None, percentage=None,
+                 active=True, description=None, jurisdiction=None,
+                 metadata=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        inclusive = try_convert_to_bool(inclusive)
+        percentage = try_convert_to_float(percentage)
+        active = try_convert_to_bool(active)
+        try:
+            assert type(display_name) is str and display_name
+            assert type(inclusive) is bool
+            assert type(percentage) is float
+            assert type(active) is bool
+            assert percentage >= 0 and percentage <= 100
+            assert description is None or type(description) is str
+            assert jurisdiction is None or type(jurisdiction) is str
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        # All exceptions must be raised before this point.
+        super().__init__()
+
+        self.display_name = display_name
+        self.inclusive = inclusive
+        self.percentage = percentage
+        self.active = active
+        self.description = description
+        self.jurisdiction = jurisdiction
+        self.metadata = metadata or {}
+
+
 class Token(StripeObject):
     object = 'token'
     _id_prefix = 'tok_'

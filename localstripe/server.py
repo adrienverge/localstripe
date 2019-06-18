@@ -27,7 +27,7 @@ from aiohttp import web
 from .resources import Charge, Coupon, Customer, \
                        Event, Invoice, InvoiceItem, Plan, \
                        Product, Refund, Source, Subscription, \
-                       SubscriptionItem, Token, extra_apis, store
+                       SubscriptionItem, TaxRate, Token, extra_apis, store
 from .errors import UserError
 from .webhooks import register_webhook
 
@@ -253,7 +253,7 @@ for method, url, func in extra_apis:
 
 for cls in (Charge, Coupon, Customer,
             Event, Invoice, InvoiceItem, Plan, Product,
-            Refund, Source, Subscription, SubscriptionItem, Token):
+            Refund, Source, Subscription, SubscriptionItem, TaxRate, Token):
     for method, url, func in (
             ('POST', '/v1/' + cls.object + 's', api_create),
             ('GET', '/v1/' + cls.object + 's/{id}', api_retrieve),
