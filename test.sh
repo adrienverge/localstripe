@@ -241,9 +241,14 @@ code=$(curl -s -o /dev/null -w "%{http_code}" -u $SK: \
             $HOST/v1/invoices/upcoming?customer=$cus)
 [ "$code" = 404 ]
 
+curl -sSf -u $SK: $HOST/v1/subscriptions \
+     -d customer=$cus \
+     -d items[0][plan]=basique-mensuel
+
 sub=$(curl -sSf -u $SK: $HOST/v1/subscriptions \
-         -d customer=$cus \
-         -d items[0][plan]=basique-mensuel \
+           -d customer=$cus \
+           -d items[0][plan]=basique-mensuel \
+           -d items[0][tax_rates][0]=$txr1 \
       | grep -oE 'sub_\w+' | head -n 1)
 
 curl -sSf -u $SK: $HOST/v1/invoices?customer=$cus
