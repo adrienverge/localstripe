@@ -62,6 +62,14 @@ def random_id(n):
                    for i in range(n))
 
 
+def try_convert_to_bool(arg):
+    if arg == 'false':
+        return False
+    elif arg == 'true':
+        return True
+    return arg
+
+
 def try_convert_to_int(arg):
     if type(arg) == int:
         return arg
@@ -978,6 +986,7 @@ class InvoiceItem(StripeObject):
         amount = try_convert_to_int(amount)
         period_start = try_convert_to_int(period_start)
         period_end = try_convert_to_int(period_end)
+        proration = try_convert_to_bool(proration)
         try:
             if invoice is not None:
                 assert type(invoice) is str and invoice.startswith('in_')
@@ -1096,6 +1105,7 @@ class Plan(StripeObject):
         amount = try_convert_to_int(amount)
         interval_count = try_convert_to_int(interval_count)
         trial_period_days = try_convert_to_int(trial_period_days)
+        active = try_convert_to_bool(active)
         try:
             assert id is None or type(id) is str and id
             assert type(active) is bool
@@ -1173,6 +1183,7 @@ class Product(StripeObject):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
+        active = try_convert_to_bool(active)
         try:
             assert self._type(name) is str and name
             assert type in ('good', 'service')
