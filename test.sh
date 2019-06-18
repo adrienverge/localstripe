@@ -27,6 +27,22 @@ cus=$(curl -sSf -u $SK: $HOST/v1/customers \
 curl -sSf -u $SK: $HOST/v1/customers/$cus/tax_ids \
      -d type=eu_vat -d value=DE123456789
 
+txr1=$(curl -sSf -u $SK: $HOST/v1/tax_rates \
+            -d display_name=VAT \
+            -d description='TVA France taux normal' \
+            -d jurisdiction=FR \
+            -d percentage=20.0 \
+            -d inclusive=false \
+      | grep -oE 'txr_\w+' | head -n 1)
+
+txr2=$(curl -sSf -u $SK: $HOST/v1/tax_rates \
+            -d display_name=VAT \
+            -d description='TVA France taux réduit' \
+            -d jurisdiction=FR \
+            -d percentage=10.0 \
+            -d inclusive=false \
+      | grep -oE 'txr_\w+' | head -n 1)
+
 curl -sSf -u $SK: $HOST/v1/plans \
    -d id=basique-mensuel \
    -d product[name]='Abonnement basique (mensuel)' \
