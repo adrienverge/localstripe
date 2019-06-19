@@ -1694,7 +1694,16 @@ class TaxId(StripeObject):
         self.customer = customer
         self.type = type
         self.value = value
-        self.verification = {'status': 'pending'}
+
+        self.verification = {'status': 'verified',
+                             'verified_name': '',
+                             'verified_address': ''}
+        # Test values from
+        # https://stripe.com/docs/billing/testing#customer-tax-id-verfication
+        if '111111111' in value:
+            self.verification['status'] = 'unverified'
+        elif '222222222' in value:
+            self.verification['status'] = 'pending'
 
 
 class TaxRate(StripeObject):
