@@ -1512,7 +1512,9 @@ class Subscription(StripeObject):
         Subscription._api_delete(self.id, _send_event)
 
     def _update(self, metadata=None, items=None, tax_percent=None,
-                proration_date=None):
+                proration_date=None,
+                # Currently unimplemented, only False works as expected:
+                enable_incomplete_payments=False):
         tax_percent = try_convert_to_float(tax_percent)
         proration_date = try_convert_to_int(proration_date)
         try:
