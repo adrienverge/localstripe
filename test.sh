@@ -173,6 +173,15 @@ curl -sSf -u $SK: $HOST/v1/customers/$cus/cards \
           -d source[exp_year]=2020 \
           -d source[cvc]=123
 
+code=$(curl -s -o /dev/null -w "%{http_code}" -u $SK: \
+            $HOST/v1/customers/$cus/cards \
+            -d source[object]=card \
+            -d source[number]=4000000000000002 \
+            -d source[exp_month]=4 \
+            -d source[exp_year]=2042 \
+            -d source[cvc]=123)
+[ "$code" = 402 ]
+
 sepa_cus=$(
   curl -sSf -u $SK: $HOST/v1/customers \
        -d description='I pay with SEPA debit' \
@@ -292,3 +301,32 @@ curl -sSf -u $SK: $HOST/v1/subscriptions/$sub \
      -d items[0][plan]=annual-tiered-volume
 
 curl -sSf -u $SK: $HOST/v1/invoices?customer=$cus
+
+cus=$(curl -sSf -u $SK: $HOST/v1/customers \
+           -d email=john.malkovich@example.com \
+      | grep -oE 'cus_\w+' | head -n 1)
+
+pm=$(curl -sSf -u $SK: $HOST/v1/payment_methods \
+          -d type=card \
+          -d card[number]=4242424242424242 \
+          -d card[exp_month]=12 \
+          -d card[exp_year]=2020 \
+          -d card[cvc]=123 \
+     | grep -oE 'pm_\w+' | head -n 1)
+
+curl -sSf -u $SK: $HOST/v1/payment_methods/$pm/attach \
+     -d customer=$cus
+
+curl -sSf -u $SK: $HOST/v1/payment_methods/$pm/detach -X POST
+
+pm=$(curl -sSf -u $SK: $HOST/v1/payment_methods \
+          -d type=card \
+          -d card[number]=4000000000000002 \
+          -d card[exp_month]=4 \
+          -d card[exp_year]=2042 \
+          -d card[cvc]=123 \
+     | grep -oE 'pm_\w+' | head -n 1)
+code=$(curl -s -o /dev/null -w "%{http_code}" -u $SK: \
+            $HOST/v1/payment_methods/$pm/attach \
+            -d customer=$cus)
+[ "$code" = 402 ]

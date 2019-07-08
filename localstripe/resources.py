@@ -272,7 +272,7 @@ class Card(StripeObject):
         # All exceptions must be raised before this point.
         super().__init__()
 
-        self._number = number
+        self._card_number = number
 
         self.type = 'card'
         self.metadata = {}
@@ -299,7 +299,13 @@ class Card(StripeObject):
 
     @property
     def last4(self):
-        return self._number[-4:]
+        return self._card_number[-4:]
+
+    def _attaching_is_declined(self):
+        return PaymentMethod._attaching_is_declined(self)
+
+    def _charging_is_declined(self):
+        return PaymentMethod._charging_is_declined(self)
 
 
 class Charge(StripeObject):
@@ -576,9 +582,14 @@ class Customer(StripeObject):
             source_obj = Source._api_retrieve(source)
         elif type(source) is str and source.startswith('tok_'):
             source_obj = Token._api_retrieve(source).card
-            source_obj.customer = id
         else:
             source_obj = Card(source=source)
+
+        if source_obj._attaching_is_declined():
+            raise UserError(402, 'Your card was declined.',
+                            {'code': 'card_declined'})
+
+        if isinstance(source_obj, Card):
             source_obj.customer = id
 
         obj.sources._list.append(source_obj)
@@ -1134,6 +1145,117 @@ class List(StripeObject):
         return len(self._list) > self._limit
 
 
+class PaymentMethod(StripeObject):
+    object = 'payment_method'
+    _id_prefix = 'pm_'
+
+    def __init__(self, type=None, billing_details=None, card=None,
+                 metadata=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            assert type in ('card', )
+            assert billing_details is None or _type(billing_details) is dict
+            if type == 'card':
+                assert _type(card) is dict and card.keys() == {
+                    'number', 'exp_month', 'exp_year', 'cvc'}
+                card['exp_month'] = try_convert_to_int(card['exp_month'])
+                card['exp_year'] = try_convert_to_int(card['exp_year'])
+                assert _type(card['number']) is str
+                assert _type(card['exp_month']) is int
+                assert _type(card['exp_year']) is int
+                assert _type(card['cvc']) is str
+                assert len(card['number']) == 16
+                assert card['exp_month'] >= 1 and card['exp_month'] <= 12
+                if card['exp_year'] > 0 and card['exp_year'] < 100:
+                    card['exp_year'] += 2000
+                assert len(card['cvc']) == 3
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        if not (2019 <= card['exp_year'] < 2100):
+            raise UserError(400, 'Bad request',
+                            {'code': 'invalid_expiry_year'})
+
+        # All exceptions must be raised before this point.
+        super().__init__()
+
+        self.type = type
+        self.billing_details = billing_details or {}
+        self._card_number = card['number']
+        self.card = {
+            'exp_month': card['exp_month'],
+            'exp_year': card['exp_year'],
+            'last4': self._card_number[-4:],
+            'brand': 'visa',
+            'country': 'FR',
+            'fingerprint': random_id(16),
+            'funding': 'credit',
+            'three_d_secure_usage': {'supported': True},
+        }
+        self.customer = None
+        self.metadata = metadata or {}
+
+    def _requires_authentication(self):
+        return self._card_number in ('4000002500003155',
+                                     '4000002760003184',
+                                     '4000008260003178')
+
+    def _attaching_is_declined(self):
+        return self._card_number in ('4000000000000002',
+                                     '4000000000009995',
+                                     '4000000000009987',
+                                     '4000000000009979',
+                                     '4000000000000069',
+                                     '4000000000000127',
+                                     '4000000000000119',
+                                     '4242424242424241')
+
+    def _charging_is_declined(self):
+        return self._card_number in ('4000000000000341', )
+
+    @classmethod
+    def _api_attach(cls, id, customer=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            assert type(id) is str and id.startswith('pm_')
+            assert type(customer) is str and customer.startswith('cus_')
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        obj = cls._api_retrieve(id)
+        Customer._api_retrieve(customer)  # to return 404 if not existant
+
+        if obj._attaching_is_declined():
+            raise UserError(402, 'Your card was declined.',
+                            {'code': 'card_declined'})
+
+        obj.customer = customer
+        return obj
+
+    @classmethod
+    def _api_detach(cls, id, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            assert type(id) is str and id.startswith('pm_')
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        obj = cls._api_retrieve(id)
+        obj.customer = None
+        return obj
+
+
+extra_apis.extend((
+    ('POST', '/v1/payment_methods/{id}/attach', PaymentMethod._api_attach),
+    ('POST', '/v1/payment_methods/{id}/detach', PaymentMethod._api_detach)))
+
+
 class Plan(StripeObject):
     object = 'plan'
     _id_prefix = 'plan_'
@@ -1366,6 +1488,15 @@ class Source(StripeObject):
                 'mandate_reference': 'NXDSYREGC9PSMKWY',
                 'mandate_url': 'https://fake/NXDSYREGC9PSMKWY',
             }
+
+    def _requires_authentication(self):
+        return False
+
+    def _attaching_is_declined(self):
+        return False
+
+    def _charging_is_declined(self):
+        return self._sepa_debit_iban == 'DE62370400440532013001'
 
 
 class Subscription(StripeObject):
