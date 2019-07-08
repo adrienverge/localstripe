@@ -28,6 +28,11 @@ from .errors import UserError
 from .webhooks import schedule_webhook
 
 
+# Save built-in keyword `type`, because some classes override it by using
+# `type` as a method argument:
+_type = type
+
+
 class Store(dict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -448,10 +453,6 @@ class Customer(StripeObject):
     object = 'customer'
     _id_prefix = 'cus_'
 
-    # Save built-in keyword `type`, because the `type` property will
-    # override it:
-    _type = type
-
     def __init__(self, description=None, email=None, business_vat_id=None,
                  preferred_locales=None, tax_id_data=None, metadata=None,
                  **kwargs):
@@ -594,7 +595,7 @@ class Customer(StripeObject):
 
         try:
             assert type in ('eu_vat', 'nz_gst', 'au_abn')
-            assert cls._type(value) is str and len(value) > 10
+            assert _type(value) is str and len(value) > 10
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -1223,10 +1224,6 @@ class Product(StripeObject):
     object = 'product'
     _id_prefix = 'prod_'
 
-    # Save built-in keyword `type`, because the `type` property will
-    # override it:
-    _type = type
-
     def __init__(self, name=None, type=None, active=True, caption=None,
                  description=None, attributes=None, shippable=True, url=None,
                  statement_descriptor=None, metadata=None, **kwargs):
@@ -1235,20 +1232,20 @@ class Product(StripeObject):
 
         active = try_convert_to_bool(active)
         try:
-            assert self._type(name) is str and name
+            assert _type(name) is str and name
             assert type in ('good', 'service')
-            assert self._type(active) is bool
+            assert _type(active) is bool
             if caption is not None:
-                assert self._type(caption) is str
+                assert _type(caption) is str
             if description is not None:
-                assert self._type(description) is str
+                assert _type(description) is str
             if attributes is not None:
-                assert self._type(attributes) is list
-            assert self._type(shippable) is bool
+                assert _type(attributes) is list
+            assert _type(shippable) is bool
             if url is not None:
-                assert self._type(url) is str
+                assert _type(url) is str
             if statement_descriptor is not None:
-                assert self._type(statement_descriptor) is str
+                assert _type(statement_descriptor) is str
                 assert len(statement_descriptor) <= 22
         except AssertionError:
             raise UserError(400, 'Bad request')
@@ -1321,10 +1318,6 @@ class Source(StripeObject):
     object = 'source'
     _id_prefix = 'src_'
 
-    # Save built-in keyword `type`, because the `type` property will
-    # override it:
-    _type = type
-
     def __init__(self, type=None, currency=None, owner=None, metadata=None,
                  # custom arguments depending on the type:
                  sepa_debit=None,
@@ -1337,15 +1330,15 @@ class Source(StripeObject):
                 'ach_credit_transfer', 'ach_debit', 'alipay', 'bancontact',
                 'bitcoin', 'card', 'eps', 'giropay', 'ideal', 'multibanco',
                 'p24', 'sepa_debit', 'sofort', 'three_d_secure')
-            assert self._type(currency) is str and currency
+            assert _type(currency) is str and currency
             if owner is not None:
-                assert self._type(owner) is dict
-                assert self._type(owner.get('name', '')) is str
-                assert self._type(owner.get('email', '')) is str
+                assert _type(owner) is dict
+                assert _type(owner.get('name', '')) is str
+                assert _type(owner.get('email', '')) is str
             if type == 'sepa_debit':
-                assert self._type(sepa_debit) is dict
+                assert _type(sepa_debit) is dict
                 assert 'iban' in sepa_debit
-                assert self._type(sepa_debit['iban']) is str
+                assert _type(sepa_debit['iban']) is str
                 assert 14 <= len(sepa_debit['iban']) <= 34
         except AssertionError:
             raise UserError(400, 'Bad request')
@@ -1667,23 +1660,19 @@ class TaxId(StripeObject):
     object = 'tax_id'
     _id_prefix = 'txi_'
 
-    # Save built-in keyword `type`, because the `type` property will
-    # override it:
-    _type = type
-
     def __init__(self, country=None, customer=None, type=None, value=None,
                  **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         try:
-            assert self._type(customer) is str
+            assert _type(customer) is str
             assert customer.startswith('cus_')
             assert type in ('eu_vat', 'nz_gst', 'au_abn')
-            assert self._type(value) is str and len(value) > 10
+            assert _type(value) is str and len(value) > 10
             if country is None:
                 country = value[0:2]
-            assert self._type(country) is str
+            assert _type(country) is str
         except AssertionError:
             raise UserError(400, 'Bad request')
 
