@@ -317,6 +317,11 @@ pm=$(curl -sSf -u $SK: $HOST/v1/payment_methods \
 curl -sSf -u $SK: $HOST/v1/payment_methods/$pm/attach \
      -d customer=$cus
 
+curl -sSf -u $SK: $HOST/v1/customers/$cus \
+     -d invoice_settings[default_payment_method]=$pm
+
+curl -sSf -u $SK: $HOST/v1/customers/$cus?expand%5B%5D=invoice_settings.default_payment_method
+
 curl -sSf -u $SK: $HOST/v1/payment_methods/$pm/detach -X POST
 
 pm=$(curl -sSf -u $SK: $HOST/v1/payment_methods \

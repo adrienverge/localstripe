@@ -328,17 +328,20 @@ class Charge(StripeObject):
                 assert type(customer) is str and customer.startswith('cus_')
             if source is not None:
                 assert type(source) is str
-                assert source.startswith('src_') or source.startswith('card_')
+                assert (source.startswith('pm_') or source.startswith('src_')
+                        or source.startswith('card_'))
         except AssertionError:
             raise UserError(400, 'Bad request')
 
         if source is None:
             customer_obj = Customer._api_retrieve(customer)
-            if customer_obj.default_source is None:
-                raise UserError(404, 'This customer has no source')
-            source = customer_obj.default_source
+            source = customer_obj._get_default_payment_method_or_source()
+            if source is None:
+                raise UserError(404, 'This customer has no payment method')
 
-        if source.startswith('src_'):
+        if source.startswith('pm_'):
+            source = PaymentMethod._api_retrieve(source)
+        elif source.startswith('src_'):
             source = Source._api_retrieve(source)
         elif source.startswith('card_'):
             source = Card._api_retrieve(source)
@@ -360,13 +363,12 @@ class Charge(StripeObject):
         self.receipt_email = None
         self.receipt_number = None
         self.refunds = List('/v1/charges/' + self.id + '/refunds')
-        self.source = source
+        self.payment_method = source.id
 
     def _trigger_payment(self, on_succeed=None, on_fail=None):
-        if self.source.object == 'source' and self.source.type == 'sepa_debit':
-            # From Stripe docs:
-            # The charge status transitions from pending to failed.
-            if self.source._sepa_debit_iban == 'DE62370400440532013001':
+        if self.payment_method.startswith('src_'):
+            source = Source._api_retrieve(self.payment_method)
+            if source._charging_is_declined():
                 async def callback():
                     await asyncio.sleep(0.5)
                     self.paid = False
@@ -382,24 +384,19 @@ class Charge(StripeObject):
                         on_succeed()
             asyncio.ensure_future(callback())
 
-        else:
-            if self.source.object == 'card':
-                decline = {
-                    '4000000000000002': 'card_declined',  # when adding card
-                    '4000000000000341': 'card_declined',  # only at payment
-                    '4000000000000127': 'incorrect_cvc',
-                    '4000000000000069': 'expired_card',
-                    '4000000000000119': 'processing_error',
-                    '4242424242424241': 'incorrect_number',
-                }.get(self.source._number, None)
-                if decline:
-                    raise UserError(402, 'Your card was declined.',
-                                    {'code': decline})
-
-            self.paid = True
-            self.status = 'succeeded'
-            if on_succeed:
-                on_succeed()
+        elif (self.payment_method.startswith('pm_') or
+              self.payment_method.startswith('card_')):
+            pm = (Card._api_retrieve(self.payment_method)
+                  if self.payment_method.startswith('card_')
+                  else PaymentMethod._api_retrieve(self.payment_method))
+            if pm._charging_is_declined():
+                raise UserError(402, 'Your card was declined.',
+                                {'code': 'card_declined'})
+            else:
+                self.paid = True
+                self.status = 'succeeded'
+                if on_succeed:
+                    on_succeed()
 
     @property
     def amount_refunded(self):
@@ -461,9 +458,9 @@ class Customer(StripeObject):
     object = 'customer'
     _id_prefix = 'cus_'
 
-    def __init__(self, description=None, email=None, business_vat_id=None,
-                 preferred_locales=None, tax_id_data=None, metadata=None,
-                 **kwargs):
+    def __init__(self, description=None, email=None, invoice_settings=None,
+                 business_vat_id=None, preferred_locales=None,
+                 tax_id_data=None, metadata=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -472,6 +469,15 @@ class Customer(StripeObject):
                 assert type(description) is str
             if email is not None:
                 assert type(email) is str
+            if invoice_settings is None:
+                invoice_settings = {}
+            assert type(invoice_settings) is dict
+            if 'default_payment_method' not in invoice_settings:
+                invoice_settings['default_payment_method'] = None
+            if invoice_settings['default_payment_method'] is not None:
+                assert type(invoice_settings['default_payment_method']) is str
+                assert (invoice_settings['default_payment_method']
+                        .startswith('pm_'))
             if business_vat_id is not None:
                 assert type(business_vat_id) is str
             if preferred_locales is not None:
@@ -493,6 +499,7 @@ class Customer(StripeObject):
 
         self.description = description or ''
         self.email = email or ''
+        self.invoice_settings = invoice_settings
         self.business_vat_id = business_vat_id
         self.preferred_locales = preferred_locales
         self.metadata = metadata or {}
@@ -509,13 +516,19 @@ class Customer(StripeObject):
 
         schedule_webhook(Event('customer.created', self))
 
+    def _get_default_payment_method_or_source(self):
+        if self.invoice_settings.get('default_payment_method'):
+            return PaymentMethod._api_retrieve(
+                self.invoice_settings['default_payment_method'])
+        elif self.default_source:
+            return [s for s in self.sources._list
+                    if s.id == self.default_source][0]
+
     @property
     def currency(self):
-        if self.default_source is not None:
-            source = [s for s in self.sources._list
-                      if s.id == self.default_source][0]
-            if isinstance(source, Source):  # not Card
-                return source.currency
+        source = self._get_default_payment_method_or_source()
+        if isinstance(source, Source):  # not Card
+            return source.currency
         return 'eur'  # arbitrary default
 
     @property
@@ -534,6 +547,10 @@ class Customer(StripeObject):
 
     @classmethod
     def _api_update(cls, id, **data):
+        if ('invoice_settings' in data and
+                data['invoice_settings'].get('default_payment_method') == ''):
+            data['invoice_settings']['default_payment_method'] = None
+
         obj = super()._api_update(id, **data)
         schedule_webhook(Event('customer.updated', obj))
         return obj
@@ -696,8 +713,8 @@ class Invoice(StripeObject):
             raise UserError(400, 'Bad request')
 
         customer_obj = Customer._api_retrieve(customer)
-        if customer_obj.default_source is None:
-            raise UserError(404, 'This customer has no source')
+        if customer_obj._get_default_payment_method_or_source() is None:
+            raise UserError(404, 'This customer has no payment method')
         if subscription is not None:
             subscription_obj = Subscription._api_retrieve(subscription)
 
@@ -801,9 +818,10 @@ class Invoice(StripeObject):
     def charge(self):
         if self._charge is None and not self._upcoming and self.total > 0:
             customer_obj = Customer._api_retrieve(self.customer)
+            source = customer_obj._get_default_payment_method_or_source()
             charge_obj = Charge(amount=self.total, currency=self.currency,
                                 customer=self.customer,
-                                source=customer_obj.default_source)
+                                source=source.id)
             self._charge = charge_obj.id
 
             def on_succeed():
