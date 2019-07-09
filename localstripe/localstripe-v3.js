@@ -50,7 +50,7 @@ class Element {
     }
 
     const span = document.createElement('span');
-    span.textContent = 'Fake Stripe: ';
+    span.textContent = 'localstripe: ';
     domElement.appendChild(span);
 
     const inputs = {

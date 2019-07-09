@@ -263,14 +263,14 @@ for cls in (Charge, Coupon, Customer,
         app.router.add_route(method, url, func(cls, url))
 
 
-def fake_stripe_js(request):
-    path = os.path.dirname(os.path.realpath(__file__)) + '/fake-stripe-v3.js'
+def localstripe_js(request):
+    path = os.path.dirname(os.path.realpath(__file__)) + '/localstripe-v3.js'
     with open(path) as f:
         return web.Response(text=f.read(),
                             content_type='application/javascript')
 
 
-app.router.add_get('/js.stripe.com/v3/', fake_stripe_js)
+app.router.add_get('/js.stripe.com/v3/', localstripe_js)
 
 
 async def config_webhook(request):
