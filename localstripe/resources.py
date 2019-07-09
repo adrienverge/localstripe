@@ -199,6 +199,8 @@ class StripeObject(object):
                 elif (isinstance(value, list) and len(value) and
                         isinstance(value[0], StripeObject)):
                     obj[key] = [item._export() for item in value]
+                elif isinstance(value, dict):
+                    obj[key] = value.copy()
                 else:
                     obj[key] = value
 
