@@ -44,6 +44,10 @@ const LOCALSTRIPE_SOURCE = (function () {
 })();
 
 class Element {
+  constructor() {
+    this.listeners = {};
+  }
+
   mount(domElement) {
     if (typeof domElement === 'string') {
       domElement = document.querySelector(domElement)[0];
@@ -82,6 +86,8 @@ class Element {
                  this.value.cvc.length >= 3) {
         inputs.address_zip.focus();
       }
+
+      (this.listeners['change'] || []).forEach(handler => handler());
     };
 
     Object.keys(inputs).forEach(field => {
@@ -97,6 +103,8 @@ class Element {
   }
 
   on(event, handler) {
+    this.listeners[event] = this.listeners[event] || [];
+    this.listeners[event].push(handler);
   }
 }
 
