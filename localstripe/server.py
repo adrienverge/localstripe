@@ -26,7 +26,7 @@ from aiohttp import web
 
 from .resources import Charge, Coupon, Customer, \
                        Event, Invoice, InvoiceItem, PaymentMethod, Plan, \
-                       Product, Refund, Source, Subscription, \
+                       Product, Refund, SetupIntent, Source, Subscription, \
                        SubscriptionItem, TaxRate, Token, extra_apis, store
 from .errors import UserError
 from .webhooks import register_webhook
@@ -160,12 +160,17 @@ async def auth_middleware(request, handler):
         is_auth = True
 
     else:
-        # There is an exception for POST /v1/tokens and POST /v1/sources:
-        # authentication can be done using the public key, that is passed in
-        # POST data.
+        # There are exceptions (for example POST /v1/tokens, POST /v1/sources)
+        # where authentication can be done using the public key (passed as
+        # `key` in POST data) instead of the private key.
         accept_key_in_post_data = (
             request.method == 'POST' and
-            request.path in ('/v1/tokens', '/v1/sources'))
+            any(re.match(pattern, request.path) for pattern in (
+                r'^/v1/tokens$',
+                r'^/v1/sources$',
+                r'^/v1/setup_intents/\w+/confirm$',
+                r'^/v1/setup_intents/\w+/cancel$',
+            )))
 
         is_auth = get_api_key(request) is not None
 
@@ -192,8 +197,7 @@ app.on_response_prepare.append(add_cors_headers)
 def api_create(cls, url):
     async def f(request):
         data = await get_post_data(request)
-        if not data:
-            raise UserError(400, 'Bad request')
+        data = data or {}
         return json_response(cls._api_create(**data)._export())
     return f
 
@@ -251,9 +255,9 @@ for method, url, func in extra_apis:
     app.router.add_route(method, url, api_extra(func, url))
 
 
-for cls in (Charge, Coupon, Customer,
-            Event, Invoice, InvoiceItem, PaymentMethod, Plan, Product,
-            Refund, Source, Subscription, SubscriptionItem, TaxRate, Token):
+for cls in (Charge, Coupon, Customer, Event, Invoice, InvoiceItem,
+            PaymentMethod, Plan, Product, Refund, SetupIntent, Source,
+            Subscription, SubscriptionItem, TaxRate, Token):
     for method, url, func in (
             ('POST', '/v1/' + cls.object + 's', api_create),
             ('GET', '/v1/' + cls.object + 's/{id}', api_retrieve),

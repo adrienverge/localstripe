@@ -1517,6 +1517,112 @@ class Source(StripeObject):
         return self._sepa_debit_iban == 'DE62370400440532013001'
 
 
+class SetupIntent(StripeObject):
+    object = 'setup_intent'
+    _id_prefix = 'seti_'
+
+    def __init__(self, customer=None, usage=None, metadata=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            if customer is not None:
+                assert type(customer) is str and customer.startswith('cus_')
+            if usage is None:
+                usage = 'off_session'
+            assert usage in ('off_session', 'on_session')
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        # All exceptions must be raised before this point.
+        super().__init__()
+
+        self.customer = customer
+        self.usage = usage
+        self.metadata = metadata or {}
+        self.client_secret = self.id + '_secret_' + random_id(16)
+        self.payment_method_types = ['cards']
+        self.payment_method = None
+        self.status = 'requires_payment_method'
+        self.next_action = None
+
+    @classmethod
+    def _api_confirm(cls, id, use_stripe_sdk=None, client_secret=None,
+                     payment_method_data=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            assert type(id) is str and id.startswith('seti_')
+            if client_secret is not None:
+                assert type(client_secret) is str
+            if payment_method_data is not None:
+                assert type(payment_method_data) is dict
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        obj = cls._api_retrieve(id)
+
+        if client_secret and client_secret != obj.client_secret:
+            raise UserError(401, 'Unauthorized')
+
+        if payment_method_data:
+            if obj.payment_method is not None:
+                raise UserError(400, 'Bad request')
+
+            pm = PaymentMethod(**payment_method_data)
+            obj.payment_method = pm.id
+
+            if pm._attaching_is_declined():
+                obj.status = 'canceled'
+                obj.next_action = None
+                raise UserError(402, 'Your card was declined.',
+                                {'code': 'card_declined'})
+            elif pm._requires_authentication():
+                obj.status = 'requires_action'
+                obj.next_action = {'type': 'use_stripe_sdk',
+                                   'use_stripe_sdk': {
+                                       'type': 'three_d_secure_redirect',
+                                       'stripe_js': ''}}
+            else:
+                obj.status = 'succeeded'
+                obj.next_action = None
+        elif obj.payment_method is None:
+            obj.status = 'requires_payment_method'
+            obj.next_action = None
+        else:
+            obj.status = 'succeeded'
+            obj.next_action = None
+        return obj
+
+    @classmethod
+    def _api_cancel(cls, id, use_stripe_sdk=None, client_secret=None,
+                    **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            assert type(id) is str and id.startswith('seti_')
+            if client_secret is not None:
+                assert type(client_secret) is str
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        obj = cls._api_retrieve(id)
+
+        if client_secret and client_secret != obj.client_secret:
+            raise UserError(401, 'Unauthorized')
+
+        obj.status = 'canceled'
+        obj.next_action = None
+        return obj
+
+
+extra_apis.extend((
+    ('POST', '/v1/setup_intents/{id}/confirm', SetupIntent._api_confirm),
+    ('POST', '/v1/setup_intents/{id}/cancel', SetupIntent._api_cancel)))
+
+
 class Subscription(StripeObject):
     object = 'subscription'
     _id_prefix = 'sub_'

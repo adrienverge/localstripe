@@ -335,3 +335,27 @@ code=$(curl -s -o /dev/null -w "%{http_code}" -u $SK: \
             $HOST/v1/payment_methods/$pm/attach \
             -d customer=$cus)
 [ "$code" = 402 ]
+
+res=$(curl -sSf -u $SK: $HOST/v1/setup_intents -X POST)
+seti=$(echo "$res" | grep '"id"' | grep -oE 'seti_\w+' | head -n 1)
+seti_secret=$(echo $res | grep -oE 'seti_\w+_secret_\w+' | head -n 1)
+
+curl -sSf -u $SK: $HOST/v1/setup_intents/$seti/confirm -X POST
+
+curl -sSf -u $SK: $HOST/v1/setup_intents/$seti/cancel -X POST
+
+res=$(curl -sSf -u $SK: $HOST/v1/setup_intents -X POST)
+seti=$(echo "$res" | grep '"id"' | grep -oE 'seti_\w+' | head -n 1)
+seti_secret=$(echo $res | grep -oE 'seti_\w+_secret_\w+' | head -n 1)
+
+# This is what a Stripe.js request does:
+curl -sSf $HOST/v1/setup_intents/$seti/confirm \
+     -d key=pk_test_sldkjflaksdfj \
+     -d use_stripe_sdk=true \
+     -d client_secret=$seti_secret \
+     -d payment_method_data[type]=card \
+     -d payment_method_data[card][number]=4242424242424242 \
+     -d payment_method_data[card][cvc]=242 \
+     -d payment_method_data[card][exp_month]=4 \
+     -d payment_method_data[card][exp_year]=24 \
+     -d payment_method_data[billing_details][address][postal_code]=42424
