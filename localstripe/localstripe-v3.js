@@ -43,6 +43,42 @@ const LOCALSTRIPE_SOURCE = (function () {
   }
 })();
 
+function openModal(text, confirmText, cancelText) {
+  return new Promise(resolve => {
+    const box = document.createElement('div'),
+          p = document.createElement('p'),
+          confirm = document.createElement('button'),
+          cancel = document.createElement('button');
+    box.appendChild(p);
+    box.appendChild(confirm);
+    box.appendChild(cancel);
+    Object.assign(box.style, {
+      position: 'absolute',
+      width: '300px',
+      top: '50%',
+      left: '50%',
+      margin: '-35px 0 0 -150px',
+      padding: '10px 20px',
+      border: '3px solid #ccc',
+      background: '#fff',
+      'text-align': 'center',
+    });
+    p.innerText = text;
+    confirm.innerText = confirmText;
+    cancel.innerText = cancelText;
+    document.body.appendChild(box);
+    confirm.addEventListener('click', () => {
+      document.body.removeChild(box);
+      resolve(true);
+    });
+    cancel.addEventListener('click', () => {
+      document.body.removeChild(box);
+      resolve(false);
+    });
+    confirm.focus();
+  });
+}
+
 class Element {
   constructor() {
     this.listeners = {};
@@ -184,6 +220,72 @@ Stripe = (apiKey) => {
       });
     },
     retrieveSource: () => {}, // TODO
+
+    handleCardSetup: async (clientSecret, element, data) => {
+      console.log('localstripe: Stripe().handleCardSetup()');
+      try {
+        const seti = clientSecret.match(/^(seti_\w+)_secret_/)[1];
+        const url = `${LOCALSTRIPE_SOURCE}/v1/setup_intents/${seti}/confirm`;
+        let response = await fetch(url, {
+          method: 'POST',
+          body: JSON.stringify({
+            key: apiKey,
+            use_stripe_sdk: true,
+            client_secret: clientSecret,
+            payment_method_data: {
+              type: 'card',
+              card: {
+                number: element.value.number,
+                exp_month: element.value.exp_month,
+                exp_year: element.value.exp_year,
+                cvc: element.value.cvc,
+              },
+              billing_details: {
+                address: {postal_code: element.value.address_zip},
+              },
+            },
+          }),
+        });
+        let body = await response.json().catch(() => ({}));
+        if (response.status !== 200 || body.error) {
+          return {error: body.error};
+        } else if (body.status === 'succeeded') {
+          return {error: null, setupIntent: body};
+        } else if (body.status === 'requires_action') {
+          const url =
+            (await openModal('3D Secure\nDo you want to confirm or cancel?',
+                             'Complete authentication', 'Fail authentication'))
+            ? `${LOCALSTRIPE_SOURCE}/v1/setup_intents/${seti}/confirm`
+            : `${LOCALSTRIPE_SOURCE}/v1/setup_intents/${seti}/cancel`;
+          response = await fetch(url, {
+            method: 'POST',
+            body: JSON.stringify({
+              key: apiKey,
+              use_stripe_sdk: true,
+              client_secret: clientSecret,
+            }),
+          });
+          body = await response.json().catch(() => ({}));
+          if (response.status !== 200 || body.error) {
+            return {error: body.error};
+          } else if (body.status === 'succeeded') {
+            return {error: null, setupIntent: body};
+          } else {  // 3D Secure authentication cancelled by user:
+            return {error: {message:
+              'The latest attempt to set up the payment method has failed ' +
+              'because authentication failed.'}};
+          }
+        } else {
+          return {error: {message: `setup_intent has status ${body.status}`}};
+        }
+      } catch (err) {
+        if (typeof err === 'object' && err.error) {
+          return err;
+        } else {
+          return {error: err};
+        }
+      }
+    },
   };
 };
 
