@@ -31,7 +31,7 @@ setup(
     entry_points={'console_scripts':
                   ['localstripe=localstripe.server:start']},
     package_data={
-        'localstripe': ['fake-stripe-v3.js'],
+        'localstripe': ['localstripe-v3.js'],
     },
     install_requires=[
         'aiohttp >=2.3.2',
