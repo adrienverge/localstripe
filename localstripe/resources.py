@@ -351,7 +351,7 @@ class Charge(StripeObject):
         self.status = 'pending'
         self.receipt_email = None
         self.receipt_number = None
-        self.refunds = List('/v1/customers/' + self.id + '/sources')
+        self.refunds = List('/v1/charges/' + self.id + '/refunds')
         self.source = source
 
     def _trigger_payment(self, on_succeed=None, on_fail=None):
