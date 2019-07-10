@@ -5,7 +5,9 @@ python:
   - 3.5
   - 3.6
   - 3.7
-  - nightly
+  # Python nightly currently disabled because of:
+  #     curl: (56) Recv failure: Connection reset by peer
+  # - nightly
 install:
   - pip install flake8 flake8-import-order doc8 Pygments
   - python setup.py sdist
