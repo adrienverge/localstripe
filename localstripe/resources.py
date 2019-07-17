@@ -358,7 +358,6 @@ class Charge(StripeObject):
         self.description = description
         self.invoice = None
         self.metadata = metadata or {}
-        self.paid = False
         self.status = 'pending'
         self.receipt_email = None
         self.receipt_number = None
@@ -371,14 +370,12 @@ class Charge(StripeObject):
             if source._charging_is_declined():
                 async def callback():
                     await asyncio.sleep(0.5)
-                    self.paid = False
                     self.status = 'failed'
                     if on_fail:
                         on_fail()
             else:
                 async def callback():
                     await asyncio.sleep(0.5)
-                    self.paid = True
                     self.status = 'succeeded'
                     if on_succeed:
                         on_succeed()
@@ -393,10 +390,13 @@ class Charge(StripeObject):
                 raise UserError(402, 'Your card was declined.',
                                 {'code': 'card_declined'})
             else:
-                self.paid = True
                 self.status = 'succeeded'
                 if on_succeed:
                     on_succeed()
+
+    @property
+    def paid(self):
+        return self.status == 'succeeded'
 
     @property
     def amount_refunded(self):
@@ -1029,7 +1029,7 @@ class Invoice(StripeObject):
             except AssertionError:
                 raise UserError(400, 'Bad request')
 
-            charge.paid = True
+            charge._trigger_payment()
 
         return obj
 
