@@ -808,10 +808,14 @@ class Invoice(StripeObject):
     def status(self):
         if self._upcoming:
             return 'draft'
-        if self._charge and Charge._api_retrieve(self._charge).paid:
+        elif self.total <= 0:
             return 'paid'
-        if self.total <= 0:
-            return 'paid'
+        elif self._charge:
+            charge = Charge._api_retrieve(self._charge)
+            if charge.status == 'succeeded':
+                return 'paid'
+            elif charge.status == 'failed':
+                return 'void'
         return 'open'
 
     @property
