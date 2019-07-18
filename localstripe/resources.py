@@ -1026,6 +1026,9 @@ class Invoice(StripeObject):
     def _api_pay_invoice(cls, id):
         obj = Invoice._api_retrieve(id)
 
+        if obj.status not in ('draft', 'open'):
+            raise UserError(400, 'Bad request')
+
         if obj.total > 0:
             charge = Charge._api_retrieve(obj.charge)
             try:
