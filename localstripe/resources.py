@@ -982,6 +982,14 @@ class Invoice(StripeObject):
             metadata=metadata)
 
     @classmethod
+    def _api_delete(cls, id):
+        obj = cls._api_retrieve(id)
+        if obj.status != 'draft':
+            raise UserError(400, 'Bad request')
+
+        return super()._api_delete(id)
+
+    @classmethod
     def _api_list_all(cls, url, customer=None, subscription=None, limit=None):
         try:
             if customer is not None:
