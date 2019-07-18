@@ -764,6 +764,7 @@ class Invoice(StripeObject):
             self.currency = 'eur'  # arbitrary default
 
         self._upcoming = upcoming
+        self._voided = False
 
         self._on_payment_fail = on_payment_fail
 
@@ -808,6 +809,8 @@ class Invoice(StripeObject):
     def status(self):
         if self._upcoming:
             return 'draft'
+        elif self._voided:
+            return 'void'
         elif self.total <= 0:
             return 'paid'
         elif self._charge:
@@ -1040,10 +1043,22 @@ class Invoice(StripeObject):
 
         return obj
 
+    @classmethod
+    def _api_void_invoice(cls, id):
+        obj = Invoice._api_retrieve(id)
+
+        if obj.status not in ('draft', 'open'):
+            raise UserError(400, 'Bad request')
+
+        obj._voided = True
+
+        return obj
+
 
 extra_apis.extend((
     ('GET', '/v1/invoices/upcoming', Invoice._api_upcoming_invoice),
-    ('POST', '/v1/invoices/{id}/pay', Invoice._api_pay_invoice)))
+    ('POST', '/v1/invoices/{id}/pay', Invoice._api_pay_invoice),
+    ('POST', '/v1/invoices/{id}/void', Invoice._api_void_invoice)))
 
 
 class InvoiceItem(StripeObject):
