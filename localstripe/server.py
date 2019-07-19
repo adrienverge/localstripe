@@ -198,7 +198,8 @@ def api_create(cls, url):
     async def f(request):
         data = await get_post_data(request)
         data = data or {}
-        return json_response(cls._api_create(**data)._export())
+        expand = data.pop('expand', None)
+        return json_response(cls._api_create(**data)._export(expand=expand))
     return f
 
 
@@ -217,7 +218,9 @@ def api_update(cls, url):
         data = await get_post_data(request)
         if not data:
             raise UserError(400, 'Bad request')
-        return json_response(cls._api_update(id, **data)._export())
+        expand = data.pop('expand', None)
+        return json_response(cls._api_update(id, **data)._export(
+            expand=expand))
     return f
 
 
