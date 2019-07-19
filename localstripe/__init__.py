@@ -21,4 +21,4 @@ if sys.version_info < (3, 5):
     raise RuntimeError('Please run with Python >= 3.5')
 
 __author__ = 'Adrien Vergé'
-__version__ = '1.7.1'
+__version__ = '1.7.2'
