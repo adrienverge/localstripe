@@ -361,6 +361,8 @@ class Charge(StripeObject):
         self.receipt_number = None
         self.refunds = List('/v1/charges/' + self.id + '/refunds')
         self.payment_method = source.id
+        self.failure_code = None
+        self.failure_message = None
 
     def _trigger_payment(self, on_succeed=None, on_fail=None):
         if self.payment_method.startswith('src_'):
@@ -385,8 +387,10 @@ class Charge(StripeObject):
                   if self.payment_method.startswith('card_')
                   else PaymentMethod._api_retrieve(self.payment_method))
             if pm._charging_is_declined():
-                raise UserError(402, 'Your card was declined.',
-                                {'code': 'card_declined'})
+                self.failure_code = 'card_declined'
+                self.failure_message = 'Your card was declined.'
+                raise UserError(402, self.failure_message,
+                                {'code': self.failure_code})
             else:
                 self.status = 'succeeded'
                 if on_succeed:
