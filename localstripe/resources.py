@@ -1710,6 +1710,7 @@ class Subscription(StripeObject):
         self.status = 'active'
         self.trial_end = None
         self.trial_start = None
+        self.latest_invoice = None
 
         self._set_up_subscription_and_invoice(items[0])
         self.start = self.current_period_start
@@ -1776,12 +1777,14 @@ class Subscription(StripeObject):
                                 period_end=self.current_period_end))
             try:
                 # Create associated invoice
-                Invoice(customer=self.customer,
-                        subscription=self.id,
-                        items=invoice_items,
-                        tax_percent=self.tax_percent,
-                        date=self.current_period_start,
-                        on_payment_fail=self._on_first_payment_failed)
+                invoice = Invoice(
+                    customer=self.customer,
+                    subscription=self.id,
+                    items=invoice_items,
+                    tax_percent=self.tax_percent,
+                    date=self.current_period_start,
+                    on_payment_fail=self._on_first_payment_failed)
+                self.latest_invoice = invoice.id
             except UserError as e:
                 self._on_first_payment_failed(_send_event=False)
                 raise e
