@@ -299,6 +299,9 @@ class Card(StripeObject):
     def last4(self):
         return self._card_number[-4:]
 
+    def _requires_authentication(self):
+        return PaymentMethod._requires_authentication(self)
+
     def _attaching_is_declined(self):
         return PaymentMethod._attaching_is_declined(self)
 
