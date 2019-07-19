@@ -236,7 +236,7 @@ To quickly run localstripe from source, and reload when a file changed:
 
 .. code:: shell
 
- find -name '*.py' | entr -r python3 -m localstripe
+ find -name '*.py' | entr -r python3 -m localstripe --from-scratch
 
 To quickly build and run localstripe from source:
 
