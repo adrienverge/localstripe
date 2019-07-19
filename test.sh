@@ -254,7 +254,8 @@ code=$(curl -s -o /dev/null -w "%{http_code}" -u $SK: \
 
 curl -sSf -u $SK: $HOST/v1/subscriptions \
      -d customer=$cus \
-     -d items[0][plan]=basique-mensuel
+     -d items[0][plan]=basique-mensuel \
+     -d expand[]=latest_invoice.payment_intent
 
 sub=$(curl -sSf -u $SK: $HOST/v1/subscriptions \
            -d customer=$cus \
