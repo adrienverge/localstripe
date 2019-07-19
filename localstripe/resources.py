@@ -1253,7 +1253,10 @@ class PaymentMethod(StripeObject):
     def _requires_authentication(self):
         return self._card_number in ('4000002500003155',
                                      '4000002760003184',
-                                     '4000008260003178')
+                                     '4000008260003178',
+                                     '4000000000003220',
+                                     '4000000000003063',
+                                     '4000008400001629')
 
     def _attaching_is_declined(self):
         return self._card_number in ('4000000000000002',
@@ -1266,7 +1269,9 @@ class PaymentMethod(StripeObject):
                                      '4242424242424241')
 
     def _charging_is_declined(self):
-        return self._card_number in ('4000000000000341', )
+        return self._card_number in ('4000000000000341',
+                                     '4000008260003178',
+                                     '4000008400001629')
 
     @classmethod
     def _api_attach(cls, id, customer=None, **kwargs):
