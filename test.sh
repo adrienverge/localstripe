@@ -27,6 +27,8 @@ cus=$(curl -sSf -u $SK: $HOST/v1/customers \
 curl -sSf -u $SK: $HOST/v1/customers/$cus/tax_ids \
      -d type=eu_vat -d value=DE123456789
 
+curl -sSf -u $SK: $HOST/v1/customers/$cus?expand%5B%5D=tax_ids.data.customer
+
 txr1=$(curl -sSf -u $SK: $HOST/v1/tax_rates \
             -d display_name=VAT \
             -d description='TVA France taux normal' \
