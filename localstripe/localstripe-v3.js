@@ -154,70 +154,61 @@ Stripe = (apiKey) => {
         },
       };
     },
-    createToken: (card) => {
+    createToken: async (card) => {
       console.log('localstripe: Stripe().createToken()');
-      return new Promise(resolve => {
-        const req = new XMLHttpRequest();
-        req.onerror = event => {
-          resolve({error: event.target.responseText});
-        };
-        req.onload = event => {
-          let res = event.target.responseText;
-          try {
-            res = JSON.parse(res);
-          } catch (e) {}
-          if (event.target.status === 200) {
-            resolve({token: res});
-          } else {
-            if (typeof res === 'object' && res.error) {
-              resolve(res);
-            } else {
-              resolve({error: res});
-            }
-          }
-        };
-
-        let body = [];
-        Object.keys(card.value).forEach(field => {
-          body.push('card[' + field + ']=' + card.value[field]);
+      let body = [];
+      Object.keys(card.value).forEach(field => {
+        body.push('card[' + field + ']=' + card.value[field]);
+      });
+      body.push('key=' + apiKey);
+      body.push('payment_user_agent=localstripe');
+      body = body.join('&');
+      try {
+        const url = `${LOCALSTRIPE_SOURCE}/v1/tokens`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body,
         });
-        body.push('key=' + apiKey);
-        body.push('payment_user_agent=localstripe');
-        body = body.join('&');
-
-        req.open('POST', `${LOCALSTRIPE_SOURCE}/v1/tokens`, true);
-        req.setRequestHeader('Content-Type',
-                             'application/x-www-form-urlencoded');
-        req.send(body);
-      });
+        const res = await response.json().catch(() => ({}));
+        if (response.status !== 200 || res.error) {
+          return {error: res.error};
+        } else {
+          return {token: res};
+        }
+      } catch (err) {
+        if (typeof err === 'object' && err.error) {
+          return err;
+        } else {
+          return {error: err};
+        }
+      }
     },
-    createSource: (source) => {
+    createSource: async (source) => {
       console.log('localstripe: Stripe().createSource()');
-      return new Promise(resolve => {
-        const req = new XMLHttpRequest();
-        req.onerror = event => {
-          resolve({error: event.target.responseText});
-        };
-        req.onload = event => {
-          let res = event.target.responseText;
-          try {
-            res = JSON.parse(res);
-          } catch (e) {}
-          if (event.target.status === 200) {
-            resolve({source: res});
-          } else {
-            if (typeof res === 'object' && res.error) {
-              resolve(res);
-            } else {
-              resolve({error: res});
-            }
-          }
-        };
-        source.key = apiKey;
-        source.payment_user_agent = 'localstripe';
-        req.open('POST', `${LOCALSTRIPE_SOURCE}/v1/sources`, true);
-        req.send(JSON.stringify(source));
-      });
+      try {
+        const url = `${LOCALSTRIPE_SOURCE}/v1/sources`;
+        const response = await fetch(url, {
+          method: 'POST',
+          body: JSON.stringify({
+            key: apiKey,
+            payment_user_agent: 'localstripe',
+            ...source,
+          }),
+        });
+        const res = await response.json().catch(() => ({}));
+        if (response.status !== 200 || res.error) {
+          return {error: res.error};
+        } else {
+          return {source: res};
+        }
+      } catch (err) {
+        if (typeof err === 'object' && err.error) {
+          return err;
+        } else {
+          return {error: err};
+        }
+      }
     },
     retrieveSource: () => {}, // TODO
 
