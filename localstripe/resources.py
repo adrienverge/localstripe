@@ -741,6 +741,11 @@ class Invoice(StripeObject):
         self.starting_balance = 0
         self.statement_descriptor = None
         self.webhooks_delivered_at = self.date
+        self.status_transitions = {
+            'finalized_at': None,
+            'paid_at': None,
+            'voided_at': None,
+        }
 
         self.period_start = None
         self.period_end = None
@@ -774,6 +779,7 @@ class Invoice(StripeObject):
         self._on_payment_fail = on_payment_fail
 
         if not upcoming and not simulation:
+            self.status_transitions['finalized_at'] = int(time.time())
             schedule_webhook(Event('invoice.created', self))
 
             self.charge  # trigger creation of charge
@@ -837,9 +843,11 @@ class Invoice(StripeObject):
             self._charge = charge_obj.id
 
             def on_succeed():
+                self.status_transitions['paid_at'] = int(time.time())
                 schedule_webhook(Event('invoice.payment_succeeded', self))
 
             def on_fail():
+                self.status_transitions['voided_at'] = int(time.time())
                 schedule_webhook(Event('invoice.payment_failed', self))
                 if self._on_payment_fail:
                     self._on_payment_fail()
@@ -1064,6 +1072,7 @@ class Invoice(StripeObject):
             raise UserError(400, 'Bad request')
 
         obj._voided = True
+        obj.status_transitions['voided_at'] = int(time.time())
 
         return obj
 
