@@ -842,23 +842,31 @@ class Invoice(StripeObject):
         schedule_webhook(Event('invoice.payment_succeeded', self))
         if self.subscription:
             sub = Subscription._api_retrieve(self.subscription)
-            sub._on_first_payment_success(self)
+            sub._on_initial_payment_success(self)
 
     def _on_payment_failure_now(self):
         assert self.status in ('open', 'void')
-        self.status_transitions['voided_at'] = int(time.time())
+        if self.status == 'void':
+            self.status_transitions['voided_at'] = int(time.time())
         schedule_webhook(Event('invoice.payment_failed', self))
         if self.subscription:
             sub = Subscription._api_retrieve(self.subscription)
-            sub._on_first_payment_failure_now(self)
+            if sub.status == 'incomplete':
+                sub._on_initial_payment_failure_now(self)
+            else:
+                sub._on_recurring_payment_failure(self)
 
     def _on_payment_failure_later(self):
         assert self.status in ('open', 'void')
-        self.status_transitions['voided_at'] = int(time.time())
+        if self.status == 'void':
+            self.status_transitions['voided_at'] = int(time.time())
         schedule_webhook(Event('invoice.payment_failed', self))
         if self.subscription:
             sub = Subscription._api_retrieve(self.subscription)
-            sub._on_first_payment_failure_later(self)
+            if sub.status == 'incomplete':
+                sub._on_initial_payment_failure_later(self)
+            else:
+                sub._on_recurring_payment_failure(self)
 
     @classmethod
     def _get_next_invoice(cls, customer=None, subscription=None,
@@ -1105,6 +1113,10 @@ class Invoice(StripeObject):
         obj._voided = True
         obj.status_transitions['voided_at'] = int(time.time())
 
+        if obj.subscription:
+            sub = Subscription._api_retrieve(obj.subscription)
+            sub._on_initial_payment_voided(obj)
+
         return obj
 
 
@@ -1282,6 +1294,7 @@ class PaymentIntent(StripeObject):
         self.next_action = None
 
         self._canceled = False
+        self._authentication_failed = False
 
     def _retrieve_payment_method(self, payment_method):
         if payment_method.startswith('pm_'):
@@ -1337,6 +1350,12 @@ class PaymentIntent(StripeObject):
 
     @property
     def last_payment_error(self):
+        if self._authentication_failed:
+            return {
+                'code': 'payment_intent_authentication_failure',
+                'message': (
+                    'The provided PaymentMethod has failed authentication.'),
+            }
         if len(self.charges._list):
             charge = self.charges._list[-1]
             if charge.status == 'failed':
@@ -1364,6 +1383,7 @@ class PaymentIntent(StripeObject):
         if obj.status != 'requires_confirmation':
             raise UserError(400, 'Bad request')
 
+        obj._authentication_failed = False
         payment_method = obj._retrieve_payment_method(obj.payment_method)
         if payment_method._requires_authentication():
             obj.next_action = {
@@ -1420,7 +1440,11 @@ class PaymentIntent(StripeObject):
         if success:
             obj._trigger_payment()
         else:
+            obj._authentication_failed = True
             obj.payment_method = None
+            if obj.invoice:
+                invoice = Invoice._api_retrieve(obj.invoice)
+                invoice._on_payment_failure_later()
 
         return obj
 
@@ -1903,13 +1927,14 @@ class Subscription(StripeObject):
 
     def __init__(self, customer=None, metadata=None, items=None,
                  tax_percent=None,  # deprecated
-                 # Currently unimplemented, only False works as expected:
-                 enable_incomplete_payments=False,
-                 **kwargs):
+                 enable_incomplete_payments=True,  # legacy support
+                 payment_behavior='allow_incomplete', **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         tax_percent = try_convert_to_float(tax_percent)
+        enable_incomplete_payments = try_convert_to_bool(
+            enable_incomplete_payments)
         try:
             assert type(customer) is str and customer.startswith('cus_')
             if tax_percent is not None:
@@ -1928,6 +1953,9 @@ class Subscription(StripeObject):
                 if item['tax_rates'] is not None:
                     assert type(item['tax_rates']) is list
                     assert all(type(tr) is str for tr in item['tax_rates'])
+            assert type(enable_incomplete_payments) is bool
+            assert payment_behavior in ('allow_incomplete',
+                                        'error_if_incomplete')
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -1953,10 +1981,13 @@ class Subscription(StripeObject):
         self.discount = None
         self.ended_at = None
         self.quantity = items[0]['quantity']
-        self.status = 'active'
+        self.status = 'incomplete'
         self.trial_end = None
         self.trial_start = None
         self.latest_invoice = None
+        self._enable_incomplete_payments = (
+            enable_incomplete_payments and
+            payment_behavior != 'error_if_incomplete')
 
         self._set_up_subscription_and_invoice(items[0])
         self.start = self.current_period_start
@@ -2032,16 +2063,44 @@ class Subscription(StripeObject):
             self.latest_invoice = invoice.id
             Invoice._api_pay_invoice(invoice.id)
 
-    def _on_first_payment_success(self, invoice):
+            if invoice.status == 'paid':
+                self.status = 'active'
+            elif invoice.charge:
+                if invoice.charge.status == 'failed':
+                    if self.status != 'incomplete':
+                        self._on_recurring_payment_failure(invoice)
+                # If source is SEPA, subscription starts `active` (even with
+                # `enable_incomplete_payments`), then is canceled later if the
+                # payment fails:
+                if (invoice.charge.status == 'pending' and
+                        invoice.charge.payment_method.startswith('src_')):
+                    self.status = 'active'
+
+    def _on_initial_payment_success(self, invoice):
         self.status = 'active'
 
-    def _on_first_payment_failure_now(self, invoice):
-        super()._api_delete(self.id)
-        raise UserError(402, invoice.charge.failure_message,
-                        {'code': invoice.charge.failure_code})
+    def _on_initial_payment_failure_now(self, invoice):
+        if not self._enable_incomplete_payments:
+            super()._api_delete(self.id)
+            raise UserError(402, invoice.charge.failure_message,
+                            {'code': invoice.charge.failure_code})
 
-    def _on_first_payment_failure_later(self, invoice):
+    def _on_initial_payment_failure_later(self, invoice):
         Subscription._api_delete(self.id)
+
+    def _on_initial_payment_voided(self, invoice):
+        if self._enable_incomplete_payments:
+            self.status = 'incomplete_expired'
+        else:
+            self.status = 'canceled'
+
+    def _on_recurring_payment_failure(self, invoice):
+        # If source is SEPA, any payment failure at creation or upgrade cancels
+        # the subscription:
+        if invoice.charge and invoice.charge.payment_method.startswith('src_'):
+            return Subscription._api_delete(self.id)
+
+        self.status = 'past_due'
 
     def _update(self, metadata=None, items=None, tax_percent=None,
                 proration_date=None,
