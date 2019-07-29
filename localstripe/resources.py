@@ -314,8 +314,7 @@ class Charge(StripeObject):
     _id_prefix = 'ch_'
 
     def __init__(self, amount=None, currency=None, description=None,
-                 metadata=None, customer=None, source=None,
-                 on_succeed=None, on_fail=None, **kwargs):
+                 metadata=None, customer=None, source=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -367,21 +366,22 @@ class Charge(StripeObject):
         self.failure_code = None
         self.failure_message = None
 
-    def _trigger_payment(self, on_succeed=None, on_fail=None):
+    def _trigger_payment(self, on_success=None, on_failure_now=None,
+                         on_failure_later=None):
         if self.payment_method.startswith('src_'):
             source = Source._api_retrieve(self.payment_method)
             if source._charging_is_declined():
                 async def callback():
                     await asyncio.sleep(0.5)
                     self.status = 'failed'
-                    if on_fail:
-                        on_fail()
+                    if on_failure_later:
+                        on_failure_later()
             else:
                 async def callback():
                     await asyncio.sleep(0.5)
                     self.status = 'succeeded'
-                    if on_succeed:
-                        on_succeed()
+                    if on_success:
+                        on_success()
             asyncio.ensure_future(callback())
 
         elif (self.payment_method.startswith('pm_') or
@@ -390,14 +390,15 @@ class Charge(StripeObject):
                   if self.payment_method.startswith('card_')
                   else PaymentMethod._api_retrieve(self.payment_method))
             if pm._charging_is_declined():
+                self.status = 'failed'
                 self.failure_code = 'card_declined'
                 self.failure_message = 'Your card was declined.'
-                raise UserError(402, self.failure_message,
-                                {'code': self.failure_code})
+                if on_failure_now:
+                    on_failure_now()
             else:
                 self.status = 'succeeded'
-                if on_succeed:
-                    on_succeed()
+                if on_success:
+                    on_success()
 
     @property
     def paid(self):
@@ -692,7 +693,7 @@ class Invoice(StripeObject):
 
     def __init__(self, customer=None, subscription=None, metadata=None,
                  items=[], date=None, description=None, upcoming=False,
-                 simulation=False, on_payment_fail=None,
+                 simulation=False,
                  tax_percent=None,  # deprecated
                  **kwargs):
         if kwargs:
@@ -775,15 +776,13 @@ class Invoice(StripeObject):
         self._upcoming = upcoming
         self._voided = False
 
-        self._on_payment_fail = on_payment_fail
-
         # When invoice is 'finalized':
         if not upcoming and not simulation:
             self.status_transitions['finalized_at'] = int(time.time())
             schedule_webhook(Event('invoice.created', self))
 
             if self.total <= 0:
-                self._succeed_payment()
+                self._on_payment_success()
             else:
                 pm = customer_obj._get_default_payment_method_or_source()
                 pi = PaymentIntent(amount=self.total,
@@ -849,17 +848,29 @@ class Invoice(StripeObject):
             if len(pi.charges._list):
                 return pi.charges._list[-1]
 
-    def _succeed_payment(self):
+    def _on_payment_success(self):
         assert self.status == 'paid'
         self.status_transitions['paid_at'] = int(time.time())
         schedule_webhook(Event('invoice.payment_succeeded', self))
+        if self.subscription:
+            sub = Subscription._api_retrieve(self.subscription)
+            sub._on_first_payment_success(self)
 
-    def _fail_payment(self):
+    def _on_payment_failure_now(self):
         assert self.status in ('open', 'void')
         self.status_transitions['voided_at'] = int(time.time())
         schedule_webhook(Event('invoice.payment_failed', self))
-        if self._on_payment_fail:
-            self._on_payment_fail()
+        if self.subscription:
+            sub = Subscription._api_retrieve(self.subscription)
+            sub._on_first_payment_failure_now(self)
+
+    def _on_payment_failure_later(self):
+        assert self.status in ('open', 'void')
+        self.status_transitions['voided_at'] = int(time.time())
+        schedule_webhook(Event('invoice.payment_failed', self))
+        if self.subscription:
+            sub = Subscription._api_retrieve(self.subscription)
+            sub._on_first_payment_failure_later(self)
 
     @classmethod
     def _get_next_invoice(cls, customer=None, subscription=None,
@@ -1260,7 +1271,7 @@ class PaymentIntent(StripeObject):
         elif payment_method.startswith('card_'):
             return Card._api_retrieve(payment_method)
 
-    def _trigger_payment(self, on_succeed=None, on_fail=None):
+    def _trigger_payment(self):
         if self.status != 'requires_confirmation':
             raise UserError(400, 'Bad request')
 
@@ -1275,20 +1286,28 @@ class PaymentIntent(StripeObject):
             raise UserError(500, 'Not implemented')
 
         else:
-            def on_succeed():
+            def on_success():
                 if self.invoice:
-                    Invoice._api_retrieve(self.invoice)._succeed_payment()
+                    invoice = Invoice._api_retrieve(self.invoice)
+                    invoice._on_payment_success()
 
-            def on_fail():
+            def on_failure_now():
                 if self.invoice:
-                    Invoice._api_retrieve(self.invoice)._fail_payment()
+                    invoice = Invoice._api_retrieve(self.invoice)
+                    invoice._on_payment_failure_now()
+
+            def on_failure_later():
+                if self.invoice:
+                    invoice = Invoice._api_retrieve(self.invoice)
+                    invoice._on_payment_failure_later()
 
             charge = Charge(amount=self.amount,
                             currency=self.currency,
                             customer=self.customer,
                             source=self.payment_method)
             self.charges._list.append(charge)
-            charge._trigger_payment(on_succeed, on_fail)
+            charge._trigger_payment(on_success, on_failure_now,
+                                    on_failure_later)
 
     @property
     def status(self):
@@ -1950,21 +1969,25 @@ class Subscription(StripeObject):
                                 customer=self.customer,
                                 period_start=self.current_period_start,
                                 period_end=self.current_period_end))
-            try:
-                # Create associated invoice
-                invoice = Invoice(
-                    customer=self.customer,
-                    subscription=self.id,
-                    items=invoice_items,
-                    tax_percent=self.tax_percent,
-                    date=self.current_period_start,
-                    on_payment_fail=self._on_first_payment_failed)
-                self.latest_invoice = invoice.id
-            except UserError as e:
-                super()._api_delete(self.id)
-                raise e
 
-    def _on_first_payment_failed(self):
+            # Create associated invoice
+            invoice = Invoice(
+                customer=self.customer,
+                subscription=self.id,
+                items=invoice_items,
+                tax_percent=self.tax_percent,
+                date=self.current_period_start)
+            self.latest_invoice = invoice.id
+
+    def _on_first_payment_success(self, invoice):
+        self.status = 'active'
+
+    def _on_first_payment_failure_now(self, invoice):
+        super()._api_delete(self.id)
+        raise UserError(402, invoice.charge.failure_message,
+                        {'code': invoice.charge.failure_code})
+
+    def _on_first_payment_failure_later(self, invoice):
         Subscription._api_delete(self.id)
 
     def _update(self, metadata=None, items=None, tax_percent=None,
