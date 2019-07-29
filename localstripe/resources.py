@@ -1275,39 +1275,27 @@ class PaymentIntent(StripeObject):
         if self.status != 'requires_confirmation':
             raise UserError(400, 'Bad request')
 
-        payment_method = self._retrieve_payment_method(self.payment_method)
+        def on_success():
+            if self.invoice:
+                invoice = Invoice._api_retrieve(self.invoice)
+                invoice._on_payment_success()
 
-        if payment_method._requires_authentication():
-            self.next_action = {
-                'type': 'use_stripe_sdk',
-                'use_stripe_sdk': {'type': 'three_d_secure_redirect',
-                                   'stripe_js': ''},
-            }
-            raise UserError(500, 'Not implemented')
+        def on_failure_now():
+            if self.invoice:
+                invoice = Invoice._api_retrieve(self.invoice)
+                invoice._on_payment_failure_now()
 
-        else:
-            def on_success():
-                if self.invoice:
-                    invoice = Invoice._api_retrieve(self.invoice)
-                    invoice._on_payment_success()
+        def on_failure_later():
+            if self.invoice:
+                invoice = Invoice._api_retrieve(self.invoice)
+                invoice._on_payment_failure_later()
 
-            def on_failure_now():
-                if self.invoice:
-                    invoice = Invoice._api_retrieve(self.invoice)
-                    invoice._on_payment_failure_now()
-
-            def on_failure_later():
-                if self.invoice:
-                    invoice = Invoice._api_retrieve(self.invoice)
-                    invoice._on_payment_failure_later()
-
-            charge = Charge(amount=self.amount,
-                            currency=self.currency,
-                            customer=self.customer,
-                            source=self.payment_method)
-            self.charges._list.append(charge)
-            charge._trigger_payment(on_success, on_failure_now,
-                                    on_failure_later)
+        charge = Charge(amount=self.amount,
+                        currency=self.currency,
+                        customer=self.customer,
+                        source=self.payment_method)
+        self.charges._list.append(charge)
+        charge._trigger_payment(on_success, on_failure_now, on_failure_later)
 
     @property
     def status(self):
@@ -1352,7 +1340,20 @@ class PaymentIntent(StripeObject):
             raise UserError(400, 'Bad request')
 
         obj = cls._api_retrieve(id)
-        obj._trigger_payment()
+
+        if obj.status != 'requires_confirmation':
+            raise UserError(400, 'Bad request')
+
+        payment_method = obj._retrieve_payment_method(obj.payment_method)
+        if payment_method._requires_authentication():
+            obj.next_action = {
+                'type': 'use_stripe_sdk',
+                'use_stripe_sdk': {'type': 'three_d_secure_redirect',
+                                   'stripe_js': ''},
+            }
+        else:
+            obj._trigger_payment()
+
         return obj
 
     @classmethod
@@ -1374,10 +1375,41 @@ class PaymentIntent(StripeObject):
         obj.next_action = None
         return obj
 
+    @classmethod
+    def _api_authenticate(cls, id, client_secret=None, success=False,
+                          **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        success = try_convert_to_bool(success)
+        try:
+            assert type(id) is str and id.startswith('pi_')
+            assert type(client_secret) is str
+            assert type(success) is bool
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        obj = cls._api_retrieve(id)
+
+        if client_secret != obj.client_secret:
+            raise UserError(401, 'Unauthorized')
+        if obj.status != 'requires_action':
+            raise UserError(400, 'Bad request')
+
+        obj.next_action = None
+        if success:
+            obj._trigger_payment()
+        else:
+            obj.payment_method = None
+
+        return obj
+
 
 extra_apis.extend((
     ('POST', '/v1/payment_intents/{id}/confirm', PaymentIntent._api_confirm),
-    ('POST', '/v1/payment_intents/{id}/cancel', PaymentIntent._api_cancel)))
+    ('POST', '/v1/payment_intents/{id}/cancel', PaymentIntent._api_cancel),
+    ('POST', '/v1/payment_intents/{id}/_authenticate',
+     PaymentIntent._api_authenticate)))
 
 
 class PaymentMethod(StripeObject):
