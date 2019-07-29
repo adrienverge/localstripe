@@ -277,6 +277,36 @@ Stripe = (apiKey) => {
         }
       }
     },
+    handleCardPayment: async (clientSecret, element, data) => {
+      console.log('localstripe: Stripe().handleCardPayment()');
+      try {
+        const success = await openModal(
+          '3D Secure\nDo you want to confirm or cancel?',
+          'Complete authentication', 'Fail authentication');
+        const pi = clientSecret.match(/^(pi_\w+)_secret_/)[1];
+        const url = `${LOCALSTRIPE_SOURCE}/v1/payment_intents/${pi}` +
+                    `/_authenticate?success=${success}`;
+        const response = await fetch(url, {
+          method: 'POST',
+          body: JSON.stringify({
+            key: apiKey,
+            client_secret: clientSecret,
+          }),
+        });
+        const body = await response.json().catch(() => ({}));
+        if (response.status !== 200 || body.error) {
+          return {error: body.error};
+        } else {
+          return {paymentIntent: body};
+        }
+      } catch (err) {
+        if (typeof err === 'object' && err.error) {
+          return err;
+        } else {
+          return {error: err};
+        }
+      }
+    },
   };
 };
 
