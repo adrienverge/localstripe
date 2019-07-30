@@ -1807,11 +1807,11 @@ class Subscription(StripeObject):
                     on_payment_fail=self._on_first_payment_failed)
                 self.latest_invoice = invoice.id
             except UserError as e:
-                self._on_first_payment_failed(_send_event=False)
+                super()._api_delete(self.id)
                 raise e
 
-    def _on_first_payment_failed(self, _send_event=True):
-        Subscription._api_delete(self.id, _send_event)
+    def _on_first_payment_failed(self):
+        Subscription._api_delete(self.id)
 
     def _update(self, metadata=None, items=None, tax_percent=None,
                 proration_date=None,
@@ -1868,13 +1868,12 @@ class Subscription(StripeObject):
                                               create_an_invoice=False)
 
     @classmethod
-    def _api_delete(cls, id, _send_event=True):
-        obj = super()._api_retrieve(id)
+    def _api_delete(cls, id):
+        obj = Subscription._api_retrieve(id)
         obj.ended_at = int(time.time())
         obj.status = 'canceled'
-        if _send_event:
-            schedule_webhook(Event('customer.subscription.deleted', obj))
-        return super()._api_delete(id)
+        schedule_webhook(Event('customer.subscription.deleted', obj))
+        return obj
 
     @classmethod
     def _api_list_all(cls, url, customer=None, limit=None):
@@ -1885,10 +1884,10 @@ class Subscription(StripeObject):
             raise UserError(400, 'Bad request')
 
         li = super(Subscription, cls)._api_list_all(url, limit=limit)
+        li._list = [sub for sub in li._list if sub.status != 'canceled']
         if customer is not None:
             Customer._api_retrieve(customer)  # to return 404 if not existant
-            li._list = [invoice for invoice in li._list
-                        if invoice.customer == customer]
+            li._list = [sub for sub in li._list if sub.customer == customer]
         return li
 
 

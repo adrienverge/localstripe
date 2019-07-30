@@ -227,7 +227,8 @@ def api_update(cls, url):
 def api_delete(cls, url):
     def f(request):
         id = request.match_info['id']
-        return json_response(cls._api_delete(id))
+        ret = cls._api_delete(id)
+        return json_response(ret if isinstance(ret, dict) else ret._export())
     return f
 
 
