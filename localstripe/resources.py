@@ -2085,15 +2085,23 @@ class Subscription(StripeObject):
         return obj
 
     @classmethod
-    def _api_list_all(cls, url, customer=None, limit=None):
+    def _api_list_all(cls, url, customer=None, status=None, limit=None):
         try:
             if customer is not None:
                 assert type(customer) is str and customer.startswith('cus_')
+            if status is not None:
+                assert status in ('all', 'incomplete', 'incomplete_expired',
+                                  'trialing', 'active', 'past_due', 'unpaid',
+                                  'canceled')
         except AssertionError:
             raise UserError(400, 'Bad request')
 
         li = super(Subscription, cls)._api_list_all(url, limit=limit)
-        li._list = [sub for sub in li._list if sub.status != 'canceled']
+        if status is None:
+            li._list = [sub for sub in li._list if sub.status not in
+                        ('canceled', 'incomplete_expired')]
+        elif status != 'all':
+            li._list = [sub for sub in li._list if sub.status == status]
         if customer is not None:
             Customer._api_retrieve(customer)  # to return 404 if not existant
             li._list = [sub for sub in li._list if sub.customer == customer]
