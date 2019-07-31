@@ -68,10 +68,11 @@ def random_id(n):
 
 
 def try_convert_to_bool(arg):
-    if arg == 'false':
-        return False
-    elif arg == 'true':
-        return True
+    if type(arg) is str:
+        if arg.lower() == 'false':
+            return False
+        elif arg.lower() == 'true':
+            return True
     return arg
 
 
