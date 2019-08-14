@@ -1067,7 +1067,9 @@ class Invoice(StripeObject):
     def _api_pay_invoice(cls, id):
         obj = Invoice._api_retrieve(id)
 
-        if obj.status not in ('draft', 'open'):
+        if obj.status == 'paid':
+            raise UserError(400, 'Invoice is already paid')
+        elif obj.status not in ('draft', 'open'):
             raise UserError(400, 'Bad request')
 
         PaymentIntent._api_confirm(obj.payment_intent)
