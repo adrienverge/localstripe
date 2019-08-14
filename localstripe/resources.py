@@ -911,6 +911,13 @@ class Invoice(StripeObject):
                 if si['tax_rates'] is not None:
                     [TaxRate._api_retrieve(tr) for tr in si['tax_rates']]
 
+        pending_items = [ii for ii in InvoiceItem._api_list_all(
+            None, customer=customer, limit=99)._list
+            if ii.invoice is None]
+        if (not upcoming and not subscription and
+                not subscription_items and not pending_items):
+            raise UserError(400, 'Bad request')
+
         simulation = subscription_items is not None or \
             subscription_prorate is not None or \
             subscription_tax_percent is not None or \
