@@ -2063,19 +2063,22 @@ class Subscription(StripeObject):
         if items is None or len(items) != 1 or not items[0]['plan']:
             raise UserError(500, 'Not implemented')
 
-        for item in items:
-            Plan._api_retrieve(item['plan'])  # to return 404 if not existant
-            # To return 404 if not existant:
-            if item['tax_rates'] is not None:
-                [TaxRate._api_retrieve(tr) for tr in item['tax_rates']]
+        # To return 404 if not existant:
+        new_plan = Plan._api_retrieve(items[0]['plan'])
+        # To return 404 if not existant:
+        if items[0]['tax_rates'] is not None:
+            [TaxRate._api_retrieve(tr) for tr in items[0]['tax_rates']]
 
         self.quantity = items[0]['quantity']
 
         # If the subscription is updated to a more expensive plan, an invoice
         # is not automatically generated. To achieve that, an invoice has to
         # be manually created using the POST /invoices route.
-        self._set_up_subscription_and_invoice(items[0],
-                                              create_an_invoice=False)
+        create_an_invoice = self.plan.billing_scheme == 'per_unit' and (
+            self.plan.interval != new_plan.interval or
+            self.plan.interval_count != new_plan.interval_count)
+        self._set_up_subscription_and_invoice(
+            items[0], create_an_invoice=create_an_invoice)
 
     @classmethod
     def _api_delete(cls, id):
