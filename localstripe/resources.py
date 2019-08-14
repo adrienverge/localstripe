@@ -719,9 +719,8 @@ class Invoice(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        customer_obj = Customer._api_retrieve(customer)
-        if customer_obj._get_default_payment_method_or_source() is None:
-            raise UserError(404, 'This customer has no payment method')
+        Customer._api_retrieve(customer)  # to return 404 if not existant
+
         if subscription is not None:
             subscription_obj = Subscription._api_retrieve(subscription)
 
@@ -781,18 +780,6 @@ class Invoice(StripeObject):
         if not upcoming and not simulation:
             self.status_transitions['finalized_at'] = int(time.time())
             schedule_webhook(Event('invoice.created', self))
-
-            if self.total <= 0:
-                self._on_payment_success()
-            else:
-                pm = customer_obj._get_default_payment_method_or_source()
-                pi = PaymentIntent(amount=self.total,
-                                   currency=self.currency,
-                                   customer=self.customer,
-                                   payment_method=pm.id)
-                self.payment_intent = pi.id
-                pi.invoice = self.id
-                PaymentIntent._api_confirm(self.payment_intent)
 
     @property
     def subtotal(self):
@@ -1070,7 +1057,20 @@ class Invoice(StripeObject):
         if obj.status not in ('draft', 'open'):
             raise UserError(400, 'Bad request')
 
-        PaymentIntent._api_confirm(obj.payment_intent)
+        if obj.total <= 0:
+            obj._on_payment_success()
+        else:
+            cus = Customer._api_retrieve(obj.customer)
+            if cus._get_default_payment_method_or_source() is None:
+                raise UserError(404, 'This customer has no payment method')
+            pm = cus._get_default_payment_method_or_source()
+            pi = PaymentIntent(amount=obj.total,
+                               currency=obj.currency,
+                               customer=obj.customer,
+                               payment_method=pm.id)
+            obj.payment_intent = pi.id
+            pi.invoice = obj.id
+            PaymentIntent._api_confirm(obj.payment_intent)
 
         return obj
 
@@ -2011,6 +2011,7 @@ class Subscription(StripeObject):
                 tax_percent=self.tax_percent,
                 date=self.current_period_start)
             self.latest_invoice = invoice.id
+            Invoice._api_pay_invoice(invoice.id)
 
     def _on_first_payment_success(self, invoice):
         self.status = 'active'
