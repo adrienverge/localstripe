@@ -1621,7 +1621,7 @@ class Product(StripeObject):
     object = 'product'
     _id_prefix = 'prod_'
 
-    def __init__(self, name=None, type=None, active=True, caption=None,
+    def __init__(self, id=None, name=None, type=None, active=True, caption=None,
                  description=None, attributes=None, shippable=True, url=None,
                  statement_descriptor=None, metadata=None, **kwargs):
         if kwargs:
@@ -1648,7 +1648,7 @@ class Product(StripeObject):
             raise UserError(400, 'Bad request')
 
         # All exceptions must be raised before this point.
-        super().__init__()
+        super().__init__(id)
 
         self.name = name
         self.type = type
