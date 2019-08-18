@@ -2179,7 +2179,7 @@ class SubscriptionItem(StripeObject):
 
     def _calculate_amount_in_tier(self, quantity, index):
         t = self.plan.tiers[index]
-        return int(t['unit_amount']) * quantity + int(t['flat_amount'])
+        return int(t.get('unit_amount', 0)) * quantity + int(t.get('flat_amount', 0))
 
 
 class TaxId(StripeObject):
