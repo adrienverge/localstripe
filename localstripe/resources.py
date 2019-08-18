@@ -2162,11 +2162,11 @@ class SubscriptionItem(StripeObject):
             amount = 0
 
             for i, t in enumerate(self.plan.tiers):
-                if quantity <= 0 or int(t['from']) > quantity:
+                if quantity <= 0 or int(t.get('from', 0)) > quantity:
                     break
 
                 amount += self._calculate_amount_in_tier(
-                    quantity - int(t['from']), i)
+                    quantity - int(t.get('from', 0)), i)
 
                 if t['up_to'] == 'inf':
                     quantity = 0
