@@ -862,7 +862,8 @@ class Invoice(StripeObject):
 
     @classmethod
     def _get_next_invoice(cls, customer=None, subscription=None,
-                          tax_percent=None, description=None, metadata=None,
+                          tax_percent=None, default_tax_rates=None,
+                          description=None, metadata=None,
                           # /upcoming route properties:
                           upcoming=False,
                           coupon=None,
@@ -875,6 +876,10 @@ class Invoice(StripeObject):
             try_convert_to_int(subscription_proration_date)
         try:
             assert type(customer) is str and customer.startswith('cus_')
+            if default_tax_rates is not None:
+                assert type(default_tax_rates) is list
+                assert all(type(txr) is str and txr.startswith('txr_')
+                           for txr in default_tax_rates)
             if subscription_items is not None:
                 assert type(subscription_items) is list
                 for si in subscription_items:
@@ -891,6 +896,9 @@ class Invoice(StripeObject):
 
         # return 404 if not existant
         customer_obj = Customer._api_retrieve(customer)
+        if default_tax_rates is not None:
+            default_tax_rates = [TaxRate._api_retrieve(txr)
+                                 for txr in default_tax_rates]
         if subscription_items:
             for si in subscription_items:
                 Plan._api_retrieve(si['plan'])  # to return 404 if not existant
@@ -929,7 +937,8 @@ class Invoice(StripeObject):
             if subscription_items is not None:
                 tax_rates = si['tax_rates']
             else:
-                tax_rates = [tr.id for tr in (si.tax_rates or [])]
+                tax_rates = [tr.id for tr in (si.tax_rates or
+                                              default_tax_rates or [])]
             invoice_items.append(
                 InvoiceItem(subscription=subscription,
                             plan=plan.id,
@@ -971,7 +980,8 @@ class Invoice(StripeObject):
                                              limit=99)
                 for previous_invoice in previous._list:
                     previous_tax_rates = [tr.id for tr in (
-                        previous_invoice.lines._list[0].tax_rates or [])]
+                        previous_invoice.lines._list[0].tax_rates or
+                        default_tax_rates or [])]
                     invoice_items.append(
                         InvoiceItem(amount=- previous_invoice.subtotal,
                                     currency=previous_invoice.currency,
@@ -999,11 +1009,11 @@ class Invoice(StripeObject):
 
     @classmethod
     def _api_create(cls, customer=None, subscription=None, tax_percent=None,
-                    description=None, metadata=None):
+                    default_tax_rates=None, description=None, metadata=None):
         return cls._get_next_invoice(
             customer=customer, subscription=subscription,
-            tax_percent=tax_percent, description=description,
-            metadata=metadata)
+            tax_percent=tax_percent, default_tax_rates=default_tax_rates,
+            description=description, metadata=metadata)
 
     @classmethod
     def _api_delete(cls, id):
