@@ -2061,7 +2061,8 @@ class Subscription(StripeObject):
                 tax_percent=self.tax_percent,
                 date=self.current_period_start)
             self.latest_invoice = invoice.id
-            Invoice._api_pay_invoice(invoice.id)
+            if invoice.status != 'paid':  # 0 € invoices are already 'paid'
+                Invoice._api_pay_invoice(invoice.id)
 
             if invoice.status == 'paid':
                 self.status = 'active'
