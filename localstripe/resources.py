@@ -420,7 +420,7 @@ class Charge(StripeObject):
         if amount is None:
             amount = obj.amount
 
-        try_convert_to_int(amount)
+        amount = try_convert_to_int(amount)
         try:
             assert type(amount) is int and 0 <= amount <= obj.amount
             assert obj.captured is False
