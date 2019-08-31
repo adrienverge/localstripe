@@ -246,6 +246,12 @@ ds=$(curl -sSf -u $SK: $HOST/v1/customers/$cus?expand%5B%5D=default_source \
      | grep -oE '"default_source": null",' || true)
 [ -z "$ds" ]
 
+# we can charge a customer without specifying the source
+curl -sSf -u $SK: $HOST/v1/charges \
+     -d customer=$cus \
+     -d amount=1000 \
+     -d currency=usd
+
 curl -sSf -u $SK: $HOST/v1/invoices?customer=$cus
 
 code=$(curl -s -o /dev/null -w "%{http_code}" -u $SK: \
