@@ -445,3 +445,90 @@ curl -sSf $HOST/v1/setup_intents/$seti/confirm \
      -d payment_method_data[card][exp_month]=4 \
      -d payment_method_data[card][exp_year]=24 \
      -d payment_method_data[billing_details][address][postal_code]=42424
+
+# card fingerprint
+fingerprint=$(
+  curl -sSf -u $SK: $HOST/v1/customers/$cus/cards \
+       -d source[object]=card \
+       -d source[number]=4242424242424242 \
+       -d source[exp_month]=12 \
+       -d source[exp_year]=2020 \
+       -d source[cvc]=123 \
+  | grep -oE '"fingerprint": "79758cf4654d6cc6",')
+[ -n "$fingerprint" ]
+
+fingerprint=$(
+  curl -sSf -u $SK: $HOST/v1/customers/$cus/cards \
+       -d source[object]=card \
+       -d source[number]=4000056655665556 \
+       -d source[exp_month]=12 \
+       -d source[exp_year]=2020 \
+       -d source[cvc]=123 \
+  | grep -oE '"fingerprint": "d510ca86026aae9d",')
+[ -n "$fingerprint" ]
+
+fingerprint=$(
+  curl -sSf -u $SK: $HOST/v1/customers/$cus/cards \
+       -d source[object]=card \
+       -d source[number]=5555555555554444 \
+       -d source[exp_month]=12 \
+       -d source[exp_year]=2020 \
+       -d source[cvc]=123 \
+  | grep -oE '"fingerprint": "6589b0d46b6f2f0d",')
+[ -n "$fingerprint" ]
+
+# sepa debit fingerprint
+fingerprint=$(
+  curl -sSf -u $SK: $HOST/v1/sources \
+       -d type=sepa_debit \
+       -d sepa_debit[iban]=DE89370400440532013000 \
+       -d currency=eur \
+  | grep -oE '"fingerprint": "798619b2da10a84a",')
+[ -n "$fingerprint" ]
+
+fingerprint=$(
+  curl -sSf -u $SK: $HOST/v1/sources \
+       -d type=sepa_debit \
+       -d sepa_debit[iban]=FR1420041010050500013M02606 \
+       -d currency=eur \
+  | grep -oE '"fingerprint": "ecd0b2a2a3c26824",')
+[ -n "$fingerprint" ]
+
+fingerprint=$(
+  curl -sSf -u $SK: $HOST/v1/sources \
+       -d type=sepa_debit \
+       -d sepa_debit[iban]=IT40S0542811101000000123456 \
+       -d currency=eur \
+  | grep -oE '"fingerprint": "b4fb3b3b13ef1fb0",')
+[ -n "$fingerprint" ]
+
+# payment method fingerprint
+fingerprint=$(
+  curl -sSf -u $SK: $HOST/v1/payment_methods \
+       -d type=card \
+       -d card[number]=4242424242424242 \
+       -d card[exp_month]=12 \
+       -d card[exp_year]=2020 \
+       -d card[cvc]=123 \
+  | grep -oE '"fingerprint": "79758cf4654d6cc6",')
+[ -n "$fingerprint" ]
+
+fingerprint=$(
+  curl -sSf -u $SK: $HOST/v1/payment_methods \
+       -d type=card \
+       -d card[number]=4000056655665556 \
+       -d card[exp_month]=12 \
+       -d card[exp_year]=2020 \
+       -d card[cvc]=123 \
+  | grep -oE '"fingerprint": "d510ca86026aae9d",')
+[ -n "$fingerprint" ]
+
+fingerprint=$(
+  curl -sSf -u $SK: $HOST/v1/payment_methods \
+       -d type=card \
+       -d card[number]=5555555555554444 \
+       -d card[exp_month]=12 \
+       -d card[exp_year]=2020 \
+       -d card[cvc]=123 \
+  | grep -oE '"fingerprint": "6589b0d46b6f2f0d",')
+[ -n "$fingerprint" ]

@@ -16,6 +16,7 @@
 
 import asyncio
 from datetime import datetime, timedelta
+import hashlib
 import pickle
 import random
 import re
@@ -65,6 +66,10 @@ store = Store()
 def random_id(n):
     return ''.join(random.choice(string.ascii_letters + string.digits)
                    for i in range(n))
+
+
+def fingerprint(s: str):
+    return hashlib.sha1(s.encode('utf-8')).hexdigest()[:16]
 
 
 def try_convert_to_bool(arg):
@@ -289,7 +294,7 @@ class Card(StripeObject):
         self.dynamic_last4 = None
         self.exp_month = exp_month
         self.exp_year = exp_year
-        self.fingerprint = random_id(16)
+        self.fingerprint = fingerprint(self._card_number)
         self.funding = 'credit'
         self.name = name
         self.tokenization_method = None
@@ -1543,7 +1548,7 @@ class PaymentMethod(StripeObject):
             'last4': self._card_number[-4:],
             'brand': 'visa',
             'country': 'FR',
-            'fingerprint': random_id(16),
+            'fingerprint': fingerprint(self._card_number),
             'funding': 'credit',
             'three_d_secure_usage': {'supported': True},
         }
@@ -1842,7 +1847,7 @@ class Source(StripeObject):
                 'country': self._sepa_debit_iban[:2],
                 'bank_code': self._sepa_debit_iban[4:12],
                 'last4': self._sepa_debit_iban[-4:],
-                'fingerprint': random_id(16),
+                'fingerprint': fingerprint(self._sepa_debit_iban),
                 'mandate_reference': 'NXDSYREGC9PSMKWY',
                 'mandate_url': 'https://fake/NXDSYREGC9PSMKWY',
             }
