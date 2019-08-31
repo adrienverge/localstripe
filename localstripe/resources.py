@@ -289,7 +289,7 @@ class Card(StripeObject):
         self.dynamic_last4 = None
         self.exp_month = exp_month
         self.exp_year = exp_year
-        self.fingerprint = random_id(16)
+        self.fingerprint = hex(int(number))
         self.funding = 'credit'
         self.name = name
         self.tokenization_method = None
