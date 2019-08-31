@@ -339,8 +339,7 @@ class Charge(StripeObject):
             source = customer_obj._get_default_payment_method_or_source()
             if source is None:
                 raise UserError(404, 'This customer has no payment method')
-
-        if source.startswith('pm_'):
+        elif source.startswith('pm_'):
             source = PaymentMethod._api_retrieve(source)
         elif source.startswith('src_'):
             source = Source._api_retrieve(source)
