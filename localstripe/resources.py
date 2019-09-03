@@ -731,7 +731,7 @@ class Invoice(StripeObject):
     _id_prefix = 'in_'
 
     def __init__(self, customer=None, subscription=None, metadata=None,
-                 items=[], date=None, description=None, upcoming=False,
+                 items=[], date=None, description=None,
                  simulation=False,
                  tax_percent=None,  # deprecated
                  **kwargs):
@@ -811,12 +811,10 @@ class Invoice(StripeObject):
         else:
             self.currency = 'eur'  # arbitrary default
 
-        self._upcoming = upcoming
+        self._draft = True
         self._voided = False
 
-        # When invoice is 'finalized':
-        if not upcoming and not simulation:
-            self.status_transitions['finalized_at'] = int(time.time())
+        if not simulation:
             schedule_webhook(Event('invoice.created', self))
 
     @property
@@ -848,12 +846,12 @@ class Invoice(StripeObject):
 
     @property
     def next_payment_attempt(self):
-        if self._upcoming:
+        if self.status in ('draft', 'open'):
             return self.date
 
     @property
     def status(self):
-        if self._upcoming:
+        if self._draft:
             return 'draft'
         elif self._voided:
             return 'void'
@@ -873,6 +871,11 @@ class Invoice(StripeObject):
             pi = PaymentIntent._api_retrieve(self.payment_intent)
             if len(pi.charges._list):
                 return pi.charges._list[-1]
+
+    def _finalize(self):
+        assert self.status == 'draft'
+        self._draft = False
+        self.status_transitions['finalized_at'] = int(time.time())
 
     def _on_payment_success(self):
         assert self.status == 'paid'
@@ -1013,8 +1016,7 @@ class Invoice(StripeObject):
                        items=invoice_items,
                        tax_percent=tax_percent,
                        date=date,
-                       description=description,
-                       upcoming=upcoming)
+                       description=description)
 
         else:  # if simulation
             if subscription is not None:
@@ -1043,7 +1045,6 @@ class Invoice(StripeObject):
                           tax_percent=tax_percent,
                           date=date,
                           description=description,
-                          upcoming=upcoming,
                           simulation=True)
 
             if subscription_proration_date is not None:
@@ -1058,7 +1059,6 @@ class Invoice(StripeObject):
                     default_tax_rates=None, description=None, metadata=None):
         return cls._get_next_invoice(
             customer=customer, subscription=subscription,
-            upcoming=True,
             tax_percent=tax_percent, default_tax_rates=default_tax_rates,
             description=description, metadata=metadata)
 
@@ -1123,7 +1123,7 @@ class Invoice(StripeObject):
         elif obj.status not in ('draft', 'open'):
             raise UserError(400, 'Bad request')
 
-        obj._upcoming = False
+        obj._draft = False
 
         if obj.total <= 0:
             obj._on_payment_success()
@@ -1151,6 +1151,7 @@ class Invoice(StripeObject):
 
         PaymentIntent._api_cancel(obj.payment_intent)
 
+        obj._draft = False
         obj._voided = True
         obj.status_transitions['voided_at'] = int(time.time())
 
@@ -2102,6 +2103,7 @@ class Subscription(StripeObject):
                 tax_percent=self.tax_percent,
                 date=self.current_period_start)
             self.latest_invoice = invoice.id
+            invoice._finalize()
             if invoice.status != 'paid':  # 0 € invoices are already 'paid'
                 Invoice._api_pay_invoice(invoice.id)
 
