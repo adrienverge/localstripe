@@ -315,11 +315,13 @@ class Charge(StripeObject):
     _id_prefix = 'ch_'
 
     def __init__(self, amount=None, currency=None, description=None,
-                 metadata=None, customer=None, source=None, **kwargs):
+                 metadata=None, customer=None, source=None, capture=True,
+                 **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         amount = try_convert_to_int(amount)
+        capture = try_convert_to_bool(capture)
         try:
             assert type(amount) is int and amount >= 0
             assert type(currency) is str and currency
@@ -331,6 +333,7 @@ class Charge(StripeObject):
                 assert type(source) is str
                 assert (source.startswith('pm_') or source.startswith('src_')
                         or source.startswith('card_'))
+            assert type(capture) is bool
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -365,6 +368,7 @@ class Charge(StripeObject):
         self.payment_method = source.id
         self.failure_code = None
         self.failure_message = None
+        self.captured = capture
 
     def _trigger_payment(self, on_success=None, on_failure_now=None,
                          on_failure_later=None):
@@ -400,6 +404,37 @@ class Charge(StripeObject):
                 if on_success:
                     on_success()
 
+    @classmethod
+    def _api_capture(cls, id, amount=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            assert type(id) is str and id.startswith('ch_')
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        obj = cls._api_retrieve(id)
+
+        if amount is None:
+            amount = obj.amount
+
+        amount = try_convert_to_int(amount)
+        try:
+            assert type(amount) is int and 0 <= amount <= obj.amount
+            assert obj.captured is False
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        def on_success():
+            obj.captured = True
+            if amount < obj.amount:
+                refunded = obj.amount - amount
+                obj.refunds._list.append(Refund(obj.id, refunded))
+
+        obj._trigger_payment(on_success)
+        return obj
+
     @property
     def paid(self):
         return self.status == 'succeeded'
@@ -414,6 +449,10 @@ class Charge(StripeObject):
     @property
     def refunded(self):
         return self.amount <= self.amount_refunded
+
+
+extra_apis.append((
+    ('POST', '/v1/charges/{id}/capture', Charge._api_capture)))
 
 
 class Coupon(StripeObject):
