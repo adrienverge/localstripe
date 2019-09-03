@@ -1058,6 +1058,7 @@ class Invoice(StripeObject):
                     default_tax_rates=None, description=None, metadata=None):
         return cls._get_next_invoice(
             customer=customer, subscription=subscription,
+            upcoming=True,
             tax_percent=tax_percent, default_tax_rates=default_tax_rates,
             description=description, metadata=metadata)
 
@@ -1121,6 +1122,8 @@ class Invoice(StripeObject):
             raise UserError(400, 'Invoice is already paid')
         elif obj.status not in ('draft', 'open'):
             raise UserError(400, 'Bad request')
+
+        obj._upcoming = False
 
         if obj.total <= 0:
             obj._on_payment_success()
