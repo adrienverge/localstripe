@@ -14,11 +14,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
+
 from setuptools import setup
 
 from localstripe import __author__, __version__
 
-with open('requirements.txt') as f:
+with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'requirements.txt')) as f:
     requirements = f.read().splitlines()
 
 setup(
