@@ -18,6 +18,8 @@ from setuptools import setup
 
 from localstripe import __author__, __version__
 
+with open('requirements.txt') as f:
+    requirements = f.read().splitlines()
 
 setup(
     name='localstripe',
@@ -29,12 +31,9 @@ setup(
 
     packages=['localstripe'],
     entry_points={'console_scripts':
-                  ['localstripe=localstripe.server:start']},
+                      ['localstripe=localstripe.server:start']},
     package_data={
         'localstripe': ['localstripe-v3.js'],
     },
-    install_requires=[
-        'aiohttp >=2.3.2',
-        'python-dateutil >=2.6.1',
-    ],
+    install_requires=requirements
 )
