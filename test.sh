@@ -168,12 +168,13 @@ tok=$(curl -sSf -u $SK: $HOST/v1/tokens \
 curl -sSf -u $SK: $HOST/v1/customers/$cus/sources \
      -d source=$tok
 
-curl -sSf -u $SK: $HOST/v1/customers/$cus/cards \
+card=$(curl -sSf -u $SK: $HOST/v1/customers/$cus/cards \
           -d source[object]=card \
           -d source[number]=4242424242424242 \
           -d source[exp_month]=12 \
           -d source[exp_year]=2020 \
-          -d source[cvc]=123
+          -d source[cvc]=123 \
+      | grep -oE 'card_\w+')
 
 code=$(curl -s -o /dev/null -w "%{http_code}" -u $SK: \
             $HOST/v1/customers/$cus/cards \
@@ -183,6 +184,82 @@ code=$(curl -s -o /dev/null -w "%{http_code}" -u $SK: \
             -d source[exp_year]=2042 \
             -d source[cvc]=123)
 [ "$code" = 402 ]
+
+# new charges are captured by default
+captured=$(
+  curl -sSf -u $SK: $HOST/v1/charges \
+       -d customer=$cus \
+       -d source=$card \
+       -d amount=1000 \
+       -d currency=usd \
+  | grep -oE '"captured": true,')
+[ -n "$captured" ]
+
+# create a pre-auth charge
+charge=$(
+  curl -sSf -u $SK: $HOST/v1/charges \
+       -d customer=$cus \
+       -d source=$card \
+       -d amount=1000 \
+       -d currency=usd \
+       -d capture=false \
+  | grep -oE 'ch_\w+' | head -n 1)
+
+# charge was not captured
+captured=$(
+  curl -sSf -u $SK: $HOST/v1/charges/$charge \
+  | grep -oE '"captured": false,')
+[ -n "$captured" ]
+
+# cannot capture more than pre-authed amount
+code=$(
+  curl -s -o /dev/null -w "%{http_code}" \
+       -u $SK: $HOST/v1/charges/$charge/capture \
+       -d amount=2000)
+[ "$code" = 400 ]
+
+# can capture less than the pre-auth amount
+captured=$(
+  curl -sSf -u $SK: $HOST/v1/charges/$charge/capture \
+       -d amount=800 \
+  | grep -oE '"captured": true,')
+[ -n "$captured" ]
+
+# difference between pre-auth and capture is refunded
+refunded=$(
+  curl -sSf -u $SK: $HOST/v1/charges/$charge \
+  | grep -oE '"amount_refunded": 200,')
+[ -n "$captured" ]
+
+# create a pre-auth charge
+charge=$(
+  curl -sSf -u $SK: $HOST/v1/charges \
+       -d customer=$cus \
+       -d source=$card \
+       -d amount=1000 \
+       -d currency=usd \
+       -d capture=false \
+  | grep -oE 'ch_\w+' | head -n 1)
+
+# capture the full amount (default)
+captured=$(
+  curl -sSf -u $SK: $HOST/v1/charges/$charge/capture \
+       -X POST \
+  | grep -oE '"captured": true,')
+[ -n "$captured" ]
+
+# none is refunded
+refunded=$(
+  curl -sSf -u $SK: $HOST/v1/charges/$charge \
+  | grep -oE '"amount_refunded": 0,')
+[ -n "$captured" ]
+
+# cannot capture an already captured charge
+code=$(
+  curl -s -o /dev/null -w "%{http_code}" \
+       -u $SK: $HOST/v1/charges/$charge/capture \
+       -X POST)
+[ "$code" = 400 ]
 
 sepa_cus=$(
   curl -sSf -u $SK: $HOST/v1/customers \
@@ -245,6 +322,12 @@ curl -sSf -u $SK: $HOST/v1/customers/$cus/cards \
 ds=$(curl -sSf -u $SK: $HOST/v1/customers/$cus?expand%5B%5D=default_source \
      | grep -oE '"default_source": null",' || true)
 [ -z "$ds" ]
+
+# we can charge a customer without specifying the source
+curl -sSf -u $SK: $HOST/v1/charges \
+     -d customer=$cus \
+     -d amount=1000 \
+     -d currency=usd
 
 curl -sSf -u $SK: $HOST/v1/invoices?customer=$cus
 
