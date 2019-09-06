@@ -640,7 +640,7 @@ card=$(
        -d source[cvc]=123 \
   | grep -oE 'card_\w+' | head -n 1)
 
-# create a charge, observe 402 response
+# create a normal charge, observe 402 response
 code=$(
   curl -s -o /dev/null -w "%{http_code}" \
        -u $SK: $HOST/v1/charges \
@@ -649,12 +649,38 @@ code=$(
        -d currency=usd)
 [ "$code" = 402 ]
 
-# create a charge
+# create a normal charge
 charge=$(
   curl -s -u $SK: $HOST/v1/charges \
        -d source=$card \
        -d amount=1000 \
        -d currency=usd \
+  | grep -oE 'ch_\w+' | head -n 1)
+
+# verify charge status failed
+status=$(
+  curl -sSf -u $SK: $HOST/v1/charges/$charge \
+  | grep -oE '"status": "failed"')
+[ -n "$status" ]
+
+
+# create a pre-auth charge, observe 402 response
+code=$(
+  curl -s -o /dev/null -w "%{http_code}" \
+       -u $SK: $HOST/v1/charges \
+       -d source=$card \
+       -d amount=1000 \
+       -d currency=usd \
+       -d capture=false)
+[ "$code" = 402 ]
+
+# create a pre-auth charge
+charge=$(
+  curl -s -u $SK: $HOST/v1/charges \
+       -d source=$card \
+       -d amount=1000 \
+       -d currency=usd \
+       -d capture=false \
   | grep -oE 'ch_\w+' | head -n 1)
 
 # verify charge status failed
