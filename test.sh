@@ -168,6 +168,59 @@ tok=$(curl -sSf -u $SK: $HOST/v1/tokens \
 curl -sSf -u $SK: $HOST/v1/customers/$cus/sources \
      -d source=$tok
 
+# add a new card
+card=$(
+  curl -sSf -u $SK: $HOST/v1/customers/$cus/cards \
+       -d source[object]=card \
+       -d source[number]=4242424242424242 \
+       -d source[exp_month]=12 \
+       -d source[exp_year]=2020 \
+       -d source[cvc]=123 \
+  | grep -oE 'card_\w+')
+
+# observe new card in customer response
+res=$(
+  curl -sSf -u $SK: $HOST/v1/customers/$cus \
+  | grep -oE $card)
+[ -n "$res" ]
+
+# delete the card
+curl -sSf -u $SK: $HOST/v1/customers/$cus/sources/$card \
+     -X DELETE
+
+# observe card no longer in customer response
+res=$(
+  curl -sSf -u $SK: $HOST/v1/customers/$cus \
+  | grep -oE $card || true)
+[ -z "$res" ]
+
+# add a new card
+card=$(
+  curl -sSf -u $SK: $HOST/v1/customers/$cus/cards \
+       -d source[object]=card \
+       -d source[number]=4242424242424242 \
+       -d source[exp_month]=12 \
+       -d source[exp_year]=2020 \
+       -d source[cvc]=123 \
+       -d source[name]=John\ Smith \
+  | grep -oE 'card_\w+')
+
+# observe name on card
+name=$(
+  curl -sSf -u $SK: $HOST/v1/customers/$cus/sources/$card \
+  | grep -oE '"name": "John Smith",')
+[ -n "$name" ]
+
+# update name on card
+curl -sSf -u $SK: $HOST/v1/customers/$cus/sources/$card \
+     -d name=Jane\ Doe
+
+# observe name on card
+name=$(
+  curl -sSf -u $SK: $HOST/v1/customers/$cus/sources/$card \
+  | grep -oE '"name": "Jane Doe",')
+[ -n "$name" ]
+
 card=$(curl -sSf -u $SK: $HOST/v1/customers/$cus/cards \
           -d source[object]=card \
           -d source[number]=4242424242424242 \
