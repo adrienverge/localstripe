@@ -631,6 +631,11 @@ class Customer(StripeObject):
         return source_obj
 
     @classmethod
+    def _api_update_source(cls, id, source_id, **data):
+        source_obj = cls._api_retrieve_source(id, source_id)
+        return type(source_obj)._api_update(source_id, **data)
+
+    @classmethod
     def _api_add_source(cls, id, source=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
@@ -669,6 +674,22 @@ class Customer(StripeObject):
         return source_obj
 
     @classmethod
+    def _api_remove_source(cls, id, source_id, **kwargs):
+        obj = cls._api_retrieve(id)
+        source_obj = cls._api_retrieve_source(id, source_id)
+
+        type(source_obj)._api_delete(source_id)
+        obj.sources._list.remove(source_obj)
+
+        if obj.default_source == source_obj.id:
+            obj.default_source = None
+            for source in obj.sources._list:
+                obj.default_source = source.id
+                break
+
+        return obj
+
+    @classmethod
     def _api_add_tax_id(cls, id, type=None, value=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
@@ -700,6 +721,12 @@ extra_apis.extend((
     # Retrieve single source by id:
     ('GET', '/v1/customers/{id}/sources/{source_id}',
      Customer._api_retrieve_source),
+    # Update single source by id:
+    ('POST', '/v1/customers/{id}/sources/{source_id}',
+     Customer._api_update_source),
+    # Delete single source by id:
+    ('DELETE', '/v1/customers/{id}/sources/{source_id}',
+     Customer._api_remove_source),
     # This is the old API route:
     ('POST', '/v1/customers/{id}/cards', Customer._api_add_source),
     ('POST', '/v1/customers/{id}/tax_ids', Customer._api_add_tax_id),
