@@ -410,6 +410,23 @@ class Charge(StripeObject):
                     on_success()
 
     @classmethod
+    def _api_create(cls, **data):
+        obj = super()._api_create(**data)
+        if obj.captured == False:
+            return obj
+
+        def on_failure():
+            raise UserError(402, 'Your card was declined.',
+                            {'code': 'card_declined', 'charge': obj.id})
+
+        obj._trigger_payment(
+            on_failure_now=on_failure,
+            on_failure_later=on_failure
+        )
+
+        return obj
+
+    @classmethod
     def _api_capture(cls, id, amount=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
