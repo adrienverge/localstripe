@@ -2023,18 +2023,22 @@ class Subscription(StripeObject):
     def __init__(self, customer=None, metadata=None, items=None,
                  tax_percent=None,  # deprecated
                  enable_incomplete_payments=True,  # legacy support
-                 payment_behavior='allow_incomplete', **kwargs):
+                 payment_behavior='allow_incomplete',
+                 trial_period_days=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         tax_percent = try_convert_to_float(tax_percent)
         enable_incomplete_payments = try_convert_to_bool(
             enable_incomplete_payments)
+        trial_period_days = try_convert_to_int(trial_period_days)
         try:
             assert type(customer) is str and customer.startswith('cus_')
             if tax_percent is not None:
                 assert type(tax_percent) is float
                 assert tax_percent >= 0 and tax_percent <= 100
+            if trial_period_days is not None:
+                assert type(trial_period_days) is int
             assert type(items) is list
             for item in items:
                 assert type(item.get('plan', None)) is str
@@ -2079,12 +2083,15 @@ class Subscription(StripeObject):
         self.status = 'incomplete'
         self.trial_end = None
         self.trial_start = None
+        self.trial_period_days = trial_period_days
         self.latest_invoice = None
         self._enable_incomplete_payments = (
             enable_incomplete_payments and
             payment_behavior != 'error_if_incomplete')
 
-        self._set_up_subscription_and_invoice(items[0])
+        create_an_invoice = \
+            self.trial_end is None and self.trial_period_days is None
+        self._set_up_subscription_and_invoice(items[0], create_an_invoice)
         self.start = self.current_period_start
 
         schedule_webhook(Event('customer.subscription.created', self))
