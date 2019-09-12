@@ -525,13 +525,16 @@ class Customer(StripeObject):
     object = 'customer'
     _id_prefix = 'cus_'
 
-    def __init__(self, description=None, email=None, invoice_settings=None,
-                 business_vat_id=None, preferred_locales=None,
-                 tax_id_data=None, metadata=None, **kwargs):
+    def __init__(self, name=None, description=None, email=None,
+                 invoice_settings=None, business_vat_id=None,
+                 preferred_locales=None, tax_id_data=None,
+                 metadata=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         try:
+            if name is not None:
+                assert type(name) is str
             if description is not None:
                 assert type(description) is str
             if email is not None:
@@ -564,6 +567,7 @@ class Customer(StripeObject):
         # All exceptions must be raised before this point.
         super().__init__()
 
+        self.name = name or ''
         self.description = description or ''
         self.email = email or ''
         self.invoice_settings = invoice_settings
