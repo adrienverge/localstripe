@@ -360,6 +360,8 @@ class Charge(StripeObject):
         # All exceptions must be raised before this point.
         super().__init__()
 
+        self._authorized = not source._charging_is_declined()
+
         self.amount = amount
         self.currency = currency
         self.customer = customer
@@ -378,8 +380,7 @@ class Charge(StripeObject):
     def _trigger_payment(self, on_success=None, on_failure_now=None,
                          on_failure_later=None):
         if self.payment_method.startswith('src_'):
-            source = Source._api_retrieve(self.payment_method)
-            if source._charging_is_declined():
+            if not self._authorized:
                 async def callback():
                     await asyncio.sleep(0.5)
                     self.status = 'failed'
@@ -395,10 +396,7 @@ class Charge(StripeObject):
 
         elif (self.payment_method.startswith('pm_') or
               self.payment_method.startswith('card_')):
-            pm = (Card._api_retrieve(self.payment_method)
-                  if self.payment_method.startswith('card_')
-                  else PaymentMethod._api_retrieve(self.payment_method))
-            if pm._charging_is_declined():
+            if not self._authorized:
                 self.status = 'failed'
                 self.failure_code = 'card_declined'
                 self.failure_message = 'Your card was declined.'
@@ -408,6 +406,25 @@ class Charge(StripeObject):
                 self.status = 'succeeded'
                 if on_success:
                     on_success()
+
+    @classmethod
+    def _api_create(cls, **data):
+        obj = super()._api_create(**data)
+
+        # for successful pre-auth, return unpaid charge
+        if not obj.captured and obj._authorized:
+            return obj
+
+        def on_failure():
+            raise UserError(402, 'Your card was declined.',
+                            {'code': 'card_declined', 'charge': obj.id})
+
+        obj._trigger_payment(
+            on_failure_now=on_failure,
+            on_failure_later=on_failure
+        )
+
+        return obj
 
     @classmethod
     def _api_capture(cls, id, amount=None, **kwargs):

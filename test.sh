@@ -585,3 +585,106 @@ fingerprint=$(
        -d card[cvc]=123 \
   | grep -oE '"fingerprint": "6589b0d46b6f2f0d",')
 [ -n "$fingerprint" ]
+
+# create a chargeable source
+card=$(
+  curl -sSf -u $SK: $HOST/v1/customers/$cus/cards \
+       -d source[object]=card \
+       -d source[number]=4242424242424242 \
+       -d source[exp_month]=12 \
+       -d source[exp_year]=2020 \
+       -d source[cvc]=123 \
+  | grep -oE 'card_\w+' | head -n 1)
+
+# create a normal charge, verify charge status succeeded
+status=$(
+  curl -sSf -u $SK: $HOST/v1/charges \
+       -d source=$card \
+       -d amount=1000 \
+       -d currency=usd \
+  | grep -oE '"status": "succeeded"')
+[ -n "$status" ]
+
+# create a pre-auth charge
+charge=$(
+  curl -sSf -u $SK: $HOST/v1/charges \
+       -d source=$card \
+       -d amount=1000 \
+       -d currency=usd \
+       -d capture=false \
+  | grep -oE 'ch_\w+' | head -n 1)
+
+# verify charge status pending
+status=$(
+  curl -sSf -u $SK: $HOST/v1/charges/$charge \
+  | grep -oE '"status": "pending"')
+[ -n "$status" ]
+
+# capture the charge
+curl -sSf -u $SK: $HOST/v1/charges/$charge/capture \
+     -X POST
+
+# verify charge status succeeded
+status=$(
+  curl -sSf -u $SK: $HOST/v1/charges/$charge \
+  | grep -oE '"status": "succeeded"')
+[ -n "$status" ]
+
+# create a non-chargeable source
+card=$(
+  curl -sSf -u $SK: $HOST/v1/customers/$cus/cards \
+       -d source[object]=card \
+       -d source[number]=4000000000000341 \
+       -d source[exp_month]=12 \
+       -d source[exp_year]=2020 \
+       -d source[cvc]=123 \
+  | grep -oE 'card_\w+' | head -n 1)
+
+# create a normal charge, observe 402 response
+code=$(
+  curl -s -o /dev/null -w "%{http_code}" \
+       -u $SK: $HOST/v1/charges \
+       -d source=$card \
+       -d amount=1000 \
+       -d currency=usd)
+[ "$code" = 402 ]
+
+# create a normal charge
+charge=$(
+  curl -s -u $SK: $HOST/v1/charges \
+       -d source=$card \
+       -d amount=1000 \
+       -d currency=usd \
+  | grep -oE 'ch_\w+' | head -n 1)
+
+# verify charge status failed
+status=$(
+  curl -sSf -u $SK: $HOST/v1/charges/$charge \
+  | grep -oE '"status": "failed"')
+[ -n "$status" ]
+
+
+# create a pre-auth charge, observe 402 response
+code=$(
+  curl -s -o /dev/null -w "%{http_code}" \
+       -u $SK: $HOST/v1/charges \
+       -d source=$card \
+       -d amount=1000 \
+       -d currency=usd \
+       -d capture=false)
+[ "$code" = 402 ]
+
+# create a pre-auth charge
+charge=$(
+  curl -s -u $SK: $HOST/v1/charges \
+       -d source=$card \
+       -d amount=1000 \
+       -d currency=usd \
+       -d capture=false \
+  | grep -oE 'ch_\w+' | head -n 1)
+
+# verify charge status failed
+status=$(
+  curl -sSf -u $SK: $HOST/v1/charges/$charge \
+  | grep -oE '"status": "failed"')
+[ -n "$status" ]
