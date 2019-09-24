@@ -1759,7 +1759,7 @@ class Product(StripeObject):
     object = 'product'
     _id_prefix = 'prod_'
 
-    def __init__(self, name=None, type=None, active=True, caption=None,
+    def __init__(self, id=None, name=None, type=None, active=True, caption=None,
                  description=None, attributes=None, shippable=True, url=None,
                  statement_descriptor=None, metadata=None, **kwargs):
         if kwargs:
@@ -1770,6 +1770,8 @@ class Product(StripeObject):
             assert _type(name) is str and name
             assert type in ('good', 'service')
             assert _type(active) is bool
+            if id is not None:
+                assert _type(id) is str
             if caption is not None:
                 assert _type(caption) is str
             if description is not None:
@@ -1786,7 +1788,7 @@ class Product(StripeObject):
             raise UserError(400, 'Bad request')
 
         # All exceptions must be raised before this point.
-        super().__init__()
+        super().__init__(id)
 
         self.name = name
         self.type = type
