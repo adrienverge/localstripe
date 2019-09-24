@@ -2064,12 +2064,16 @@ class Subscription(StripeObject):
     _id_prefix = 'sub_'
 
     def __init__(self, customer=None, metadata=None, items=None,
+                 plan=None, quantity=None, # optional "items" dictionary
                  tax_percent=None,  # deprecated
                  enable_incomplete_payments=True,  # legacy support
                  payment_behavior='allow_incomplete',
                  trial_period_days=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        if items is None:
+            items = [{ 'plan': plan, 'quantity': quantity }]
 
         tax_percent = try_convert_to_float(tax_percent)
         enable_incomplete_payments = try_convert_to_bool(
@@ -2250,11 +2254,16 @@ class Subscription(StripeObject):
         self.status = 'past_due'
 
     def _update(self, metadata=None, items=None, tax_percent=None,
+                plan=None, quantity=None, # optional "items" dictionary
                 proration_date=None,
                 # Currently unimplemented, only False works as expected:
                 enable_incomplete_payments=False):
+        if items is None:
+            items = [{ 'plan': plan, 'quantity': quantity }]
+
         tax_percent = try_convert_to_float(tax_percent)
         proration_date = try_convert_to_int(proration_date)
+
         try:
             if tax_percent is not None:
                 assert type(tax_percent) is float
