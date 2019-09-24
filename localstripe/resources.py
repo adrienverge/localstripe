@@ -736,6 +736,40 @@ class Customer(StripeObject):
         obj = cls._api_retrieve(id)
         return obj.tax_ids
 
+    @classmethod
+    def _api_list_subscriptions(cls, id, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        return cls._api_retrieve(id).subscriptions
+
+    @classmethod
+    def _api_add_subscription(cls, id, **data):
+        return Subscription._api_create(customer=id, **data)
+
+    @classmethod
+    def _api_retrieve_subscription(cls, id, subscription_id, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        obj = Subscription._api_retrieve(subscription_id)
+
+        if obj.customer != id:
+            raise UserError(404, 'Customer ' + id + ' does not have a '
+                                 'subscription with ID ' + subscription_id)
+
+        return obj
+
+    @classmethod
+    def _api_update_subscription(cls, id, subscription_id, **data):
+        obj = Subscription._api_retrieve(subscription_id)
+
+        if obj.customer != id:
+            raise UserError(404, 'Customer ' + id + ' does not have a '
+                                 'subscription with ID ' + subscription_id)
+
+        return Subscription._api_update(subscription_id, **data)
+
 
 extra_apis.extend((
     ('POST', '/v1/customers/{id}/sources', Customer._api_add_source),
@@ -748,6 +782,14 @@ extra_apis.extend((
     # Delete single source by id:
     ('DELETE', '/v1/customers/{id}/sources/{source_id}',
      Customer._api_remove_source),
+    ('GET', '/v1/customers/{id}/subscriptions',
+     Customer._api_list_subscriptions),
+    ('POST', '/v1/customers/{id}/subscriptions',
+     Customer._api_add_subscription),
+    ('GET', '/v1/customers/{id}/subscriptions/{subscription_id}',
+     Customer._api_retrieve_subscription),
+    ('POST', '/v1/customers/{id}/subscriptions/{subscription_id}',
+     Customer._api_update_subscription),
     # This is the old API route:
     ('POST', '/v1/customers/{id}/cards', Customer._api_add_source),
     ('POST', '/v1/customers/{id}/tax_ids', Customer._api_add_tax_id),

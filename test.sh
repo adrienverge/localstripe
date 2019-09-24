@@ -429,6 +429,10 @@ curl -sSf -u $SK: $HOST/v1/subscriptions \
 
 curl -sSf -u $SK: $HOST/v1/invoices?customer=$cus
 
+curl -sSf -u $SK: $HOST/v1/subscriptions?customer=$cus
+
+curl -sSf -u $SK: $HOST/v1/customers/$cus/subscriptions
+
 cus=$(curl -sSf -u $SK: $HOST/v1/customers \
            -d description='This customer will have a subscription with graduated tiered pricing' \
            -d email=tiered@bar.com \
