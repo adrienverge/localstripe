@@ -782,7 +782,6 @@ extra_apis.extend((
     ('DELETE', '/v1/customers/{id}/sources/{source_id}',
      Customer._api_remove_source),
 
-
     # Subscription endpoints
     ('GET', '/v1/customers/{id}/subscriptions', Customer._api_list_subscriptions),
     ('POST', '/v1/customers/{id}/subscriptions', Customer._api_add_subscription),
@@ -2063,7 +2062,7 @@ class Subscription(StripeObject):
     object = 'subscription'
     _id_prefix = 'sub_'
 
-    def __init__(self, customer=None, metadata=None, items=None,
+    def __init__(self, customer=None, metadata=None, items=None, trial_end=None,
                  plan=None, quantity=None, # optional "items" dictionary
                  tax_percent=None,  # deprecated
                  enable_incomplete_payments=True,  # legacy support
@@ -2075,12 +2074,19 @@ class Subscription(StripeObject):
         if items is None:
             items = [{ 'plan': plan, 'quantity': quantity }]
 
+        if type(trial_end) is str and trial_end == 'now':
+            trial_end = time.time()
+
+        trial_end = try_convert_to_int(trial_end)
         tax_percent = try_convert_to_float(tax_percent)
-        enable_incomplete_payments = try_convert_to_bool(
-            enable_incomplete_payments)
+        enable_incomplete_payments = try_convert_to_bool(enable_incomplete_payments)
         trial_period_days = try_convert_to_int(trial_period_days)
+
         try:
             assert type(customer) is str and customer.startswith('cus_')
+            if trial_end is not None:       
+                assert type(trial_end) is int
+                assert trial_end > 1500000000
             if tax_percent is not None:
                 assert type(tax_percent) is float
                 assert tax_percent >= 0 and tax_percent <= 100
@@ -2255,22 +2261,32 @@ class Subscription(StripeObject):
 
     def _update(self, metadata=None, items=None, tax_percent=None,
                 plan=None, quantity=None, # optional "items" dictionary
-                proration_date=None,
+                prorate=None, proration_date=None, cancel_at_period_end=None, trial_end=None,
                 # Currently unimplemented, only False works as expected:
                 enable_incomplete_payments=False):
         if items is None:
             items = [{ 'plan': plan, 'quantity': quantity }]
 
+        if type(trial_end) is str and trial_end == 'now':
+            trial_end = time.time()
+
+        cancel_at_period_end = try_convert_to_bool(cancel_at_period_end)
         tax_percent = try_convert_to_float(tax_percent)
         proration_date = try_convert_to_int(proration_date)
+        trial_end = try_convert_to_int(trial_end)
 
         try:
+            if cancel_at_period_end is not None:
+                assert type(cancel_at_period_end) is bool
             if tax_percent is not None:
                 assert type(tax_percent) is float
                 assert tax_percent >= 0 and tax_percent <= 100
             if proration_date is not None:
                 assert type(proration_date) is int
                 assert proration_date > 1500000000
+            if trial_end is not None:
+                assert type(trial_end) is int
+                assert trial_end > 1500000000
             if items is not None:
                 assert type(items) is list
                 for item in items:
@@ -2308,6 +2324,12 @@ class Subscription(StripeObject):
             [TaxRate._api_retrieve(tr) for tr in items[0]['tax_rates']]
 
         self.quantity = items[0]['quantity']
+
+        if cancel_at_period_end is not None:
+            self.cancel_at_period_end = cancel_at_period_end
+
+        if trial_end is not None:
+            self.trial_end = trial_end
 
         # If the subscription is updated to a more expensive plan, an invoice
         # is not automatically generated. To achieve that, an invoice has to
