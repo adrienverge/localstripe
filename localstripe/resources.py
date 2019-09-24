@@ -2102,12 +2102,18 @@ class Subscription(StripeObject):
 
     def __init__(self, customer=None, metadata=None, items=None,
                  trial_end=None, default_tax_rates=None,
+                 plan=None, quantity=None,  # legacy support
                  tax_percent=None,  # deprecated
                  enable_incomplete_payments=True,  # legacy support
                  payment_behavior='allow_incomplete',
                  trial_period_days=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        # Legacy support (stripe-php still uses these parameters instead of
+        # providing `items: [...]`):
+        if items is None and plan is not None:
+            items = [{'plan': plan, 'quantity': quantity}]
 
         trial_end = try_convert_to_int(trial_end)
         tax_percent = try_convert_to_float(tax_percent)
@@ -2309,9 +2315,16 @@ class Subscription(StripeObject):
 
     def _update(self, metadata=None, items=None, trial_end=None,
                 default_tax_rates=None, tax_percent=None,
+                plan=None, quantity=None,  # legacy support
                 prorate=None, proration_date=None, cancel_at_period_end=None,
                 # Currently unimplemented, only False works as expected:
                 enable_incomplete_payments=False):
+
+        # Legacy support (stripe-php still uses these parameters instead of
+        # providing `items: [...]`):
+        if items is None and plan is not None:
+            items = [{'plan': plan, 'quantity': quantity}]
+
         trial_end = try_convert_to_int(trial_end)
         tax_percent = try_convert_to_float(tax_percent)
         prorate = try_convert_to_bool(prorate)
