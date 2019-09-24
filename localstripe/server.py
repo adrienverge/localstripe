@@ -251,6 +251,8 @@ def api_extra(func, url):
             data['id'] = request.match_info['id']
         if 'source_id' in request.match_info:
             data['source_id'] = request.match_info['source_id']
+        if 'subscription_id' in request.match_info:
+            data['subscription_id'] = request.match_info['subscription_id']
         return json_response(func(**data)._export())
     return f
 
