@@ -990,7 +990,8 @@ class Invoice(StripeObject):
                           subscription_items=None,
                           subscription_prorate=None,
                           subscription_proration_date=None,
-                          subscription_tax_percent=None,
+                          subscription_tax_percent=None,  # deprecated
+                          subscription_default_tax_rates=None,
                           subscription_trial_end=None):
         subscription_proration_date = \
             try_convert_to_int(subscription_proration_date)
@@ -1008,6 +1009,13 @@ class Invoice(StripeObject):
                     if si['tax_rates'] is not None:
                         assert type(si['tax_rates']) is list
                         assert all(type(tr) is str for tr in si['tax_rates'])
+                if subscription_default_tax_rates is not None:
+                    assert subscription_tax_percent is None
+                    assert type(subscription_default_tax_rates) is list
+                    assert all(type(txr) is str and txr.startswith('txr_')
+                               for txr in subscription_default_tax_rates)
+                    assert all(type(tr) is str
+                               for tr in subscription_default_tax_rates)
             if subscription_proration_date is not None:
                 assert type(subscription_proration_date) is int
                 assert subscription_proration_date > 1500000000
@@ -1022,6 +1030,10 @@ class Invoice(StripeObject):
                 # To return 404 if not existant:
                 if si['tax_rates'] is not None:
                     [TaxRate._api_retrieve(tr) for tr in si['tax_rates']]
+            # To return 404 if not existant:
+            if subscription_default_tax_rates is not None:
+                [TaxRate._api_retrieve(tr)
+                 for tr in subscription_default_tax_rates]
 
         pending_items = [ii for ii in InvoiceItem._api_list_all(
             None, customer=customer, limit=99)._list
@@ -1033,6 +1045,7 @@ class Invoice(StripeObject):
         simulation = subscription_items is not None or \
             subscription_prorate is not None or \
             subscription_tax_percent is not None or \
+            subscription_default_tax_rates is not None or \
             subscription_trial_end is not None
 
         current_subscription = None
@@ -1042,6 +1055,10 @@ class Invoice(StripeObject):
             current_subscription = li[0]
         elif subscription is not None:
             raise UserError(404, 'No such subscription for customer')
+
+        if default_tax_rates is None:
+            if subscription_default_tax_rates is not None:
+                default_tax_rates = subscription_default_tax_rates
 
         invoice_items = []
         items = subscription_items or \
@@ -1096,9 +1113,9 @@ class Invoice(StripeObject):
                                              subscription=subscription,
                                              limit=99)
                 for previous_invoice in previous._list:
-                    previous_tax_rates = [tr.id for tr in (
-                        previous_invoice.lines._list[0].tax_rates or
-                        default_tax_rates or [])]
+                    previous_tax_rates = \
+                        [tr.id
+                         for tr in previous_invoice.lines._list[0].tax_rates]
                     invoice_items.append(
                         InvoiceItem(amount=- previous_invoice.subtotal,
                                     currency=previous_invoice.currency,
@@ -1112,6 +1129,7 @@ class Invoice(StripeObject):
             invoice = cls(customer=customer,
                           items=invoice_items,
                           tax_percent=tax_percent,
+                          default_tax_rates=default_tax_rates,
                           date=date,
                           description=description,
                           simulation=True)
@@ -1166,7 +1184,8 @@ class Invoice(StripeObject):
                               coupon=None, subscription_items=None,
                               subscription_prorate=None,
                               subscription_proration_date=None,
-                              subscription_tax_percent=None,
+                              subscription_tax_percent=None,  # deprecated
+                              subscription_default_tax_rates=None,
                               subscription_trial_end=None):
         invoice = cls._get_next_invoice(
             customer=customer, subscription=subscription,
@@ -1175,6 +1194,7 @@ class Invoice(StripeObject):
             subscription_prorate=subscription_prorate,
             subscription_proration_date=subscription_proration_date,
             subscription_tax_percent=subscription_tax_percent,
+            subscription_default_tax_rates=subscription_default_tax_rates,
             subscription_trial_end=subscription_trial_end)
 
         # Do not store this invoice
