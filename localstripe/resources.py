@@ -1059,6 +1059,10 @@ class Invoice(StripeObject):
         if default_tax_rates is None:
             if subscription_default_tax_rates is not None:
                 default_tax_rates = subscription_default_tax_rates
+            elif current_subscription is not None and \
+                    current_subscription.default_tax_rates is not None:
+                default_tax_rates = \
+                    [tr.id for tr in current_subscription.default_tax_rates]
 
         invoice_items = []
         items = subscription_items or \
@@ -1071,8 +1075,7 @@ class Invoice(StripeObject):
             if subscription_items is not None:
                 tax_rates = si['tax_rates']
             else:
-                tax_rates = [tr.id for tr in (si.tax_rates or
-                                              default_tax_rates or [])]
+                tax_rates = [tr.id for tr in (si.tax_rates or [])]
             invoice_items.append(
                 InvoiceItem(subscription=subscription,
                             plan=plan.id,
@@ -2055,6 +2058,7 @@ class Subscription(StripeObject):
 
     def __init__(self, customer=None, metadata=None, items=None,
                  tax_percent=None,  # deprecated
+                 default_tax_rates=None,
                  enable_incomplete_payments=True,  # legacy support
                  payment_behavior='allow_incomplete',
                  trial_period_days=None, **kwargs):
@@ -2068,8 +2072,14 @@ class Subscription(StripeObject):
         try:
             assert type(customer) is str and customer.startswith('cus_')
             if tax_percent is not None:
+                assert default_tax_rates is None
                 assert type(tax_percent) is float
                 assert tax_percent >= 0 and tax_percent <= 100
+            if default_tax_rates is not None:
+                assert tax_percent is None
+                assert type(default_tax_rates) is list
+                assert all(type(txr) is str and txr.startswith('txr_')
+                           for txr in default_tax_rates)
             if trial_period_days is not None:
                 assert type(trial_period_days) is int
             assert type(items) is list
@@ -2100,6 +2110,10 @@ class Subscription(StripeObject):
             # To return 404 if not existant:
             if item['tax_rates'] is not None:
                 [TaxRate._api_retrieve(tr) for tr in item['tax_rates']]
+        # To return 404 if not existant:
+        if default_tax_rates is not None:
+            default_tax_rates = [TaxRate._api_retrieve(tr)
+                                 for tr in default_tax_rates]
 
         # All exceptions must be raised before this point.
         super().__init__()
@@ -2107,6 +2121,7 @@ class Subscription(StripeObject):
         self.customer = customer
         self.metadata = metadata or {}
         self.tax_percent = tax_percent
+        self.default_tax_rates = default_tax_rates
         self.application_fee_percent = None
         self.cancel_at_period_end = False
         self.canceled_at = None
@@ -2194,6 +2209,8 @@ class Subscription(StripeObject):
                 subscription=self.id,
                 items=invoice_items,
                 tax_percent=self.tax_percent,
+                default_tax_rates=[tr.id
+                                   for tr in (self.default_tax_rates or [])],
                 date=self.current_period_start)
             self.latest_invoice = invoice.id
             invoice._finalize()
@@ -2240,6 +2257,7 @@ class Subscription(StripeObject):
         self.status = 'past_due'
 
     def _update(self, metadata=None, items=None, tax_percent=None,
+                default_tax_rates=None,
                 proration_date=None,
                 # Currently unimplemented, only False works as expected:
                 enable_incomplete_payments=False):
@@ -2247,8 +2265,14 @@ class Subscription(StripeObject):
         proration_date = try_convert_to_int(proration_date)
         try:
             if tax_percent is not None:
+                assert default_tax_rates is None
                 assert type(tax_percent) is float
                 assert tax_percent >= 0 and tax_percent <= 100
+            if default_tax_rates is not None:
+                assert tax_percent is None
+                assert type(default_tax_rates) is list
+                assert all(type(txr) is str and txr.startswith('txr_')
+                           for txr in default_tax_rates)
             if proration_date is not None:
                 assert type(proration_date) is int
                 assert proration_date > 1500000000
@@ -2273,14 +2297,17 @@ class Subscription(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        if tax_percent is not None:
-            self.tax_percent = tax_percent
-
         if items is None or len(items) != 1 or not items[0]['plan']:
             raise UserError(500, 'Not implemented')
 
         # To return 404 if not existant:
         new_plan = Plan._api_retrieve(items[0]['plan'])
+
+        if tax_percent is not None:
+            self.tax_percent = tax_percent
+        if default_tax_rates is not None:
+            self.default_tax_rates = [TaxRate._api_retrieve(tr)
+                                      for tr in default_tax_rates]
         # To return 404 if not existant:
         if items[0]['tax_rates'] is not None:
             [TaxRate._api_retrieve(tr) for tr in items[0]['tax_rates']]
