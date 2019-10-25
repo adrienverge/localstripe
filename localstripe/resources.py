@@ -787,6 +787,7 @@ class Invoice(StripeObject):
                  items=[], date=None, description=None,
                  simulation=False,
                  tax_percent=None,  # deprecated
+                 default_tax_rates=None,
                  **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
@@ -805,8 +806,14 @@ class Invoice(StripeObject):
             if description is not None:
                 assert type(description) is str
             if tax_percent is not None:
+                assert default_tax_rates is None
                 assert type(tax_percent) is float
                 assert tax_percent >= 0 and tax_percent <= 100
+            if default_tax_rates is not None:
+                assert tax_percent is None
+                assert type(default_tax_rates) is list
+                assert all(type(txr) is str and txr.startswith('txr_')
+                           for txr in default_tax_rates)
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -815,12 +822,17 @@ class Invoice(StripeObject):
         if subscription is not None:
             subscription_obj = Subscription._api_retrieve(subscription)
 
+        if default_tax_rates is not None:
+            default_tax_rates = [TaxRate._api_retrieve(tr)
+                                 for tr in default_tax_rates]
+
         # All exceptions must be raised before this point.
         super().__init__()
 
         self.customer = customer
         self.subscription = subscription
         self.tax_percent = tax_percent
+        self.default_tax_rates = default_tax_rates
         self.date = date
         self.metadata = metadata or {}
         self.payment_intent = None
@@ -885,7 +897,13 @@ class Invoice(StripeObject):
     def total_tax_amounts(self):
         concat = []
         for ii in self.lines._list:
-            concat.extend(ii.tax_amounts or [])
+            tax_amounts = []
+            if ii.tax_rates:
+                tax_amounts = ii.tax_amounts
+            elif self.default_tax_rates:
+                tax_amounts = [tr._tax_amount(ii.amount)
+                               for tr in self.default_tax_rates]
+            concat.extend(tax_amounts)
         # TODO: reduce `concat` by unique `tax_rate` ID
         return concat
 
@@ -998,9 +1016,6 @@ class Invoice(StripeObject):
 
         # return 404 if not existant
         customer_obj = Customer._api_retrieve(customer)
-        if default_tax_rates is not None:
-            default_tax_rates = [TaxRate._api_retrieve(txr)
-                                 for txr in default_tax_rates]
         if subscription_items:
             for si in subscription_items:
                 Plan._api_retrieve(si['plan'])  # to return 404 if not existant
@@ -1068,6 +1083,7 @@ class Invoice(StripeObject):
                        subscription=current_subscription.id,
                        items=invoice_items,
                        tax_percent=tax_percent,
+                       default_tax_rates=default_tax_rates,
                        date=date,
                        description=description)
 
