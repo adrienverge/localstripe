@@ -1291,10 +1291,7 @@ class InvoiceItem(StripeObject):
     @property
     def tax_amounts(self):
         if self.tax_rates is not None:
-            return [{'amount': int(self.amount * tr.percentage / 100.0),
-                     'inclusive': tr.inclusive,
-                     'tax_rate': tr.id}
-                    for tr in self.tax_rates]
+            return [tr._tax_amount(self.amount) for tr in self.tax_rates]
 
     @classmethod
     def _api_list_all(cls, url, customer=None, limit=None):
@@ -2443,6 +2440,11 @@ class TaxRate(StripeObject):
         self.description = description
         self.jurisdiction = jurisdiction
         self.metadata = metadata or {}
+
+    def _tax_amount(self, amount):
+        return {'amount': int(amount * self.percentage / 100.0),
+                'inclusive': self.inclusive,
+                'tax_rate': self.id}
 
 
 class Token(StripeObject):
