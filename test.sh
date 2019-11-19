@@ -134,6 +134,13 @@ curl -sSf -u $SK: $HOST/v1/products \
      -d attributes[]=size \
      -d attributes[]=gender
 
+curl -sSf -u $SK: $HOST/v1/products \
+     -d id=PRODUCT1234 \
+     -d name='Product 1234' \
+     -d type=service
+
+curl -sSf -u $SK: $HOST/v1/products/PRODUCT1234
+
 curl -sSf -u $SK: $HOST/v1/plans?expand%5B%5D=data.product
 
 code=$(curl -so /dev/null -w '%{http_code}' -u $SK: \
