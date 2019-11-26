@@ -2194,10 +2194,21 @@ class Subscription(StripeObject):
             enable_incomplete_payments and
             payment_behavior != 'error_if_incomplete')
 
+        self._set_up_plan(Plan._api_retrieve(items[0]['plan']))
+        self.start = self.current_period_start
+
+        self.items = List('/v1/subscription_items?subscription=' + self.id)
+        self.items._list.append(
+            SubscriptionItem(
+                subscription=self.id,
+                plan=items[0]['plan'],
+                quantity=items[0]['quantity'],
+                tax_rates=items[0]['tax_rates']))
+
         create_an_invoice = \
             self.trial_end is None and self.trial_period_days is None
-        self._set_up_subscription_and_invoice(items[0], create_an_invoice)
-        self.start = self.current_period_start
+        if create_an_invoice:
+            self._create_invoice()
 
         schedule_webhook(Event('customer.subscription.created', self))
 
@@ -2205,9 +2216,7 @@ class Subscription(StripeObject):
     def plan(self):
         return self.items._list[0].plan
 
-    def _set_up_subscription_and_invoice(self, item, create_an_invoice=True):
-        plan = Plan._api_retrieve(item['plan'])
-
+    def _set_up_plan(self, plan):
         current_period_start = datetime.now()
         current_period_end = current_period_start
         if plan.interval == 'day':
@@ -2221,71 +2230,49 @@ class Subscription(StripeObject):
         self.current_period_start = int(current_period_start.timestamp())
         self.current_period_end = int(current_period_end.timestamp())
 
-        self.items = List('/v1/subscription_items?subscription=' + self.id)
-        self.items._list.append(
-            SubscriptionItem(
-                subscription=self.id,
-                plan=item['plan'],
-                quantity=item['quantity'],
-                tax_rates=item['tax_rates']))
+    def _create_invoice(self):
+        pending_items = [ii for ii in InvoiceItem._api_list_all(
+            None, customer=self.customer, limit=99)._list
+            if ii.invoice is None]
 
-        invoice_items = []
+        for si in self.items._list:
+            pending_items.append(
+                InvoiceItem(subscription=self.id, plan=si.plan.id,
+                            amount=si._calculate_amount(),
+                            currency=si.plan.currency,
+                            description=si.plan.name,
+                            tax_rates=[tr.id
+                                       for tr in (si.tax_rates or [])],
+                            customer=self.customer,
+                            period_start=self.current_period_start,
+                            period_end=self.current_period_end))
 
-        # Get previous invoice for this subscription and customer, and
-        # deduce what is already paid:
-        # TODO: Better not to use limit, but take date into account
-        previous = Invoice._api_list_all(None, customer=self.customer,
-                                         subscription=self.id, limit=99)
-        for previous_invoice in previous._list:
-            previous_tax_rates = [tr.id for tr in (
-                previous_invoice.lines._list[0].tax_rates or [])]
-            invoice_items.append(
-                InvoiceItem(amount=- previous_invoice.subtotal,
-                            currency=previous_invoice.currency,
-                            proration=True,
-                            description='Unused time',
-                            tax_rates=previous_tax_rates,
-                            customer=self.customer))
+        # Create associated invoice
+        invoice = Invoice(
+            customer=self.customer,
+            subscription=self.id,
+            items=pending_items,
+            tax_percent=self.tax_percent,
+            default_tax_rates=[tr.id
+                               for tr in (self.default_tax_rates or [])],
+            date=self.current_period_start)
+        self.latest_invoice = invoice.id
+        invoice._finalize()
+        if invoice.status != 'paid':  # 0 € invoices are already 'paid'
+            Invoice._api_pay_invoice(invoice.id)
 
-        if create_an_invoice:
-            for si in self.items._list:
-                invoice_items.append(
-                    InvoiceItem(subscription=self.id, plan=si.plan.id,
-                                amount=si._calculate_amount(),
-                                currency=si.plan.currency,
-                                description=si.plan.name,
-                                tax_rates=[tr.id
-                                           for tr in (si.tax_rates or [])],
-                                customer=self.customer,
-                                period_start=self.current_period_start,
-                                period_end=self.current_period_end))
-
-            # Create associated invoice
-            invoice = Invoice(
-                customer=self.customer,
-                subscription=self.id,
-                items=invoice_items,
-                tax_percent=self.tax_percent,
-                default_tax_rates=[tr.id
-                                   for tr in (self.default_tax_rates or [])],
-                date=self.current_period_start)
-            self.latest_invoice = invoice.id
-            invoice._finalize()
-            if invoice.status != 'paid':  # 0 € invoices are already 'paid'
-                Invoice._api_pay_invoice(invoice.id)
-
-            if invoice.status == 'paid':
+        if invoice.status == 'paid':
+            self.status = 'active'
+        elif invoice.charge:
+            if invoice.charge.status == 'failed':
+                if self.status != 'incomplete':
+                    self._on_recurring_payment_failure(invoice)
+            # If source is SEPA, subscription starts `active` (even with
+            # `enable_incomplete_payments`), then is canceled later if the
+            # payment fails:
+            if (invoice.charge.status == 'pending' and
+                    invoice.charge.payment_method.startswith('src_')):
                 self.status = 'active'
-            elif invoice.charge:
-                if invoice.charge.status == 'failed':
-                    if self.status != 'incomplete':
-                        self._on_recurring_payment_failure(invoice)
-                # If source is SEPA, subscription starts `active` (even with
-                # `enable_incomplete_payments`), then is canceled later if the
-                # payment fails:
-                if (invoice.charge.status == 'pending' and
-                        invoice.charge.payment_method.startswith('src_')):
-                    self.status = 'active'
 
     def _on_initial_payment_success(self, invoice):
         self.status = 'active'
@@ -2399,14 +2386,40 @@ class Subscription(StripeObject):
         if cancel_at_period_end is not None:
             self.cancel_at_period_end = cancel_at_period_end
 
+        self._set_up_plan(Plan._api_retrieve(items[0]['plan']))
+
+        self.items = List('/v1/subscription_items?subscription=' + self.id)
+        self.items._list.append(
+            SubscriptionItem(
+                subscription=self.id,
+                plan=items[0]['plan'],
+                quantity=items[0]['quantity'],
+                tax_rates=items[0]['tax_rates']))
+
+        # Create unused time pending item.
+        # Get previous invoice for this subscription and customer, and
+        # deduce what is already paid:
+        # TODO: Better not to use limit, but take date into account
+        previous = Invoice._api_list_all(None, customer=self.customer,
+                                         subscription=self.id, limit=99)
+        for previous_invoice in previous._list:
+            previous_tax_rates = [tr.id for tr in (
+                previous_invoice.lines._list[0].tax_rates or [])]
+            InvoiceItem(amount=- previous_invoice.subtotal,
+                        currency=previous_invoice.currency,
+                        proration=True,
+                        description='Unused time',
+                        tax_rates=previous_tax_rates,
+                        customer=self.customer)
+
         # If the subscription is updated to a more expensive plan, an invoice
         # is not automatically generated. To achieve that, an invoice has to
         # be manually created using the POST /invoices route.
         create_an_invoice = self.plan.billing_scheme == 'per_unit' and (
             self.plan.interval != new_plan.interval or
             self.plan.interval_count != new_plan.interval_count)
-        self._set_up_subscription_and_invoice(
-            items[0], create_an_invoice=create_an_invoice)
+        if create_an_invoice:
+            self._create_invoice()
 
     @classmethod
     def _api_delete(cls, id):
