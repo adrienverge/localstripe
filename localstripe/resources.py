@@ -2357,8 +2357,6 @@ class Subscription(StripeObject):
                 assert type(items) is list
                 for item in items:
                     id = item.get('id', None)
-                    plan = item.get('plan', None)
-                    assert id is not None or plan is not None
                     if id is not None:
                         assert type(id) is str and id.startswith('si_')
                     if item.get('quantity', None) is not None:
@@ -2374,8 +2372,12 @@ class Subscription(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        if items is None or len(items) != 1 or not items[0]['plan']:
+        if items is None or len(items) != 1:
             raise UserError(500, 'Not implemented')
+
+        # If no plan specified in update request, we stay on the current one
+        if not items[0].get('plan', None):
+            items[0]['plan'] = self.plan.id
 
         # To return 404 if not existant:
         new_plan = Plan._api_retrieve(items[0]['plan'])
