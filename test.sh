@@ -447,8 +447,13 @@ sub=$(curl -sSf -u $SK: $HOST/v1/subscriptions \
            -d items[0][quantity]=5 \
       | grep -oE 'sub_\w+' | head -n 1)
 
-curl -sSf -u $SK: $HOST/v1/subscriptions/$sub \
-     -d items[0][plan]=annual-tiered-volume
+data=$(curl -sSf -u $SK: $HOST/v1/subscriptions/$sub \
+            -d items[0][plan]=annual-tiered-volume)
+
+same_data=$(curl -sSf -u $SK: $HOST/v1/subscriptions/$sub \
+                 -d items[0][plan]=annual-tiered-volume)
+
+diff <(echo "$data") <(echo "$same_data")
 
 curl -sSf -u $SK: $HOST/v1/invoices?customer=$cus
 
