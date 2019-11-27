@@ -2367,7 +2367,7 @@ class Subscription(StripeObject):
             items[0]['plan'] = self.plan.id
 
         # To return 404 if not existant:
-        new_plan = Plan._api_retrieve(items[0]['plan'])
+        Plan._api_retrieve(items[0]['plan'])
 
         if tax_percent is not None:
             self.tax_percent = tax_percent
@@ -2386,15 +2386,22 @@ class Subscription(StripeObject):
         if cancel_at_period_end is not None:
             self.cancel_at_period_end = cancel_at_period_end
 
-        self._set_up_plan(Plan._api_retrieve(items[0]['plan']))
+        item = SubscriptionItem(subscription=self.id,
+                                plan=items[0]['plan'],
+                                quantity=items[0]['quantity'],
+                                tax_rates=items[0]['tax_rates'])
 
-        self.items = List('/v1/subscription_items?subscription=' + self.id)
-        self.items._list.append(
-            SubscriptionItem(
-                subscription=self.id,
-                plan=items[0]['plan'],
-                quantity=items[0]['quantity'],
-                tax_rates=items[0]['tax_rates']))
+        old_plan = self.plan
+        if (self.items._list[0].plan.id != item.plan.id or
+                self.items._list[0].quantity != item.quantity or
+                self.items._list[0].tax_rates != item.tax_rates):
+            self.items = List('/v1/subscription_items?subscription=' +
+                              self.id)
+            self.items._list.append(item)
+
+        if (self.plan.interval != old_plan.interval or
+                self.plan.interval_count != old_plan.interval_count):
+            self._set_up_plan(Plan._api_retrieve(items[0]['plan']))
 
         # Create unused time pending item.
         # Get previous invoice for this subscription and customer, and
@@ -2416,8 +2423,8 @@ class Subscription(StripeObject):
         # is not automatically generated. To achieve that, an invoice has to
         # be manually created using the POST /invoices route.
         create_an_invoice = self.plan.billing_scheme == 'per_unit' and (
-            self.plan.interval != new_plan.interval or
-            self.plan.interval_count != new_plan.interval_count)
+            self.plan.interval != old_plan.interval or
+            self.plan.interval_count != old_plan.interval_count)
         if create_an_invoice:
             self._create_invoice()
 
