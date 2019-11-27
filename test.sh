@@ -455,6 +455,9 @@ same_data=$(curl -sSf -u $SK: $HOST/v1/subscriptions/$sub \
 
 diff <(echo "$data") <(echo "$same_data")
 
+curl -sSf -u $SK: $HOST/v1/subscriptions/$sub \
+     -d metadata[toto]=toto
+
 curl -sSf -u $SK: $HOST/v1/invoices?customer=$cus
 
 cus=$(curl -sSf -u $SK: $HOST/v1/customers \
