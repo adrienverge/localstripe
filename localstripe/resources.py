@@ -2359,26 +2359,58 @@ class Subscription(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        if items is None or len(items) != 1:
-            raise UserError(500, 'Not implemented')
+        old_plan = self.plan
+        if items is not None:
+            if len(items) != 1:
+                raise UserError(500, 'Not implemented')
 
-        # If no plan specified in update request, we stay on the current one
-        if not items[0].get('plan', None):
-            items[0]['plan'] = self.plan.id
+            # If no plan specified in update request, we stay on the current
+            # one
+            if not items[0].get('plan', None):
+                items[0]['plan'] = self.plan.id
 
-        # To return 404 if not existant:
-        Plan._api_retrieve(items[0]['plan'])
+            # To return 404 if not existant:
+            Plan._api_retrieve(items[0]['plan'])
+
+            # To return 404 if not existant:
+            if items[0]['tax_rates'] is not None:
+                [TaxRate._api_retrieve(tr) for tr in items[0]['tax_rates']]
+
+            self.quantity = items[0]['quantity']
+
+            if (self.items._list[0].plan.id != items[0]['plan'] or
+                    self.items._list[0].quantity != items[0]['quantity'] or
+                    self.items._list[0].tax_rates != items[0]['tax_rates']):
+                self.items = List('/v1/subscription_items?subscription=' +
+                                  self.id)
+                item = SubscriptionItem(subscription=self.id,
+                                        plan=items[0]['plan'],
+                                        quantity=items[0]['quantity'],
+                                        tax_rates=items[0]['tax_rates'])
+                self.items._list.append(item)
+
+                # Create unused time pending item.
+                # Get previous invoice for this subscription and customer, and
+                # deduce what is already paid:
+                # TODO: Better not to use limit, but take date into account
+                previous = Invoice._api_list_all(None, customer=self.customer,
+                                                 subscription=self.id,
+                                                 limit=99)
+                for previous_invoice in previous._list:
+                    previous_tax_rates = [tr.id for tr in (
+                        previous_invoice.lines._list[0].tax_rates or [])]
+                    InvoiceItem(amount=- previous_invoice.subtotal,
+                                currency=previous_invoice.currency,
+                                proration=True,
+                                description='Unused time',
+                                tax_rates=previous_tax_rates,
+                                customer=self.customer)
 
         if tax_percent is not None:
             self.tax_percent = tax_percent
         if default_tax_rates is not None:
             self.default_tax_rates = [TaxRate._api_retrieve(tr)
                                       for tr in default_tax_rates]
-        # To return 404 if not existant:
-        if items[0]['tax_rates'] is not None:
-            [TaxRate._api_retrieve(tr) for tr in items[0]['tax_rates']]
-
-        self.quantity = items[0]['quantity']
 
         if trial_end is not None:
             self.trial_end = trial_end
@@ -2386,38 +2418,9 @@ class Subscription(StripeObject):
         if cancel_at_period_end is not None:
             self.cancel_at_period_end = cancel_at_period_end
 
-        item = SubscriptionItem(subscription=self.id,
-                                plan=items[0]['plan'],
-                                quantity=items[0]['quantity'],
-                                tax_rates=items[0]['tax_rates'])
-
-        old_plan = self.plan
-        if (self.items._list[0].plan.id != item.plan.id or
-                self.items._list[0].quantity != item.quantity or
-                self.items._list[0].tax_rates != item.tax_rates):
-            self.items = List('/v1/subscription_items?subscription=' +
-                              self.id)
-            self.items._list.append(item)
-
         if (self.plan.interval != old_plan.interval or
                 self.plan.interval_count != old_plan.interval_count):
             self._set_up_plan(Plan._api_retrieve(items[0]['plan']))
-
-        # Create unused time pending item.
-        # Get previous invoice for this subscription and customer, and
-        # deduce what is already paid:
-        # TODO: Better not to use limit, but take date into account
-        previous = Invoice._api_list_all(None, customer=self.customer,
-                                         subscription=self.id, limit=99)
-        for previous_invoice in previous._list:
-            previous_tax_rates = [tr.id for tr in (
-                previous_invoice.lines._list[0].tax_rates or [])]
-            InvoiceItem(amount=- previous_invoice.subtotal,
-                        currency=previous_invoice.currency,
-                        proration=True,
-                        description='Unused time',
-                        tax_rates=previous_tax_rates,
-                        customer=self.customer)
 
         # If the subscription is updated to a more expensive plan, an invoice
         # is not automatically generated. To achieve that, an invoice has to
