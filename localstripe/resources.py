@@ -2379,8 +2379,7 @@ class Subscription(StripeObject):
             self.quantity = items[0]['quantity']
 
             if (self.items._list[0].plan.id != items[0]['plan'] or
-                    self.items._list[0].quantity != items[0]['quantity'] or
-                    self.items._list[0].tax_rates != items[0]['tax_rates']):
+                    self.items._list[0].quantity != items[0]['quantity']):
                 self.items = List('/v1/subscription_items?subscription=' +
                                   self.id)
                 item = SubscriptionItem(subscription=self.id,
@@ -2405,6 +2404,15 @@ class Subscription(StripeObject):
                                 description='Unused time',
                                 tax_rates=previous_tax_rates,
                                 customer=self.customer)
+
+            elif self.items._list[0].tax_rates != items[0]['tax_rates']:
+                self.items = List('/v1/subscription_items?subscription=' +
+                                  self.id)
+                item = SubscriptionItem(subscription=self.id,
+                                        plan=items[0]['plan'],
+                                        quantity=items[0]['quantity'],
+                                        tax_rates=items[0]['tax_rates'])
+                self.items._list.append(item)
 
         if tax_percent is not None:
             self.tax_percent = tax_percent
