@@ -480,6 +480,8 @@ curl -sSf -u $SK: $HOST/v1/customers/$cus \
 
 curl -sSf -u $SK: $HOST/v1/customers/$cus?expand%5B%5D=invoice_settings.default_payment_method
 
+curl -sSf -u $SK: $HOST/v1/payment_methods?customer=$cus\&type=card
+
 curl -sSf -u $SK: $HOST/v1/payment_methods/$pm/detach -X POST
 
 pm=$(curl -sSf -u $SK: $HOST/v1/payment_methods \
@@ -493,6 +495,8 @@ code=$(curl -s -o /dev/null -w "%{http_code}" -u $SK: \
             $HOST/v1/payment_methods/$pm/attach \
             -d customer=$cus)
 [ "$code" = 402 ]
+
+curl -sSf -u $SK: $HOST/v1/payment_methods?customer=$cus\&type=card
 
 res=$(curl -sSf -u $SK: $HOST/v1/setup_intents -X POST)
 seti=$(echo "$res" | grep '"id"' | grep -oE 'seti_\w+' | head -n 1)

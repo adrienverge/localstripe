@@ -1739,6 +1739,21 @@ class PaymentMethod(StripeObject):
         obj.customer = None
         return obj
 
+    @classmethod
+    def _api_list_all(cls, url, customer=None, type=None, limit=None):
+        try:
+            assert _type(customer) is str and customer.startswith('cus_')
+            assert type in ('card', )
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        Customer._api_retrieve(customer)  # to return 404 if not existant
+
+        li = super(PaymentMethod, cls)._api_list_all(url, limit=limit)
+        li._list = [pm for pm in li._list
+                    if pm.customer == customer and pm.type == type]
+        return li
+
 
 extra_apis.extend((
     ('POST', '/v1/payment_methods/{id}/attach', PaymentMethod._api_attach),
