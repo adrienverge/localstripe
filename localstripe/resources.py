@@ -347,12 +347,8 @@ class Charge(StripeObject):
             source = customer_obj._get_default_payment_method_or_source()
             if source is None:
                 raise UserError(404, 'This customer has no payment method')
-        elif source.startswith('pm_'):
+        else:
             source = PaymentMethod._api_retrieve(source)
-        elif source.startswith('src_'):
-            source = Source._api_retrieve(source)
-        elif source.startswith('card_'):
-            source = Card._api_retrieve(source)
 
         if customer is None:
             customer = source.customer
@@ -379,7 +375,10 @@ class Charge(StripeObject):
 
     def _trigger_payment(self, on_success=None, on_failure_now=None,
                          on_failure_later=None):
-        if self.payment_method.startswith('src_'):
+        pm = PaymentMethod._api_retrieve(self.payment_method)
+        async_payment = pm.type == 'sepa_debit'
+
+        if async_payment:
             if not self._authorized:
                 async def callback():
                     await asyncio.sleep(0.5)
@@ -394,8 +393,7 @@ class Charge(StripeObject):
                         on_success()
             asyncio.ensure_future(callback())
 
-        elif (self.payment_method.startswith('pm_') or
-              self.payment_method.startswith('card_')):
+        else:
             if not self._authorized:
                 self.status = 'failed'
                 self.failure_code = 'card_declined'
@@ -1451,7 +1449,7 @@ class PaymentIntent(StripeObject):
             Customer._api_retrieve(customer)  # to return 404 if not existant
         if payment_method:
             # return 404 if not existant
-            self._retrieve_payment_method(payment_method)
+            PaymentMethod._api_retrieve(payment_method)
 
         # All exceptions must be raised before this point.
         super().__init__()
@@ -1468,14 +1466,6 @@ class PaymentIntent(StripeObject):
 
         self._canceled = False
         self._authentication_failed = False
-
-    def _retrieve_payment_method(self, payment_method):
-        if payment_method.startswith('pm_'):
-            return PaymentMethod._api_retrieve(payment_method)
-        elif payment_method.startswith('src_'):
-            return Source._api_retrieve(payment_method)
-        elif payment_method.startswith('card_'):
-            return Card._api_retrieve(payment_method)
 
     def _trigger_payment(self):
         if self.status != 'requires_confirmation':
@@ -1557,7 +1547,7 @@ class PaymentIntent(StripeObject):
             raise UserError(400, 'Bad request')
 
         obj._authentication_failed = False
-        payment_method = obj._retrieve_payment_method(obj.payment_method)
+        payment_method = PaymentMethod._api_retrieve(obj.payment_method)
         if payment_method._requires_authentication():
             obj.next_action = {
                 'type': 'use_stripe_sdk',
@@ -1634,12 +1624,12 @@ class PaymentMethod(StripeObject):
     _id_prefix = 'pm_'
 
     def __init__(self, type=None, billing_details=None, card=None,
-                 metadata=None, **kwargs):
+                 sepa_debit=None, metadata=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         try:
-            assert type in ('card', )
+            assert type in ('card', 'sepa_debit')
             assert billing_details is None or _type(billing_details) is dict
             if type == 'card':
                 assert _type(card) is dict and card.keys() == {
@@ -1655,54 +1645,82 @@ class PaymentMethod(StripeObject):
                 if card['exp_year'] > 0 and card['exp_year'] < 100:
                     card['exp_year'] += 2000
                 assert len(card['cvc']) == 3
+            elif type == 'sepa_debit':
+                assert _type(sepa_debit) is dict
+                assert 'iban' in sepa_debit
+                assert _type(sepa_debit['iban']) is str
+                assert 14 <= len(sepa_debit['iban']) <= 34
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        if not (2019 <= card['exp_year'] < 2100):
-            raise UserError(400, 'Bad request',
-                            {'code': 'invalid_expiry_year'})
+        if type == 'card':
+            if not (2019 <= card['exp_year'] < 2100):
+                raise UserError(400, 'Bad request',
+                                {'code': 'invalid_expiry_year'})
 
         # All exceptions must be raised before this point.
         super().__init__()
 
         self.type = type
         self.billing_details = billing_details or {}
-        self._card_number = card['number']
-        self.card = {
-            'exp_month': card['exp_month'],
-            'exp_year': card['exp_year'],
-            'last4': self._card_number[-4:],
-            'brand': 'visa',
-            'country': 'FR',
-            'fingerprint': fingerprint(self._card_number),
-            'funding': 'credit',
-            'three_d_secure_usage': {'supported': True},
-        }
+
+        if self.type == 'card':
+            self._card_number = card['number']
+            self.card = {
+                'exp_month': card['exp_month'],
+                'exp_year': card['exp_year'],
+                'last4': self._card_number[-4:],
+                'brand': 'visa',
+                'country': 'FR',
+                'fingerprint': fingerprint(self._card_number),
+                'funding': 'credit',
+                'three_d_secure_usage': {'supported': True},
+            }
+        elif self.type == 'sepa_debit':
+            self._sepa_debit_iban = \
+                re.sub(r'\s', '', sepa_debit['iban']).upper()
+            self.sepa_debit = {
+                'country': self._sepa_debit_iban[:2],
+                'bank_code': self._sepa_debit_iban[4:12],
+                'last4': self._sepa_debit_iban[-4:],
+                'fingerprint': fingerprint(self._sepa_debit_iban),
+                'mandate_reference': 'NXDSYREGC9PSMKWY',
+                'mandate_url': 'https://fake/NXDSYREGC9PSMKWY',
+            }
+
         self.customer = None
         self.metadata = metadata or {}
 
     def _requires_authentication(self):
-        return self._card_number in ('4000002500003155',
-                                     '4000002760003184',
-                                     '4000008260003178',
-                                     '4000000000003220',
-                                     '4000000000003063',
-                                     '4000008400001629')
+        if self.type == 'card':
+            return self._card_number in ('4000002500003155',
+                                         '4000002760003184',
+                                         '4000008260003178',
+                                         '4000000000003220',
+                                         '4000000000003063',
+                                         '4000008400001629')
+        return False
 
     def _attaching_is_declined(self):
-        return self._card_number in ('4000000000000002',
-                                     '4000000000009995',
-                                     '4000000000009987',
-                                     '4000000000009979',
-                                     '4000000000000069',
-                                     '4000000000000127',
-                                     '4000000000000119',
-                                     '4242424242424241')
+        if self.type == 'card':
+            return self._card_number in ('4000000000000002',
+                                         '4000000000009995',
+                                         '4000000000009987',
+                                         '4000000000009979',
+                                         '4000000000000069',
+                                         '4000000000000127',
+                                         '4000000000000119',
+                                         '4242424242424241')
+        return False
 
     def _charging_is_declined(self):
-        return self._card_number in ('4000000000000341',
-                                     '4000008260003178',
-                                     '4000008400001629')
+        if self.type == 'card':
+            return self._card_number in ('4000000000000341',
+                                         '4000008260003178',
+                                         '4000008400001629')
+        elif self.type == 'sepa_debit':
+            return self._sepa_debit_iban == 'DE62370400440532013001'
+        return False
 
     @classmethod
     def _api_attach(cls, id, customer=None, **kwargs):
@@ -1738,6 +1756,18 @@ class PaymentMethod(StripeObject):
         obj = cls._api_retrieve(id)
         obj.customer = None
         return obj
+
+    @classmethod
+    def _api_retrieve(cls, id):
+        # https://stripe.com/docs/payments/payment-methods#transitioning
+        # You can retrieve all saved compatible payment instruments through the
+        # Payment Methods API.
+        if id.startswith('card_'):
+            return Card._api_retrieve(id)
+        elif id.startswith('src_'):
+            return Source._api_retrieve(id)
+
+        return super()._api_retrieve(id)
 
     @classmethod
     def _api_list_all(cls, url, customer=None, type=None, limit=None):
@@ -1996,20 +2026,27 @@ class Source(StripeObject):
             }
 
     def _requires_authentication(self):
+        if self.type == 'sepa_debit':
+            return PaymentMethod._requires_authentication(self)
         return False
 
     def _attaching_is_declined(self):
+        if self.type == 'sepa_debit':
+            return PaymentMethod._attaching_is_declined(self)
         return False
 
     def _charging_is_declined(self):
-        return self._sepa_debit_iban == 'DE62370400440532013001'
+        if self.type == 'sepa_debit':
+            return PaymentMethod._charging_is_declined(self)
+        return False
 
 
 class SetupIntent(StripeObject):
     object = 'setup_intent'
     _id_prefix = 'seti_'
 
-    def __init__(self, customer=None, usage=None, metadata=None, **kwargs):
+    def __init__(self, customer=None, usage=None, payment_method_types=None,
+                 metadata=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -2019,6 +2056,11 @@ class SetupIntent(StripeObject):
             if usage is None:
                 usage = 'off_session'
             assert usage in ('off_session', 'on_session')
+            if payment_method_types is None:
+                payment_method_types = ['card']
+            assert type(payment_method_types) is list
+            assert all(t in ('card', 'sepa_debit', 'ideal')
+                       for t in payment_method_types)
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -2029,7 +2071,7 @@ class SetupIntent(StripeObject):
         self.usage = usage
         self.metadata = metadata or {}
         self.client_secret = self.id + '_secret_' + random_id(16)
-        self.payment_method_types = ['cards']
+        self.payment_method_types = payment_method_types
         self.payment_method = None
         self.status = 'requires_payment_method'
         self.next_action = None
@@ -2286,7 +2328,8 @@ class Subscription(StripeObject):
             # `enable_incomplete_payments`), then is canceled later if the
             # payment fails:
             if (invoice.charge.status == 'pending' and
-                    invoice.charge.payment_method.startswith('src_')):
+                    PaymentMethod._api_retrieve(
+                        invoice.charge.payment_method).type == 'sepa_debit'):
                 self.status = 'active'
 
     def _on_initial_payment_success(self, invoice):
@@ -2310,7 +2353,8 @@ class Subscription(StripeObject):
     def _on_recurring_payment_failure(self, invoice):
         # If source is SEPA, any payment failure at creation or upgrade cancels
         # the subscription:
-        if invoice.charge and invoice.charge.payment_method.startswith('src_'):
+        if (invoice.charge and PaymentMethod._api_retrieve(
+                invoice.charge.payment_method).type == 'sepa_debit'):
             return Subscription._api_delete(self.id)
 
         self.status = 'past_due'
