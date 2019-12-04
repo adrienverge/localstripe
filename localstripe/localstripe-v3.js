@@ -307,6 +307,38 @@ Stripe = (apiKey) => {
         }
       }
     },
+
+    confirmSepaDebitSetup: async (clientSecret, data) => {
+      console.log('localstripe: Stripe().confirmSepaDebitSetup()');
+      try {
+        const seti = clientSecret.match(/^(seti_\w+)_secret_/)[1];
+        const url = `${LOCALSTRIPE_SOURCE}/v1/setup_intents/${seti}/confirm`;
+        let response = await fetch(url, {
+          method: 'POST',
+          body: JSON.stringify({
+            key: apiKey,
+            use_stripe_sdk: true,
+            client_secret: clientSecret,
+            payment_method_data: {
+              type: 'sepa_debit',
+              ...data.payment_method,
+            },
+          }),
+        });
+        const body = await response.json().catch(() => ({}));
+        if (response.status !== 200 || body.error) {
+          return {error: body.error};
+        } else {
+          return {setupIntent: body};
+        }
+      } catch (err) {
+        if (typeof err === 'object' && err.error) {
+          return err;
+        } else {
+          return {error: err};
+        }
+      }
+    },
   };
 };
 
