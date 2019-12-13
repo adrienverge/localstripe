@@ -215,21 +215,20 @@ Stripe = (apiKey) => {
     },
     retrieveSource: () => {}, // TODO
 
-    handleCardSetup: async (clientSecret, element, data) => {
-      console.log('localstripe: Stripe().handleCardSetup()');
+    confirmCardSetup: async (clientSecret, data) => {
+      console.log('localstripe: Stripe().confirmCardSetup()');
       try {
         const seti = clientSecret.match(/^(seti_\w+)_secret_/)[1];
         const url = `${LOCALSTRIPE_SOURCE}/v1/setup_intents/${seti}/confirm`;
-        if (element instanceof Element) {
-          data.payment_method_data =
-            data.payment_method_data || {};
-          data.payment_method_data.card = element.value.card;
-          data.payment_method_data.billing_details =
-            data.payment_method_data.billing_details || {};
-          data.payment_method_data.billing_details.address =
-            data.payment_method_data.billing_details.address || {};
-          data.payment_method_data.billing_details.address.postal_code =
-            data.payment_method_data.billing_details.address.postal_code ||
+        if (data.payment_method.card instanceof Element) {
+          const element = data.payment_method.card;
+          data.payment_method.card = element.value.card;
+          data.payment_method.billing_details =
+            data.payment_method.billing_details || {};
+          data.payment_method.billing_details.address =
+            data.payment_method.billing_details.address || {};
+          data.payment_method.billing_details.address.postal_code =
+            data.payment_method.billing_details.address.postal_code ||
             element.value.postal_code;
         }
         let response = await fetch(url, {
@@ -240,7 +239,7 @@ Stripe = (apiKey) => {
             client_secret: clientSecret,
             payment_method_data: {
               type: 'card',
-              ...data.payment_method_data,
+              ...data.payment_method,
             },
           }),
         });
@@ -284,6 +283,14 @@ Stripe = (apiKey) => {
         }
       }
     },
+    handleCardSetup:  // deprecated
+      async function (clientSecret, element, data) {
+        return this.confirmCardSetup(clientSecret, {
+          payment_method: {
+            card: element,
+            ...data.payment_method_data,
+          }});
+      },
     handleCardPayment: async (clientSecret, element, data) => {
       console.log('localstripe: Stripe().handleCardPayment()');
       try {
