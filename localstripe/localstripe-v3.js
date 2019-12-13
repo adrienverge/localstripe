@@ -291,8 +291,8 @@ Stripe = (apiKey) => {
             ...data.payment_method_data,
           }});
       },
-    handleCardPayment: async (clientSecret, element, data) => {
-      console.log('localstripe: Stripe().handleCardPayment()');
+    confirmCardPayment: async (clientSecret, data) => {
+      console.log('localstripe: Stripe().confirmCardPayment()');
       try {
         const success = await openModal(
           '3D Secure\nDo you want to confirm or cancel?',
@@ -321,6 +321,10 @@ Stripe = (apiKey) => {
         }
       }
     },
+    handleCardPayment:  // deprecated
+      async function (clientSecret, element, data) {
+        return this.confirmCardPayment(clientSecret);
+      },
 
     confirmSepaDebitSetup: async (clientSecret, data) => {
       console.log('localstripe: Stripe().confirmSepaDebitSetup()');
