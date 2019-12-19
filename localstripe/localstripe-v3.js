@@ -98,29 +98,32 @@ class Element {
       exp_month: null,
       exp_year: null,
       cvc: null,
-      address_zip: null,
+      postal_code: null,
     };
 
     const changed = event => {
       this.value = {
-        number: inputs.number.value,
-        exp_month: inputs.exp_month.value,
-        exp_year: '20' + inputs.exp_year.value,
-        cvc: inputs.cvc.value,
-        address_zip: inputs.address_zip.value,
-      };
+        card: {
+          number: inputs.number.value,
+          exp_month: inputs.exp_month.value,
+          exp_year: '20' + inputs.exp_year.value,
+          cvc: inputs.cvc.value,
+        },
+        postal_code: inputs.postal_code.value,
+      }
 
-      if (event.target === inputs.number && this.value.number.length >= 16) {
+      if (event.target === inputs.number &&
+          this.value.card.number.length >= 16) {
         inputs.exp_month.focus();
       } else if (event.target === inputs.exp_month &&
-                 parseInt(this.value.exp_month) > 1) {
+                 parseInt(this.value.card.exp_month) > 1) {
         inputs.exp_year.focus();
       } else if (event.target === inputs.exp_year &&
-                 this.value.exp_year.length >= 4) {
+                 this.value.card.exp_year.length >= 4) {
         inputs.cvc.focus();
       } else if (event.target === inputs.cvc &&
-                 this.value.cvc.length >= 3) {
-        inputs.address_zip.focus();
+                 this.value.card.cvc.length >= 3) {
+        inputs.postal_code.focus();
       }
 
       (this.listeners['change'] || []).forEach(handler => handler());
@@ -131,7 +134,7 @@ class Element {
       inputs[field].setAttribute('type', 'text');
       inputs[field].setAttribute('placeholder', field);
       inputs[field].setAttribute('size', field === 'number' ? 16 :
-                                         field === 'address_zip' ? 5 :
+                                         field === 'postal_code' ? 5 :
                                          field === 'cvc' ? 3 : 2);
       inputs[field].oninput = changed;
       domElement.appendChild(inputs[field]);
@@ -154,11 +157,11 @@ Stripe = (apiKey) => {
         },
       };
     },
-    createToken: async (card) => {
+    createToken: async (element) => {
       console.log('localstripe: Stripe().createToken()');
       let body = [];
-      Object.keys(card.value).forEach(field => {
-        body.push('card[' + field + ']=' + card.value[field]);
+      Object.keys(element.value.card).forEach(field => {
+        body.push('card[' + field + ']=' + card.value.card[field]);
       });
       body.push('key=' + apiKey);
       body.push('payment_user_agent=localstripe');
@@ -217,6 +220,18 @@ Stripe = (apiKey) => {
       try {
         const seti = clientSecret.match(/^(seti_\w+)_secret_/)[1];
         const url = `${LOCALSTRIPE_SOURCE}/v1/setup_intents/${seti}/confirm`;
+        if (element instanceof Element) {
+          data.payment_method_data =
+            data.payment_method_data || {};
+          data.payment_method_data.card = element.value.card;
+          data.payment_method_data.billing_details =
+            data.payment_method_data.billing_details || {};
+          data.payment_method_data.billing_details.address =
+            data.payment_method_data.billing_details.address || {};
+          data.payment_method_data.billing_details.address.postal_code =
+            data.payment_method_data.billing_details.address.postal_code ||
+            element.value.postal_code;
+        }
         let response = await fetch(url, {
           method: 'POST',
           body: JSON.stringify({
@@ -225,15 +240,7 @@ Stripe = (apiKey) => {
             client_secret: clientSecret,
             payment_method_data: {
               type: 'card',
-              card: {
-                number: element.value.number,
-                exp_month: element.value.exp_month,
-                exp_year: element.value.exp_year,
-                cvc: element.value.cvc,
-              },
-              billing_details: {
-                address: {postal_code: element.value.address_zip},
-              },
+              ...data.payment_method_data,
             },
           }),
         });
