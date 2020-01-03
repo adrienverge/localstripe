@@ -524,7 +524,7 @@ class Customer(StripeObject):
     _id_prefix = 'cus_'
 
     def __init__(self, name=None, description=None, email=None,
-                 phone=None,
+                 phone=None, address=None,
                  invoice_settings=None, business_vat_id=None,
                  preferred_locales=None, tax_id_data=None,
                  metadata=None, **kwargs):
@@ -540,6 +540,12 @@ class Customer(StripeObject):
                 assert type(email) is str
             if phone is not None:
                 assert type(phone) is str
+            if address is not None:
+                assert type(address) is dict
+                assert set(address.keys()).issubset({
+                    'city', 'country', 'line1', 'line2', 'postal_code',
+                    'state'})
+                assert all(type(f) is str for f in address.values())
             if invoice_settings is None:
                 invoice_settings = {}
             assert type(invoice_settings) is dict
@@ -572,6 +578,7 @@ class Customer(StripeObject):
         self.description = description
         self.email = email
         self.phone = phone
+        self.address = address
         self.invoice_settings = invoice_settings
         self.business_vat_id = business_vat_id
         self.preferred_locales = preferred_locales
