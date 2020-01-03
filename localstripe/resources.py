@@ -565,9 +565,9 @@ class Customer(StripeObject):
         # All exceptions must be raised before this point.
         super().__init__()
 
-        self.name = name or ''
-        self.description = description or ''
-        self.email = email or ''
+        self.name = name
+        self.description = description
+        self.email = email
         self.invoice_settings = invoice_settings
         self.business_vat_id = business_vat_id
         self.preferred_locales = preferred_locales
