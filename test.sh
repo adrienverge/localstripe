@@ -22,6 +22,8 @@ cus=$(curl -sSf -u $SK: $HOST/v1/customers \
            -d description='This customer is a company' \
            -d email=foo@bar.com \
            -d phone=0102030405 \
+           -d address[line1]='6 boulevard de Brandebourg' \
+           -d address[city]=Ivry-sur-Seine -d address[country]=FR \
            -d tax_id_data[0][type]=eu_vat -d tax_id_data[0][value]=FR12345678901 \
       | grep -oE 'cus_\w+' | head -n 1)
 
