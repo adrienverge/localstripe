@@ -2574,7 +2574,7 @@ class SubscriptionItem(StripeObject):
             index = next(
                 (i for i, t in enumerate(self.plan.tiers)
                     if t['up_to'] == 'inf'
-                    or int(t['from']) <= self.quantity <= int(t['up_to'])))
+                    or self.quantity <= int(t['up_to'])))
             return self._calculate_amount_in_tier(
                 self.quantity, index)
 
@@ -2582,17 +2582,21 @@ class SubscriptionItem(StripeObject):
             quantity = self.quantity
             amount = 0
 
+            tier_from = -1
             for i, t in enumerate(self.plan.tiers):
-                if quantity <= 0 or int(t['from']) > quantity:
+                tier_from += 1
+                if quantity <= 0 or tier_from > quantity:
                     break
 
                 amount += self._calculate_amount_in_tier(
-                    quantity - int(t['from']), i)
+                    quantity - tier_from, i)
 
                 if t['up_to'] == 'inf':
                     quantity = 0
                 else:
-                    quantity -= int(t['up_to'])
+                    up_to = int(t['up_to'])
+                    quantity -= up_to
+                    tier_from = up_to
 
             return amount
 
