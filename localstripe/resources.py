@@ -2258,12 +2258,12 @@ class Subscription(StripeObject):
         self.trial_start = None
         self.trial_period_days = trial_period_days
         self.latest_invoice = None
+        self.start_date = int(time.time())
         self._enable_incomplete_payments = (
             enable_incomplete_payments and
             payment_behavior != 'error_if_incomplete')
 
         self._set_up_plan(Plan._api_retrieve(items[0]['plan']))
-        self.start = self.current_period_start
 
         self.items = List('/v1/subscription_items?subscription=' + self.id)
         self.items._list.append(
