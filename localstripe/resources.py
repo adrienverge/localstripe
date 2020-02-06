@@ -1128,7 +1128,8 @@ class Invoice(StripeObject):
             else:
                 tax_rates = [tr.id for tr in (si.tax_rates or [])]
             invoice_items.append(
-                InvoiceItem(subscription=subscription,
+                InvoiceItem(type='subscription',
+                            subscription=subscription,
                             plan=plan.id,
                             amount=plan.amount,
                             currency=plan.currency,
@@ -1315,10 +1316,10 @@ class InvoiceItem(StripeObject):
     object = 'invoiceitem'
     _id_prefix = 'ii_'
 
-    def __init__(self, invoice=None, subscription=None, plan=None, amount=None,
-                 currency=None, customer=None, period_start=None,
-                 period_end=None, proration=False, description=None,
-                 tax_rates=None, metadata=None, **kwargs):
+    def __init__(self, type='invoiceitem', invoice=None, subscription=None,
+                 plan=None, amount=None, currency=None, customer=None,
+                 period_start=None, period_end=None, proration=False,
+                 description=None, tax_rates=None, metadata=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -1327,29 +1328,30 @@ class InvoiceItem(StripeObject):
         period_end = try_convert_to_int(period_end)
         proration = try_convert_to_bool(proration)
         try:
+            assert type in ('invoiceitem', 'subscription')
             if invoice is not None:
-                assert type(invoice) is str and invoice.startswith('in_')
+                assert _type(invoice) is str and invoice.startswith('in_')
             if subscription is not None:
-                assert type(subscription) is str
+                assert _type(subscription) is str
                 assert subscription.startswith('sub_')
             if plan is not None:
-                assert type(plan) is str and plan
-            assert type(amount) is int
-            assert type(currency) is str and currency
-            assert type(customer) is str and customer.startswith('cus_')
+                assert _type(plan) is str and plan
+            assert _type(amount) is int
+            assert _type(currency) is str and currency
+            assert _type(customer) is str and customer.startswith('cus_')
             if period_start is not None:
-                assert type(period_start) is int and period_start > 1500000000
-                assert type(period_end) is int and period_end > 1500000000
+                assert _type(period_start) is int and period_start > 1500000000
+                assert _type(period_end) is int and period_end > 1500000000
             else:
                 period_start = period_end = int(time.time())
-            assert type(proration) is bool
+            assert _type(proration) is bool
             if description is not None:
-                assert type(description) is str
+                assert _type(description) is str
             else:
                 description = 'Invoice item'
             if tax_rates is not None:
-                assert type(tax_rates) is list
-                assert all(type(tr) is str for tr in tax_rates)
+                assert _type(tax_rates) is list
+                assert all(_type(tr) is str for tr in tax_rates)
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -1365,6 +1367,7 @@ class InvoiceItem(StripeObject):
         # All exceptions must be raised before this point.
         super().__init__()
 
+        self.type = type
         self.invoice = invoice
         self.subscription = subscription
         self.plan = plan
@@ -2305,7 +2308,8 @@ class Subscription(StripeObject):
 
         for si in self.items._list:
             pending_items.append(
-                InvoiceItem(subscription=self.id, plan=si.plan.id,
+                InvoiceItem(type='subscription',
+                            subscription=self.id, plan=si.plan.id,
                             amount=si._calculate_amount(),
                             currency=si.plan.currency,
                             description=si.plan.name,
