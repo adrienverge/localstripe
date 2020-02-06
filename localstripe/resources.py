@@ -1314,7 +1314,7 @@ extra_apis.extend((
 
 class InvoiceItem(StripeObject):
     object = 'invoiceitem'
-    _id_prefix = 'ii_'
+    _id_prefix = 'il_'
 
     def __init__(self, type='invoiceitem', invoice=None, subscription=None,
                  plan=None, amount=None, currency=None, customer=None,
@@ -1368,6 +1368,7 @@ class InvoiceItem(StripeObject):
         super().__init__()
 
         self.type = type
+        self.invoice_item = 'ii_' + self.id[3:]
         self.invoice = invoice
         self.subscription = subscription
         self.plan = plan
