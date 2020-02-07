@@ -32,6 +32,12 @@ curl -sSf -u $SK: $HOST/v1/customers/$cus/tax_ids \
 
 curl -sSf -u $SK: $HOST/v1/customers/$cus?expand%5B%5D=tax_ids.data.customer
 
+curl -sSf -u $SK: $HOST/v1/customers/$cus?expand%5B%5D=subscriptions.data.items.data
+
+code=$(curl -so /dev/null -w '%{http_code}' -u $SK: \
+       $HOST/v1/customers/$cus?expand%5B%5D=subscriptions.data.items.data.tax_ids)
+[ "$code" -eq 400 ]
+
 txr1=$(curl -sSf -u $SK: $HOST/v1/tax_rates \
             -d display_name=VAT \
             -d description='TVA France taux normal' \

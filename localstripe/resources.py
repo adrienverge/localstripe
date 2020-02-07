@@ -195,6 +195,10 @@ class StripeObject(object):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
+        if any(len(path.split('.')) > 4 for path in expand):
+            raise UserError(
+                400, 'You cannot expand more than 4 levels of a property')
+
         obj = {}
 
         # Take basic properties
