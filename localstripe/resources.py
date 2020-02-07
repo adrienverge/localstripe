@@ -912,7 +912,7 @@ class Invoice(StripeObject):
         self.lines = List('/v1/invoices/' + self.id + '/lines')
         for item in items:
             item.invoice = self.id
-            self.lines._list.append(item)
+            self.lines._list.append(InvoiceLineItem(item))
 
         pending_items = [ii for ii in InvoiceItem._api_list_all(
             None, customer=self.customer, limit=99)._list
@@ -920,7 +920,7 @@ class Invoice(StripeObject):
         for ii in pending_items:
             if not simulation:
                 ii.invoice = self.id
-            self.lines._list.append(ii)
+            self.lines._list.append(InvoiceLineItem(ii))
 
         if len(self.lines._list):
             self.currency = self.lines._list[0].currency
@@ -935,7 +935,7 @@ class Invoice(StripeObject):
 
     @property
     def subtotal(self):
-        return sum([ii.amount for ii in self.lines._list])
+        return sum([il.amount for il in self.lines._list])
 
     @property
     def tax(self):
@@ -947,12 +947,12 @@ class Invoice(StripeObject):
     @property
     def total_tax_amounts(self):
         concat = []
-        for ii in self.lines._list:
+        for il in self.lines._list:
             tax_amounts = []
-            if ii.tax_rates:
-                tax_amounts = ii.tax_amounts
+            if il.tax_rates:
+                tax_amounts = il.tax_amounts
             elif self.default_tax_rates:
-                tax_amounts = [tr._tax_amount(ii.amount)
+                tax_amounts = [tr._tax_amount(il.amount)
                                for tr in self.default_tax_rates]
             concat.extend(tax_amounts)
         # TODO: reduce `concat` by unique `tax_rate` ID
@@ -1189,9 +1189,9 @@ class Invoice(StripeObject):
                           simulation=True)
 
             if subscription_proration_date is not None:
-                for ii in invoice.lines._list:
-                    ii.period['start'] = subscription_proration_date
-                    ii.period['end'] = subscription_proration_date
+                for il in invoice.lines._list:
+                    il.period['start'] = subscription_proration_date
+                    il.period['end'] = subscription_proration_date
 
             return invoice
 
@@ -1304,11 +1304,24 @@ class Invoice(StripeObject):
 
         return obj
 
+    @classmethod
+    def _api_list_lines(cls, id, limit=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        obj = cls._api_retrieve(id)
+
+        lines = List('/v1/invoices/' + id + '/lines', limit=limit)
+        lines._list = obj.lines._list
+
+        return lines
+
 
 extra_apis.extend((
     ('GET', '/v1/invoices/upcoming', Invoice._api_upcoming_invoice),
     ('POST', '/v1/invoices/{id}/pay', Invoice._api_pay_invoice),
-    ('POST', '/v1/invoices/{id}/void', Invoice._api_void_invoice)))
+    ('POST', '/v1/invoices/{id}/void', Invoice._api_void_invoice),
+    ('GET', '/v1/invoices/{id}/lines', Invoice._api_list_lines)))
 
 
 class InvoiceItem(StripeObject):
@@ -1368,6 +1381,7 @@ class InvoiceItem(StripeObject):
         self.invoice = invoice
         self.subscription = subscription
         self.plan = plan
+        self.quantity = 1
         self.amount = amount
         self.currency = currency
         self.customer = customer
@@ -1377,11 +1391,6 @@ class InvoiceItem(StripeObject):
         self.description = description
         self.tax_rates = tax_rates
         self.metadata = metadata or {}
-
-    @property
-    def tax_amounts(self):
-        if self.tax_rates is not None:
-            return [tr._tax_amount(self.amount) for tr in self.tax_rates]
 
     @classmethod
     def _api_list_all(cls, url, customer=None, limit=None):
@@ -1398,6 +1407,67 @@ class InvoiceItem(StripeObject):
             li._list = [ii for ii in li._list if ii.customer == customer]
         li._list.sort(key=lambda i: i.date, reverse=True)
         return li
+
+
+class InvoiceLineItem(StripeObject):
+    object = 'line_item'
+    _id_prefix = 'il_'
+
+    def __init__(self, item):
+        try:
+            assert isinstance(item, (InvoiceItem, SubscriptionItem))
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        # All exceptions must be raised before this point.
+        super().__init__()
+
+        self.type = \
+            'invoiceitem' if isinstance(item, InvoiceItem) else 'subscription'
+
+        if self.type == 'subscription':
+            self.subscription_item = item.id
+            self.subscription = item._subscription
+            self.plan = item.plan
+            self.proration = False
+            self.currency = item.plan.currency
+            self.description = item.plan.name
+            self.amount = item._calculate_amount()
+            subscription_obj = Subscription._api_retrieve(item._subscription)
+            self.period = dict(start=subscription_obj.current_period_start,
+                               end=subscription_obj.current_period_end)
+        elif self.type == 'invoiceitem':
+            self.invoice_item = item.id
+            self.subscription = None
+            self.plan = None
+            self.proration = item.proration
+            self.currency = item.currency
+            self.description = item.description
+            self.amount = item.amount
+            self.period = item.period
+
+        # Legacy support, before InvoiceLineItem
+        self.invoice = item.invoice
+
+        self.tax_rates = item.tax_rates or []
+        self.metadata = item.metadata
+        self.quantity = item.quantity
+
+    @property
+    def tax_amounts(self):
+        return [tr._tax_amount(self.amount) for tr in self.tax_rates]
+
+    @classmethod
+    def _api_create(cls, **data):
+        raise UserError(405, 'Method Not Allowed')
+
+    @classmethod
+    def _api_update(cls, id, **data):
+        raise UserError(405, 'Method Not Allowed')
+
+    @classmethod
+    def _api_delete(cls, id):
+        raise UserError(405, 'Method Not Allowed')
 
 
 class List(StripeObject):
@@ -2304,16 +2374,7 @@ class Subscription(StripeObject):
             if ii.invoice is None]
 
         for si in self.items._list:
-            pending_items.append(
-                InvoiceItem(subscription=self.id, plan=si.plan.id,
-                            amount=si._calculate_amount(),
-                            currency=si.plan.currency,
-                            description=si.plan.name,
-                            tax_rates=[tr.id
-                                       for tr in (si.tax_rates or [])],
-                            customer=self.customer,
-                            period_start=self.current_period_start,
-                            period_end=self.current_period_end))
+            pending_items.append(si)
 
         # Create associated invoice
         invoice = Invoice(
