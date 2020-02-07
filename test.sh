@@ -405,11 +405,12 @@ curl -sSf -u $SK: $HOST/v1/subscriptions \
      -d items[0][plan]=basique-mensuel \
      -d expand[]=latest_invoice.payment_intent
 
-sub=$(curl -sSf -u $SK: $HOST/v1/subscriptions \
+res=$(curl -sSf -u $SK: $HOST/v1/subscriptions \
            -d customer=$cus \
            -d items[0][plan]=basique-mensuel \
-           -d items[0][tax_rates][0]=$txr1 \
-      | grep -oE 'sub_\w+' | head -n 1)
+           -d items[0][tax_rates][0]=$txr1)
+sub=$(echo "$res" | grep -oE 'sub_\w+' | head -n 1)
+in=$(echo "$res" | grep -oE 'in_\w+' | head -n 1)
 
 curl -sSf -u $SK: $HOST/v1/invoices?customer=$cus
 
@@ -418,6 +419,8 @@ curl -sSf -u $SK: $HOST/v1/invoices/upcoming?customer=$cus
 curl -sSf -u $SK: $HOST/v1/invoices/upcoming?customer=$cus\&subscription_items%5B0%5D%5Bplan%5D=pro-annuel\&subscription_tax_percent=20
 
 curl -sSf -u $SK: $HOST/v1/invoices/upcoming?customer=$cus\&subscription=$sub\&subscription_items%5B0%5D%5Bid%5D=si_RBrVStcKDimMnp\&subscription_items%5B0%5D%5Bplan%5D=basique-annuel\&subscription_proration_date=1504182686\&subscription_tax_percent=20
+
+curl -sSf -u $SK: $HOST/v1/invoices/$in/lines
 
 cus=$(curl -sSf -u $SK: $HOST/v1/customers \
            -d description='This customer will have a subscription with volume tiered pricing' \
