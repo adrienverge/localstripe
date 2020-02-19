@@ -28,7 +28,8 @@ cus=$(curl -sSf -u $SK: $HOST/v1/customers \
       | grep -oE 'cus_\w+' | head -n 1)
 
 curl -sSf -u $SK: $HOST/v1/customers/$cus/tax_ids \
-     -d type=eu_vat -d value=DE123456789
+     -d type=eu_vat -d value=DE123456789 \
+     -d expand[]=customer
 
 curl -sSf -u $SK: $HOST/v1/customers/$cus?expand%5B%5D=tax_ids.data.customer
 
