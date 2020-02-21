@@ -2337,8 +2337,8 @@ class Subscription(StripeObject):
         self.trial_period_days = trial_period_days
         self.latest_invoice = None
         self.start_date = backdate_start_date \
-                              if backdate_start_date is not None \
-                              else int(time.time())
+            if backdate_start_date is not None \
+            else int(time.time())
         self._enable_incomplete_payments = (
             enable_incomplete_payments and
             payment_behavior != 'error_if_incomplete')
