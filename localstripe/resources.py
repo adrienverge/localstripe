@@ -2323,6 +2323,7 @@ class Subscription(StripeObject):
         self.default_tax_rates = default_tax_rates
         self.application_fee_percent = None
         self.cancel_at_period_end = False
+        self.cancel_at = None
         self.canceled_at = None
         self.discount = None
         self.ended_at = None
@@ -2439,6 +2440,7 @@ class Subscription(StripeObject):
                 default_tax_rates=None, tax_percent=None,
                 plan=None, quantity=None,  # legacy support
                 prorate=None, proration_date=None, cancel_at_period_end=None,
+                cancel_at=None,
                 # Currently unimplemented, only False works as expected:
                 enable_incomplete_payments=False):
 
@@ -2452,6 +2454,7 @@ class Subscription(StripeObject):
         prorate = try_convert_to_bool(prorate)
         proration_date = try_convert_to_int(proration_date)
         cancel_at_period_end = try_convert_to_bool(cancel_at_period_end)
+        cancel_at = try_convert_to_int(cancel_at)
 
         try:
             if trial_end is not None:
@@ -2475,6 +2478,8 @@ class Subscription(StripeObject):
                 assert proration_date > 1500000000
             if cancel_at_period_end is not None:
                 assert type(cancel_at_period_end) is bool
+            if cancel_at is not None:
+                assert type(cancel_at) is int
             if items is not None:
                 assert type(items) is list
                 for item in items:
@@ -2560,6 +2565,9 @@ class Subscription(StripeObject):
 
         if cancel_at_period_end is not None:
             self.cancel_at_period_end = cancel_at_period_end
+
+        if cancel_at is not None:
+            self.cancel_at = cancel_at
 
         if (self.plan.interval != old_plan.interval or
                 self.plan.interval_count != old_plan.interval_count):
