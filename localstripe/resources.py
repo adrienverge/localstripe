@@ -2365,7 +2365,7 @@ class Subscription(StripeObject):
         return self.items._list[0].plan
 
     def _set_up_plan(self, plan):
-        current_period_start = datetime.now()
+        current_period_start = datetime.fromtimestamp(self.start_date)
         current_period_end = current_period_start
         if plan.interval == 'day':
             current_period_end += timedelta(days=1)
