@@ -2480,6 +2480,7 @@ class Subscription(StripeObject):
                 assert type(cancel_at_period_end) is bool
             if cancel_at is not None:
                 assert type(cancel_at) is int
+                assert cancel_at > 1500000000
             if items is not None:
                 assert type(items) is list
                 for item in items:
