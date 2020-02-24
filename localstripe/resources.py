@@ -2285,6 +2285,7 @@ class Subscription(StripeObject):
                 assert type(trial_period_days) is int
             if backdate_start_date is not None:
                 assert type(backdate_start_date) is int
+                assert backdate_start_date > 1500000000
             assert type(items) is list
             for item in items:
                 assert type(item.get('plan', None)) is str
@@ -2336,9 +2337,7 @@ class Subscription(StripeObject):
         self.trial_start = None
         self.trial_period_days = trial_period_days
         self.latest_invoice = None
-        self.start_date = backdate_start_date \
-            if backdate_start_date is not None \
-            else int(time.time())
+        self.start_date = backdate_start_date or int(time.time())
         self._enable_incomplete_payments = (
             enable_incomplete_payments and
             payment_behavior != 'error_if_incomplete')
