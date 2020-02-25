@@ -2244,6 +2244,7 @@ class Subscription(StripeObject):
 
     def __init__(self, customer=None, metadata=None, items=None,
                  trial_end=None, default_tax_rates=None,
+                 backdate_start_date=None,
                  plan=None, quantity=None,  # legacy support
                  tax_percent=None,  # deprecated
                  enable_incomplete_payments=True,  # legacy support
@@ -2262,6 +2263,7 @@ class Subscription(StripeObject):
         enable_incomplete_payments = try_convert_to_bool(
             enable_incomplete_payments)
         trial_period_days = try_convert_to_int(trial_period_days)
+        backdate_start_date = try_convert_to_int(backdate_start_date)
 
         try:
             assert type(customer) is str and customer.startswith('cus_')
@@ -2281,6 +2283,9 @@ class Subscription(StripeObject):
                            for txr in default_tax_rates)
             if trial_period_days is not None:
                 assert type(trial_period_days) is int
+            if backdate_start_date is not None:
+                assert type(backdate_start_date) is int
+                assert backdate_start_date > 1500000000
             assert type(items) is list
             for item in items:
                 assert type(item.get('plan', None)) is str
@@ -2333,7 +2338,7 @@ class Subscription(StripeObject):
         self.trial_start = None
         self.trial_period_days = trial_period_days
         self.latest_invoice = None
-        self.start_date = int(time.time())
+        self.start_date = backdate_start_date or int(time.time())
         self._enable_incomplete_payments = (
             enable_incomplete_payments and
             payment_behavior != 'error_if_incomplete')
@@ -2360,7 +2365,7 @@ class Subscription(StripeObject):
         return self.items._list[0].plan
 
     def _set_up_plan(self, plan):
-        current_period_start = datetime.now()
+        current_period_start = datetime.fromtimestamp(self.start_date)
         current_period_end = current_period_start
         if plan.interval == 'day':
             current_period_end += timedelta(days=1)
