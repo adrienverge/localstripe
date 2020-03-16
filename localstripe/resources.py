@@ -2249,7 +2249,8 @@ class Subscription(StripeObject):
                  tax_percent=None,  # deprecated
                  enable_incomplete_payments=True,  # legacy support
                  payment_behavior='allow_incomplete',
-                 trial_period_days=None, **kwargs):
+                 trial_period_days=None, billing_cycle_anchor=None,
+                 proration_behavior=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -2264,6 +2265,7 @@ class Subscription(StripeObject):
             enable_incomplete_payments)
         trial_period_days = try_convert_to_int(trial_period_days)
         backdate_start_date = try_convert_to_int(backdate_start_date)
+        billing_cycle_anchor = try_convert_to_int(billing_cycle_anchor)
 
         try:
             assert type(customer) is str and customer.startswith('cus_')
@@ -2286,6 +2288,11 @@ class Subscription(StripeObject):
             if backdate_start_date is not None:
                 assert type(backdate_start_date) is int
                 assert backdate_start_date > 1500000000
+            if billing_cycle_anchor is not None:
+                assert type(billing_cycle_anchor) is int
+                assert billing_cycle_anchor > int(time.time())
+            if proration_behavior is not None:
+                assert proration_behavior in ['create_prorations', 'none']
             assert type(items) is list
             for item in items:
                 assert type(item.get('plan', None)) is str
@@ -2339,6 +2346,7 @@ class Subscription(StripeObject):
         self.trial_period_days = trial_period_days
         self.latest_invoice = None
         self.start_date = backdate_start_date or int(time.time())
+        self.billing_cycle_anchor = billing_cycle_anchor
         self._enable_incomplete_payments = (
             enable_incomplete_payments and
             payment_behavior != 'error_if_incomplete')
