@@ -2353,7 +2353,7 @@ class Subscription(StripeObject):
         self.ended_at = None
         self.quantity = items[0]['quantity']
         self.status = 'incomplete'
-        self.trial_end = None
+        self.trial_end = trial_end
         self.trial_start = None
         self.trial_period_days = trial_period_days
         self.latest_invoice = None
