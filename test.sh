@@ -531,6 +531,16 @@ curl -sSf $HOST/v1/setup_intents/$seti/confirm \
      -d payment_method_data[card][exp_year]=24 \
      -d payment_method_data[billing_details][address][postal_code]=42424
 
+# off_session cannot be used when confirm is false
+code=$(
+  curl -s -o /dev/null -w "%{http_code}" \
+       -u $SK: $HOST/v1/payment_intents \
+       -d amount=1000 \
+       -d currency=usd \
+       -d off_session=true \
+       -d confirm=false)
+[ "$code" = 400 ]
+
 # card fingerprint
 fingerprint=$(
   curl -sSf -u $SK: $HOST/v1/customers/$cus/cards \

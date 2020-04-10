@@ -1511,11 +1511,14 @@ class PaymentIntent(StripeObject):
     _id_prefix = 'pi_'
 
     def __init__(self, amount=None, currency=None, customer=None,
-                 payment_method=None, metadata=None, **kwargs):
+                 payment_method=None, metadata=None, off_session=None,
+                 confirm=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         amount = try_convert_to_int(amount)
+        off_session = try_convert_to_bool(off_session)
+        confirm = try_convert_to_bool(confirm)
         try:
             # Invoices with amount == 0 don't create PaymentIntents:
             assert type(amount) is int and amount > 0
@@ -1527,6 +1530,11 @@ class PaymentIntent(StripeObject):
                 assert (payment_method.startswith('pm_') or
                         payment_method.startswith('src_') or
                         payment_method.startswith('card_'))
+            if confirm is not None:
+                assert type(confirm) is bool
+            if off_session is not None:
+                assert type(off_session) is bool
+                assert confirm is True
         except AssertionError:
             raise UserError(400, 'Bad request')
 
