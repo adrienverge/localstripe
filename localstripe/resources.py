@@ -371,7 +371,6 @@ class Charge(StripeObject):
         self.status = 'pending'
         self.receipt_email = None
         self.receipt_number = None
-        self.refunds = List('/v1/charges/' + self.id + '/refunds')
         self.payment_method = source.id
         self.failure_code = None
         self.failure_message = None
@@ -454,7 +453,7 @@ class Charge(StripeObject):
             obj.captured = True
             if amount < obj.amount:
                 refunded = obj.amount - amount
-                obj.refunds._list.append(Refund(obj.id, refunded))
+                Refund(obj.id, refunded)
 
         obj._trigger_payment(on_success)
         return obj
@@ -464,11 +463,13 @@ class Charge(StripeObject):
         return self.status == 'succeeded'
 
     @property
+    def refunds(self):
+        return Refund._api_list_all('/v1/charges/' + self.id + '/refunds',
+                                    charge=self.id)
+
+    @property
     def amount_refunded(self):
-        refunded = 0
-        for refund in self.refunds._list:
-            refunded += refund.amount
-        return refunded
+        return sum(refund.amount for refund in self.refunds._list)
 
     @property
     def refunded(self):
