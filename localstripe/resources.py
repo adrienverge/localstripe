@@ -1561,6 +1561,9 @@ class PaymentIntent(StripeObject):
         self._canceled = False
         self._authentication_failed = False
 
+        if confirm:
+            self._trigger_payment()
+
     def _trigger_payment(self):
         if self.status != 'requires_confirmation':
             raise UserError(400, 'Bad request')
