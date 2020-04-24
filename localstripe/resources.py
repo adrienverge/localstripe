@@ -1562,7 +1562,7 @@ class PaymentIntent(StripeObject):
         self._authentication_failed = False
 
         if confirm:
-            self._trigger_payment()
+            PaymentIntent._api_confirm(self)
 
     def _trigger_payment(self):
         if self.status != 'requires_confirmation':
