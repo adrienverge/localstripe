@@ -1172,15 +1172,18 @@ class Invoice(StripeObject):
                                              subscription=subscription,
                                              limit=99)
                 for previous_invoice in previous._list:
-                    previous_tax_rates = \
-                        [tr.id
-                         for tr in previous_invoice.lines._list[0].tax_rates]
+                    old_plan = previous_invoice.lines._list[0].plan
+                    old_tax_rates = [
+                        tr.id
+                        for tr in previous_invoice.lines._list[0].tax_rates]
                     invoice_items.append(
                         InvoiceItem(amount=- previous_invoice.subtotal,
                                     currency=previous_invoice.currency,
                                     proration=True,
                                     description='Unused time',
-                                    tax_rates=previous_tax_rates,
+                                    subscription=subscription,
+                                    plan=old_plan.id,
+                                    tax_rates=old_tax_rates,
                                     customer=customer,
                                     period_start=previous_invoice.period_start,
                                     period_end=previous_invoice.period_end))
@@ -1443,8 +1446,8 @@ class InvoiceLineItem(StripeObject):
                                end=subscription_obj.current_period_end)
         elif self.type == 'invoiceitem':
             self.invoice_item = item.id
-            self.subscription = None
-            self.plan = None
+            self.subscription = item.subscription
+            self.plan = item.plan
             self.proration = item.proration
             self.currency = item.currency
             self.description = item.description
@@ -2577,6 +2580,8 @@ class Subscription(StripeObject):
                                 currency=previous_invoice.currency,
                                 proration=True,
                                 description='Unused time',
+                                subscription=self.id,
+                                plan=old_plan.id,
                                 tax_rates=previous_tax_rates,
                                 customer=self.customer)
 
