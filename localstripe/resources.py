@@ -1126,20 +1126,17 @@ class Invoice(StripeObject):
         for si in items:
             if subscription_items is not None:
                 plan = Plan._api_retrieve(si['plan'])
-            else:
-                plan = si.plan
-            if subscription_items is not None:
+                quantity = si.get('quantity', 1)
                 tax_rates = si['tax_rates']
             else:
+                plan = si.plan
+                quantity = si.quantity
                 tax_rates = [tr.id for tr in (si.tax_rates or [])]
             invoice_items.append(
-                InvoiceItem(subscription=subscription,
-                            plan=plan.id,
-                            amount=plan.amount,
-                            currency=plan.currency,
-                            description=plan.name,
-                            tax_rates=tax_rates,
-                            customer=customer))
+                SubscriptionItem(subscription=subscription,
+                                 plan=plan.id,
+                                 quantity=quantity,
+                                 tax_rates=tax_rates))
 
         if tax_percent is None:
             if subscription_tax_percent is not None:
@@ -1441,9 +1438,7 @@ class InvoiceLineItem(StripeObject):
             self.currency = item.plan.currency
             self.description = item.plan.name
             self.amount = item._calculate_amount()
-            subscription_obj = Subscription._api_retrieve(item._subscription)
-            self.period = dict(start=subscription_obj.current_period_start,
-                               end=subscription_obj.current_period_end)
+            self.period = item._current_period()
         elif self.type == 'invoiceitem':
             self.invoice_item = item.id
             self.subscription = item.subscription
@@ -2375,8 +2370,6 @@ class Subscription(StripeObject):
             enable_incomplete_payments and
             payment_behavior != 'error_if_incomplete')
 
-        self._set_up_plan(Plan._api_retrieve(items[0]['plan']))
-
         self.items = List('/v1/subscription_items?subscription=' + self.id)
         self.items._list.append(
             SubscriptionItem(
@@ -2396,19 +2389,13 @@ class Subscription(StripeObject):
     def plan(self):
         return self.items._list[0].plan
 
-    def _set_up_plan(self, plan):
-        current_period_start = datetime.fromtimestamp(self.start_date)
-        current_period_end = current_period_start
-        if plan.interval == 'day':
-            current_period_end += timedelta(days=1)
-        elif plan.interval == 'week':
-            current_period_end += timedelta(days=7)
-        elif plan.interval == 'month':
-            current_period_end += relativedelta(months=1)
-        elif plan.interval == 'year':
-            current_period_end += relativedelta(years=1)
-        self.current_period_start = int(current_period_start.timestamp())
-        self.current_period_end = int(current_period_end.timestamp())
+    @property
+    def current_period_start(self):
+        return self.items._list[0]._current_period()['start']
+
+    @property
+    def current_period_end(self):
+        return self.items._list[0]._current_period()['end']
 
     def _create_invoice(self):
         pending_items = [ii for ii in InvoiceItem._api_list_all(
@@ -2609,10 +2596,6 @@ class Subscription(StripeObject):
         if cancel_at is not None:
             self.cancel_at = cancel_at
 
-        if (self.plan.interval != old_plan.interval or
-                self.plan.interval_count != old_plan.interval_count):
-            self._set_up_plan(Plan._api_retrieve(items[0]['plan']))
-
         # If the subscription is updated to a more expensive plan, an invoice
         # is not automatically generated. To achieve that, an invoice has to
         # be manually created using the POST /invoices route.
@@ -2665,8 +2648,9 @@ class SubscriptionItem(StripeObject):
 
         quantity = try_convert_to_int(quantity)
         try:
-            assert type(subscription) is str
-            assert subscription.startswith('sub_')
+            if subscription is not None:
+                assert type(subscription) is str
+                assert subscription.startswith('sub_')
             assert type(plan) is str
             assert type(quantity) is int and quantity > 0
             if tax_rates is not None:
@@ -2689,6 +2673,25 @@ class SubscriptionItem(StripeObject):
         self.metadata = metadata or {}
 
         self._subscription = subscription
+
+    def _current_period(self):
+        if self._subscription:
+            obj = Subscription._api_retrieve(self._subscription).start_date
+            start_date = obj
+        else:
+            start_date = int(time.time())
+
+        end_date = datetime.fromtimestamp(start_date)
+        if self.plan.interval == 'day':
+            end_date += timedelta(days=1)
+        elif self.plan.interval == 'week':
+            end_date += timedelta(days=7)
+        elif self.plan.interval == 'month':
+            end_date += relativedelta(months=1)
+        elif self.plan.interval == 'year':
+            end_date += relativedelta(years=1)
+
+        return dict(start=start_date, end=int(end_date.timestamp()))
 
     def _calculate_amount(self):
         if self.plan.billing_scheme == 'per_unit':
