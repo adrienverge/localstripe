@@ -841,7 +841,7 @@ class Invoice(StripeObject):
 
     def __init__(self, customer=None, subscription=None, metadata=None,
                  items=[], date=None, description=None,
-                 simulation=False,
+                 simulation=False, upcoming=False,
                  tax_percent=None,  # deprecated
                  default_tax_rates=None,
                  **kwargs):
@@ -935,7 +935,10 @@ class Invoice(StripeObject):
         self._draft = True
         self._voided = False
 
-        if not simulation:
+        if not simulation and not upcoming:
+            if subscription is not None:
+                subscription_obj.latest_invoice = self.id
+
             schedule_webhook(Event('invoice.created', self))
 
     @property
@@ -1152,7 +1155,8 @@ class Invoice(StripeObject):
             raise UserError(404, 'No upcoming invoices for customer')
 
         elif not simulation and current_subscription:
-            return cls(customer=customer,
+            return cls(upcoming=upcoming,
+                       customer=customer,
                        subscription=current_subscription.id,
                        items=invoice_items,
                        tax_percent=tax_percent,
@@ -2414,7 +2418,6 @@ class Subscription(StripeObject):
             default_tax_rates=[tr.id
                                for tr in (self.default_tax_rates or [])],
             date=self.current_period_start)
-        self.latest_invoice = invoice.id
         invoice._finalize()
         if invoice.status != 'paid':  # 0 € invoices are already 'paid'
             Invoice._api_pay_invoice(invoice.id)
