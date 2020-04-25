@@ -1512,14 +1512,11 @@ class PaymentIntent(StripeObject):
     _id_prefix = 'pi_'
 
     def __init__(self, amount=None, currency=None, customer=None,
-                 payment_method=None, metadata=None, off_session=None,
-                 confirm=None, **kwargs):
+                 payment_method=None, metadata=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         amount = try_convert_to_int(amount)
-        off_session = try_convert_to_bool(off_session)
-        confirm = try_convert_to_bool(confirm)
         try:
             # Invoices with amount == 0 don't create PaymentIntents:
             assert type(amount) is int and amount > 0
@@ -1531,11 +1528,6 @@ class PaymentIntent(StripeObject):
                 assert (payment_method.startswith('pm_') or
                         payment_method.startswith('src_') or
                         payment_method.startswith('card_'))
-            if confirm is not None:
-                assert type(confirm) is bool
-            if off_session is not None:
-                assert type(off_session) is bool
-                assert confirm is True
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -1560,9 +1552,6 @@ class PaymentIntent(StripeObject):
 
         self._canceled = False
         self._authentication_failed = False
-
-        if confirm:
-            PaymentIntent._api_confirm(self)
 
     def _trigger_payment(self):
         if self.status != 'requires_confirmation':
@@ -1624,6 +1613,26 @@ class PaymentIntent(StripeObject):
                     'code': charge.failure_code,
                     'message': charge.failure_message,
                 }
+
+    @classmethod
+    def _api_create(cls, confirm=None, off_session=None, **data):
+        confirm = try_convert_to_bool(confirm)
+        off_session = try_convert_to_bool(off_session)
+        try:
+            if confirm is not None:
+                assert type(confirm) is bool
+            if off_session is not None:
+                assert type(off_session) is bool
+                assert confirm is True
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        obj = super()._api_create(**data)
+
+        if confirm:
+            cls._api_confirm(obj.id)
+
+        return obj
 
     @classmethod
     def _api_confirm(cls, id, payment_method=None, **kwargs):
