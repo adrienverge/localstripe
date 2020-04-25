@@ -470,6 +470,30 @@ curl -sSf -u $SK: $HOST/v1/subscriptions/$sub \
 curl -sSf -u $SK: $HOST/v1/invoices?customer=$cus
 
 cus=$(curl -sSf -u $SK: $HOST/v1/customers \
+           -d description='This customer will switch from a yearly to another
+                           yearly plan' \
+           -d email=switch@bar.com \
+      | grep -oE 'cus_\w+' | head -n 1)
+
+curl -sSf -u $SK: $HOST/v1/customers/$cus/sources \
+     -d source=$tok
+
+sub=$(curl -sSf -u $SK: $HOST/v1/subscriptions \
+           -d customer=$cus \
+           -d items[0][plan]=basique-annuel)
+sub_id=$(echo "$sub" | grep -oE 'sub_\w+' | head -n 1)
+sub_item_id=$(echo "$sub" | grep -oE 'si_\w+' | head -n 1)
+
+sub=$(curl -sSf -u $SK: $HOST/v1/subscriptions/$sub_id \
+           -d items[0][plan]=pro-annuel \
+           -d items[0][id]=$sub_item_id)
+
+in=$(curl -sSf -u $SK: $HOST/v1/invoices \
+          -d customer=$cus)
+grep -q "Abonnement PRO (annuel)" <<<"$in"
+grep -q "Abonnement basique (annuel)" <<<"$in"
+
+cus=$(curl -sSf -u $SK: $HOST/v1/customers \
            -d email=john.malkovich@example.com \
       | grep -oE 'cus_\w+' | head -n 1)
 
