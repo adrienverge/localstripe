@@ -754,3 +754,9 @@ status=$(
   curl -sSf -u $SK: $HOST/v1/charges/$charge \
   | grep -oE '"status": "failed"')
 [ -n "$status" ]
+
+# list charges
+total_count=$(
+  curl -sSf -u $SK: $HOST/v1/charges?customer=$cus\&created%5Bgt%5D=1588166306 \
+  | grep -oE '"total_count": 6')
+[ -n "$total_count" ]
