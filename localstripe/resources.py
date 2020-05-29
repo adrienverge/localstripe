@@ -564,7 +564,7 @@ class Customer(StripeObject):
                 assert type(business_vat_id) is str
             if preferred_locales is not None:
                 assert type(preferred_locales) is list
-                assert all(type(l) is str for l in preferred_locales)
+                assert all(type(lo) is str for lo in preferred_locales)
             if tax_id_data is None:
                 tax_id_data = []
             assert type(tax_id_data) is list
