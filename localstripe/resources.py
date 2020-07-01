@@ -518,7 +518,7 @@ class Coupon(StripeObject):
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         amount_off = try_convert_to_int(amount_off)
-        percent_off = try_convert_to_int(percent_off)
+        percent_off = try_convert_to_float(percent_off)
         duration_in_months = try_convert_to_int(duration_in_months)
         try:
             assert type(id) is str and id
