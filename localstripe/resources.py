@@ -478,27 +478,31 @@ class Charge(StripeObject):
     @classmethod
     def _api_list_all(cls, url, customer=None, created=None, limit=10):
         try:
-            assert _type(customer) is str and customer.startswith('cus_')
-            assert type(created) in (dict, str)
-            if type(created) is dict:
-                assert len(created.keys()) == 1 and \
-                    list(created.keys())[0] in ('gt', 'gte', 'lt', 'lte')
-                date = try_convert_to_int(list(created.values())[0])
-            elif type(created) is str:
-                date = try_convert_to_int(created)
-            assert type(date) is int and date > 1500000000
+            if customer is not None:
+                assert type(customer) is str and customer.startswith('cus_')
+            if created is not None:
+                assert type(created) in (dict, str)
+                if type(created) is dict:
+                    assert len(created.keys()) == 1 and \
+                        list(created.keys())[0] in ('gt', 'gte', 'lt', 'lte')
+                    date = try_convert_to_int(list(created.values())[0])
+                elif type(created) is str:
+                    date = try_convert_to_int(created)
+                assert type(date) is int and date > 1500000000
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        Customer._api_retrieve(customer)  # to return 404 if not existant
+        if customer:
+            Customer._api_retrieve(customer)  # to return 404 if not existant
 
         if created:
             if type(created) is str or not created.get('gt'):
                 raise UserError(500, 'Not implemented')
 
         li = super(Charge, cls)._api_list_all(url, limit=limit)
-        li._list = [c for c in li._list if c.customer == customer]
-        if created.get('gt'):
+        if customer:
+            li._list = [c for c in li._list if c.customer == customer]
+        if created and created.get('gt'):
             li._list = [c for c in li._list
                         if c.created > try_convert_to_int(created['gt'])]
         return li
