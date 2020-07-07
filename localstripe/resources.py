@@ -526,7 +526,7 @@ class Coupon(StripeObject):
             if amount_off is not None:
                 assert type(amount_off) is int and amount_off >= 0
             if percent_off is not None:
-                assert type(percent_off) is int
+                assert type(percent_off) is float
                 assert percent_off >= 0 and percent_off <= 100
             assert duration in ('forever', 'once', 'repeating')
             if amount_off is not None:
