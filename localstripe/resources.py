@@ -679,6 +679,14 @@ class Customer(StripeObject):
         return super()._api_delete(id)
 
     @classmethod
+    def _api_retrieve_sources(cls, id):
+        # return 404 if does not exist
+        Customer._api_retrieve(id)
+        
+        obj = cls._api_retrieve(id)
+        return obj.sources
+
+    @classmethod
     def _api_retrieve_source(cls, id, source_id, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
@@ -818,6 +826,9 @@ class Customer(StripeObject):
 
 
 extra_apis.extend((
+    # Retrieve list of sources:
+    ('GET', '/v1/customers/{id}/sources', Customer._api_retrieve_sources),
+    # Add a source
     ('POST', '/v1/customers/{id}/sources', Customer._api_add_source),
     # Retrieve single source by id:
     ('GET', '/v1/customers/{id}/sources/{source_id}',
