@@ -679,11 +679,8 @@ class Customer(StripeObject):
         return super()._api_delete(id)
 
     @classmethod
-    def _api_retrieve_sources(cls, id):
-        # return 404 if does not exist
-        Customer._api_retrieve(id)
-        
-        obj = cls._api_retrieve(id)
+    def _api_retrieve_sources(cls, id):        
+        obj = cls._api_retrieve(id) # return 404 if does not exist
         return obj.sources
 
     @classmethod
