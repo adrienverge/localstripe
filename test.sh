@@ -203,6 +203,14 @@ res=$(
   | grep -oE $card)
 [ -n "$res" ]
 
+
+# observe new card in customer sources response when requesting object=card
+res=$(
+  curl -sSfG -u $SK: $HOST/v1/customers/$cus/sources \
+     -d object=card \
+  | grep -oE $card)
+[ -n "$res" ]
+
 # delete the card
 curl -sSf -u $SK: $HOST/v1/customers/$cus/sources/$card \
      -X DELETE
