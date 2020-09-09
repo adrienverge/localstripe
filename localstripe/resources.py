@@ -927,6 +927,7 @@ class Invoice(StripeObject):
         self.application_fee = None
         self.attempt_count = 1
         self.attempted = True
+        self.billing_reason = None
         self.description = description
         self.discount = None
         self.ending_balance = 0
