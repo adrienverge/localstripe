@@ -1,12 +1,10 @@
 ---
 language: python
-dist: xenial  # required for Python >= 3.7 (travis-ci/travis-ci#9069)
 python:
-  - 3.5
-  - 3.6
   - 3.7
-  # Python nightly currently disabled because of:
-  #     curl: (56) Recv failure: Connection reset by peer
+  - 3.8
+  - 3.9-dev
+  # Python nightly currently disabled because of compilation issues
   # - nightly
 install:
   - pip install flake8 flake8-import-order doc8 Pygments
