@@ -2023,7 +2023,7 @@ class Product(StripeObject):
     object = 'product'
     _id_prefix = 'prod_'
 
-    def __init__(self, id=None, name=None, type=None, active=True,
+    def __init__(self, id=None, name=None, type='service', active=True,
                  caption=None, description=None, attributes=None,
                  shippable=True, url=None, statement_descriptor=None,
                  metadata=None, **kwargs):
