@@ -1,6 +1,11 @@
 FROM python:3
 
-RUN pip install localstripe
+COPY . /app
+WORKDIR /app
+RUN pip install . && \
+  rm -rf ./*
+
+USER www-data
 
 EXPOSE 8420
 
