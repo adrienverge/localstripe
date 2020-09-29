@@ -23,8 +23,34 @@ stages:
             displayName: Build docker image
             inputs:
               repository: mocks/localstripe
-              command: buildAndPush
+              command: build
               containerRegistry: Azure quadpay container registry
               tags: |
                 latest
                 $(Build.BuildNumber)
+          - ${{ if or( eq(variables['Build.SourceBranch'], 'refs/heads/qp-mock-master'), eq(variables['Build.Reason'], 'Manual') ) }}:
+              - task: Docker@2
+                displayName: Push docker image
+                inputs:
+                  repository: mocks/localstripe
+                  command: push
+                  containerRegistry: Azure quadpay container registry
+                  tags: |
+                    latest
+                    $(Build.BuildNumber)
+              - task: HelmDeploy@0
+                displayName: Deploy Stripe Mock
+                inputs:
+                  azureSubscription: $(azureSubscription)
+                  azureResourceGroup: qp-eastus2-dev-cluster
+                  kubernetesCluster: quadpay-eastus2-dev-cluster
+                  useClusterAdmin: true
+                  namespace: mocks
+                  command: upgrade
+                  chartType: FilePath
+                  chartPath: helm/stripe-mock
+                  releaseName: stripe-mock
+                  overrideValues: image.tag=$(Build.BuildNumber)
+                  force: true
+                  install: true
+                  arguments: --timeout 5m --create-namespace
