@@ -51,6 +51,5 @@ stages:
                   chartPath: helm/stripe-mock
                   releaseName: stripe-mock
                   overrideValues: image.tag=$(Build.BuildNumber)
-                  force: true
                   install: true
                   arguments: --timeout 5m --create-namespace
