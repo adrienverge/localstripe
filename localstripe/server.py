@@ -148,7 +148,7 @@ def get_api_key(request):
     elif header[0] == 'Bearer':
         api_key = header[1]
 
-    if api_key.startswith('sk_') and len(api_key) > 5:
+    if (api_key.startswith('sk_') or api_key.startswith('pk_')) and len(api_key) > 5:
         return api_key
 
 
