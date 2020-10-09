@@ -33,7 +33,8 @@ ingress:
     cert-manager.io/cluster-issuer: letsencrypt
   hosts:
     - host: stripe-mock.quadpay.xyz
-      paths: []
+      paths:
+        - /
   tls:
     - hosts:
         - stripe-mock.quadpay.xyz
