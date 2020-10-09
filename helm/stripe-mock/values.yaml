@@ -19,7 +19,7 @@ podAnnotations: {}
 podSecurityContext: {}
 
 securityContext:
-   readOnlyRootFilesystem: true
+   readOnlyRootFilesystem: false # We have to write a python pickle file to maintain state
    runAsNonRoot: true
    runAsUser: 1000
 
