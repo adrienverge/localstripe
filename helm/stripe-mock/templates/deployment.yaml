@@ -35,11 +35,11 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: 12111
+              containerPort: 8420
               protocol: TCP
           livenessProbe:
             tcpSocket:
-              port: 12111
+              port: 8420
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}

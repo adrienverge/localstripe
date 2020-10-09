@@ -28,12 +28,16 @@ service:
   port: 80
 
 ingress:
-  enabled: false
-  annotations: {}
+  enabled: true
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
   hosts:
-    - host: chart-example.local
+    - host: stripe-mock.quadpay.xyz
       paths: []
-  tls: []
+  tls:
+    - hosts:
+        - stripe-mock.quadpay.xyz
+      secretName: stripe-mock-tls
 
 resources:
    limits:
