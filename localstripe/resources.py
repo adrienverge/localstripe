@@ -2065,7 +2065,7 @@ class Source(StripeObject):
 
     def __init__(self, type=None, currency=None, owner=None, metadata=None,
                  # custom arguments depending on the type:
-                 sepa_debit=None, token=None,
+                 sepa_debit=None, token=None, amount=None,
                  **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
@@ -2085,6 +2085,24 @@ class Source(StripeObject):
                 assert _type(owner) is dict
                 assert _type(owner.get('name', '')) is str
                 assert _type(owner.get('email', '')) is str
+            else:
+                owner = {
+                    "address": {
+                        "city": None,
+                        "country": None,
+                        "line1": None,
+                        "line2": None,
+                        "postal_code": "10003",
+                        "state": None
+                    },
+                    "email": None,
+                    "name": None,
+                    "phone": None,
+                    "verified_address": None,
+                    "verified_email": None,
+                    "verified_name": None,
+                    "verified_phone": None
+                }
             if type == 'sepa_debit':
                 assert _type(sepa_debit) is dict
                 assert 'iban' in sepa_debit
@@ -2097,8 +2115,11 @@ class Source(StripeObject):
         super().__init__()
 
         self.type = type
+        if type == "card":
+            self.flow = "none"
         self.currency = currency
         self.owner = owner
+        self.amount = amount
         self.metadata = metadata or {}
         self.status = 'chargeable'
         self.usage = 'reusable'
