@@ -711,8 +711,6 @@ class Customer(StripeObject):
 
         if type(source) is str and source.startswith('src_'):
             source_obj = Source._api_retrieve(source)
-            if source_obj.type == "card":
-                source_obj = Card(source)
         elif type(source) is str and source.startswith('tok_'):
             source_obj = Token._api_retrieve(source).card
         else:
