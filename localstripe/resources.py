@@ -660,6 +660,17 @@ class Customer(StripeObject):
         return super()._api_delete(id)
 
     @classmethod
+    def _api_list_sources(cls, id, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs))
+
+        sources = Source._api_list_all(f"/v1/customers/{id}/sources")
+        sources._list = [source for source in sources._list if source.customer == id]
+
+        return sources
+
+
+    @classmethod
     def _api_retrieve_source(cls, id, source_id, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
@@ -799,6 +810,7 @@ class Customer(StripeObject):
 
 
 extra_apis.extend((
+    ('GET', '/v1/customers/{id}/sources', Customer._api_list_sources),
     ('POST', '/v1/customers/{id}/sources', Customer._api_add_source),
     # Retrieve single source by id:
     ('GET', '/v1/customers/{id}/sources/{source_id}',
