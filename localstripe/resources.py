@@ -431,7 +431,7 @@ class Charge(StripeObject):
         return obj
 
     @classmethod
-    def _api_capture(cls, id, amount=None, **kwargs):
+    def _api_capture(cls, id, amount=None, destination=None, statement_descriptor_suffix=None, **kwargs):
         if kwargs:
             logger = logging.getLogger('localstripe.resources.Charge')
             logger.warning('Unexpected ' + ', '.join(kwargs.keys()))
