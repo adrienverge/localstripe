@@ -660,14 +660,12 @@ class Customer(StripeObject):
         return super()._api_delete(id)
 
     @classmethod
-    def _api_list_sources(cls, id, **kwargs):
+    def _api_list_sources(cls, id, object=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs))
 
-        sources = Source._api_list_all(f"/v1/customers/{id}/sources")
-        sources._list = [source for source in sources._list if source.customer == id]
+        return Customer._api_retrieve(id).sources
 
-        return sources
 
 
     @classmethod
