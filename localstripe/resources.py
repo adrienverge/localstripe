@@ -621,6 +621,20 @@ class Customer(StripeObject):
             '/v1/customers/' + self.id + '/subscriptions', customer=self.id)
 
     @classmethod
+    def _api_list_all(cls, url, limit=None, email=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        li = List(url, limit=limit)
+        if email is None:
+            li._list = [value for key, value in store.items()
+                        if key.startswith(cls.object + ':')]
+        else:
+            li._list = [value for key, value in store.items()
+                        if key.startswith(cls.object + ':') and value.email == email]
+        return li
+
+    @classmethod
     def _api_create(cls, source=None, **data):
         obj = super()._api_create(**data)
 
