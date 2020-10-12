@@ -2065,7 +2065,7 @@ class Source(StripeObject):
 
     def __init__(self, type=None, currency=None, owner=None, metadata=None,
                  # custom arguments depending on the type:
-                 sepa_debit=None,
+                 sepa_debit=None, token=None,
                  **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
@@ -2075,7 +2075,12 @@ class Source(StripeObject):
                 'ach_credit_transfer', 'ach_debit', 'alipay', 'bancontact',
                 'bitcoin', 'card', 'eps', 'giropay', 'ideal', 'multibanco',
                 'p24', 'sepa_debit', 'sofort', 'three_d_secure')
-            assert _type(currency) is str and currency
+            if token is not None:
+                assert _type(token) is str
+                # Copy the source from the token properties
+                token_object = store.get(f"{Token.object}:{token}", None)
+                assert token_object is not None and token_object.type == type
+                self.card = token_object.card
             if owner is not None:
                 assert _type(owner) is dict
                 assert _type(owner.get('name', '')) is str
