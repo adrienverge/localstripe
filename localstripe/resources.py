@@ -327,6 +327,7 @@ class Charge(StripeObject):
     def __init__(self, amount=None, currency=None, description=None,
                  metadata=None, customer=None, source=None, capture=True,
                  destination=None, statement_descriptor_suffix=None,
+                 transfer_group=None,
                  **kwargs):
         if kwargs:
             logger = logging.getLogger('localstripe.resources.Charge')
