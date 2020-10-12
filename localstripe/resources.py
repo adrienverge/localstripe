@@ -329,6 +329,8 @@ class Charge(StripeObject):
                  destination=None, statement_descriptor_suffix=None,
                  **kwargs):
         if kwargs:
+            logger = logging.getLogger('localstripe.resources.Charge')
+            logger.warning('Unexpected ' + ', '.join(kwargs.keys()))
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         amount = try_convert_to_int(amount)
