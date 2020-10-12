@@ -15,6 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
+import logging
 from datetime import datetime, timedelta
 import hashlib
 import pickle
@@ -432,6 +433,8 @@ class Charge(StripeObject):
     @classmethod
     def _api_capture(cls, id, amount=None, **kwargs):
         if kwargs:
+            logger = logging.getLogger('localstripe.resources.Charge')
+            logger.warning('Unexpected ' + ', '.join(kwargs.keys()))
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         try:
