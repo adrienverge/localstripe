@@ -11,4 +11,4 @@ USER www-data
 
 EXPOSE 8420
 
-CMD ["gunicorn", "--workers", "1", "--bind", "0.0.0.0:8420", "--worker-class", "aiohttp.GunicornWebWorker", "localstripe.server:app"]
+CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:8420", "--worker-class", "aiohttp.GunicornWebWorker", "localstripe.server:app"]
