@@ -43,22 +43,38 @@ class Store(SqliteDict):
 
     def try_load_from_disk(self):
         pass
-        # try:
-        #     with open('/tmp/localstripe.pickle', 'rb') as f:
-        #         old = pickle.load(f)
-        #         self.clear()
-        #         self.update(old)
-        # except FileNotFoundError:
-        #     pass
 
     def dump_to_disk(self):
         pass
-        # with open('/tmp/localstripe.pickle', 'wb') as f:
-        #     pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+# class Store(dict):
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+#
+#     def try_load_from_disk(self):
+#         try:
+#             with open('/tmp/localstripe.pickle', 'rb') as f:
+#                 old = pickle.load(f)
+#                 self.clear()
+#                 self.update(old)
+#         except FileNotFoundError:
+#             pass
+#
+#     def dump_to_disk(self):
+#         with open('/tmp/localstripe.pickle', 'wb') as f:
+#             pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
+#
+#     def __setitem__(self, *args, **kwargs):
+#         super().__setitem__(*args, **kwargs)
+#         self.dump_to_disk()
+#
+#     def __delitem__(self, *args, **kwargs):
+#         super().__delitem__(*args, **kwargs)
+#         self.dump_to_disk()
 
 
-store = Store(autocommit=True, filename='/tmp/localstripe.sqlite')
-
+# store = Store(autocommit=True, filename='/tmp/localstripe.sqlite')
+store = Store()
 
 def random_id(n):
     return ''.join(random.choice(string.ascii_letters + string.digits)
@@ -122,6 +138,9 @@ class StripeObject(object):
             if key in store.keys():
                 raise UserError(409, 'Conflict')
             store[key] = self
+
+    def _store_key(self):
+        return self.object + ':' + self.id
 
     @classmethod
     def _get_class_for_id(cls, id):
@@ -302,6 +321,8 @@ class Card(StripeObject):
 
         self.customer = None
 
+        store[self._store_key()] = self
+
     @property
     def last4(self):
         return self._card_number[-4:]
@@ -377,6 +398,8 @@ class Charge(StripeObject):
         self.failure_code = None
         self.failure_message = None
         self.captured = capture
+
+        store[self._store_key()] = self
 
     def _trigger_payment(self, on_success=None, on_failure_now=None,
                          on_failure_later=None):
@@ -525,6 +548,8 @@ class Coupon(StripeObject):
         self.times_redeemed = 0
         self.valid = True
 
+        store[self._store_key()] = self
+
 
 class Customer(StripeObject):
     object = 'customer'
@@ -600,6 +625,8 @@ class Customer(StripeObject):
         self.tax_ids = List('/v1/customers/' + self.id + '/tax_ids')
         self.tax_ids._list = [TaxId(customer=self.id, **data)
                               for data in tax_id_data]
+
+        store[self._store_key()] = self
 
         schedule_webhook(Event('customer.created', self))
 
@@ -848,6 +875,8 @@ class Event(StripeObject):
         self.data = {'object': data._export()}
         self.api_version = '2017-08-15'
 
+        store[self._store_key()] = self
+
     @classmethod
     def _api_create(cls, **data):
         raise UserError(405, 'Method Not Allowed')
@@ -960,6 +989,8 @@ class Invoice(StripeObject):
 
         self._draft = True
         self._voided = False
+
+        store[self._store_key()] = self
 
         if not simulation:
             schedule_webhook(Event('invoice.created', self))
@@ -1423,6 +1454,8 @@ class InvoiceItem(StripeObject):
         self.tax_rates = tax_rates
         self.metadata = metadata or {}
 
+        store[self._store_key()] = self
+
     @classmethod
     def _api_list_all(cls, url, customer=None, limit=None):
         try:
@@ -1483,6 +1516,8 @@ class InvoiceLineItem(StripeObject):
         self.tax_rates = item.tax_rates or []
         self.metadata = item.metadata
         self.quantity = item.quantity
+
+        store[self._store_key()] = self
 
     @property
     def tax_amounts(self):
@@ -1578,6 +1613,8 @@ class PaymentIntent(StripeObject):
 
         self._canceled = False
         self._authentication_failed = False
+
+        store[self._store_key()] = self
 
     def _trigger_payment(self):
         if self.status != 'requires_confirmation':
@@ -1803,6 +1840,8 @@ class PaymentMethod(StripeObject):
         self.customer = None
         self.metadata = metadata or {}
 
+        store[self._store_key()] = self
+
     def _requires_authentication(self):
         if self.type == 'card':
             return self._card_number in ('4000002500003155',
@@ -1979,6 +2018,8 @@ class Plan(StripeObject):
         self.tiers = tiers
         self.tiers_mode = tiers_mode
 
+        store[self._store_key()] = self
+
         schedule_webhook(Event('plan.created', self))
 
     @property
@@ -2036,6 +2077,8 @@ class Product(StripeObject):
         self.statement_descriptor = statement_descriptor
         self.metadata = metadata or {}
 
+        store[self._store_key()] = self
+
         schedule_webhook(Event('product.created', self))
 
 
@@ -2066,6 +2109,8 @@ class Refund(StripeObject):
         self.date = self.created
         self.currency = charge_obj.currency
         self.status = 'succeeded'
+
+        store[self._store_key()] = self
 
         if self.amount is None:
             self.amount = charge_obj.amount
@@ -2163,6 +2208,8 @@ class Source(StripeObject):
                 'mandate_url': 'https://fake/NXDSYREGC9PSMKWY',
             }
 
+            store[self._store_key()] = self
+
     def _requires_authentication(self):
         if self.type == 'sepa_debit':
             return PaymentMethod._requires_authentication(self)
@@ -2213,6 +2260,8 @@ class SetupIntent(StripeObject):
         self.payment_method = None
         self.status = 'requires_payment_method'
         self.next_action = None
+
+        store[self._store_key()] = self
 
     @classmethod
     def _api_confirm(cls, id, use_stripe_sdk=None, client_secret=None,
@@ -2404,6 +2453,8 @@ class Subscription(StripeObject):
             self.trial_end is None and self.trial_period_days is None
         if create_an_invoice:
             self._create_invoice()
+
+        store[self._store_key()] = self
 
         schedule_webhook(Event('customer.subscription.created', self))
 
@@ -2695,6 +2746,8 @@ class SubscriptionItem(StripeObject):
 
         self._subscription = subscription
 
+        store[self._store_key()] = self
+
     def _calculate_amount(self):
         if self.plan.billing_scheme == 'per_unit':
             return self.plan.amount * self.quantity
@@ -2776,6 +2829,8 @@ class TaxId(StripeObject):
         elif '222222222' in value:
             self.verification['status'] = 'pending'
 
+        store[self._store_key()] = self
+
 
 class TaxRate(StripeObject):
     object = 'tax_rate'
@@ -2812,6 +2867,8 @@ class TaxRate(StripeObject):
         self.jurisdiction = jurisdiction
         self.metadata = metadata or {}
 
+        store[self._store_key()] = self
+
     def _tax_amount(self, amount):
         return {'amount': int(amount * self.percentage / 100.0),
                 'inclusive': self.inclusive,
@@ -2844,3 +2901,5 @@ class Token(StripeObject):
 
         self.type = 'card'
         self.card = card_obj
+
+        store[self._store_key()] = self
