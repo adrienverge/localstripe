@@ -2208,7 +2208,7 @@ class Source(StripeObject):
                 'mandate_url': 'https://fake/NXDSYREGC9PSMKWY',
             }
 
-            store[self._store_key()] = self
+        store[self._store_key()] = self
 
     def _requires_authentication(self):
         if self.type == 'sepa_debit':
