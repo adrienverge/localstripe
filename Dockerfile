@@ -11,4 +11,4 @@ USER www-data
 
 EXPOSE 8420
 
-CMD ["localstripe"]
+CMD ["gunicorn --workers 4 localstripe.server:app"]
