@@ -24,6 +24,8 @@ import re
 import string
 import time
 
+from sqlitedict import SqliteDict
+
 from dateutil.relativedelta import relativedelta
 
 from .errors import UserError
@@ -35,33 +37,27 @@ from .webhooks import schedule_webhook
 _type = type
 
 
-class Store(dict):
+class Store(SqliteDict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     def try_load_from_disk(self):
-        try:
-            with open('/tmp/localstripe.pickle', 'rb') as f:
-                old = pickle.load(f)
-                self.clear()
-                self.update(old)
-        except FileNotFoundError:
-            pass
+        pass
+        # try:
+        #     with open('/tmp/localstripe.pickle', 'rb') as f:
+        #         old = pickle.load(f)
+        #         self.clear()
+        #         self.update(old)
+        # except FileNotFoundError:
+        #     pass
 
     def dump_to_disk(self):
-        with open('/tmp/localstripe.pickle', 'wb') as f:
-            pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
-
-    def __setitem__(self, *args, **kwargs):
-        super().__setitem__(*args, **kwargs)
-        self.dump_to_disk()
-
-    def __delitem__(self, *args, **kwargs):
-        super().__delitem__(*args, **kwargs)
-        self.dump_to_disk()
+        pass
+        # with open('/tmp/localstripe.pickle', 'wb') as f:
+        #     pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-store = Store()
+store = Store(autocommit=True, filename='/tmp/localstripe.sqlite')
 
 
 def random_id(n):
