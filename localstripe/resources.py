@@ -73,8 +73,7 @@ class Store(SqliteDict):
 #         self.dump_to_disk()
 
 
-# store = Store(autocommit=True, filename='/tmp/localstripe.sqlite')
-store = Store()
+store = Store(autocommit=True, filename='/tmp/localstripe.sqlite', journal_mode=False)
 
 def random_id(n):
     return ''.join(random.choice(string.ascii_letters + string.digits)
