@@ -46,7 +46,7 @@ resources:
      memory: 64Gi
    requests:
      cpu: 3000m
-     memory: 12Gi
+     memory: 8Gi
 
 autoscaling:
   enabled: true
