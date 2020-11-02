@@ -11,4 +11,5 @@ USER www-data
 
 EXPOSE 8420
 
-CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:8420", "--worker-class", "aiohttp.GunicornWebWorker", "localstripe.server:app"]
+# Apparently the suggested number of workers is (2*CPU)+1. Our current CPU is 3 to 12, so at least 7
+CMD ["gunicorn", "--workers", "7", "--bind", "0.0.0.0:8420", "--worker-class", "aiohttp.GunicornWebWorker", "localstripe.server:app"]
