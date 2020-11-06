@@ -28,7 +28,7 @@ from .resources import Charge, Coupon, Customer, \
                        Event, Invoice, InvoiceItem, PaymentIntent, \
                        PaymentMethod, Plan, Product, Refund, SetupIntent, \
                        Source, Subscription, SubscriptionItem, TaxRate, \
-                       Token, extra_apis, store
+                       Token, extra_apis, redisStore
 from .errors import UserError
 from .webhooks import register_webhook
 
@@ -301,7 +301,8 @@ async def config_webhook(request):
 
 
 async def flush_store(request):
-    store.clear()
+    # store.clear()
+    redisStore.flushall()
     return web.Response()
 
 

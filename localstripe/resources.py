@@ -24,7 +24,8 @@ import re
 import string
 import time
 
-from sqlitedict import SqliteDict
+# from sqlitedict import SqliteDict
+import redis
 
 from dateutil.relativedelta import relativedelta
 
@@ -37,15 +38,15 @@ from .webhooks import schedule_webhook
 _type = type
 
 
-class Store(SqliteDict):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+# class Store(SqliteDict):
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
 
-    def try_load_from_disk(self):
-        pass
+#     def try_load_from_disk(self):
+#         pass
 
-    def dump_to_disk(self):
-        pass
+#     def dump_to_disk(self):
+#         pass
 
 # class Store(dict):
 #     def __init__(self, *args, **kwargs):
@@ -73,7 +74,8 @@ class Store(SqliteDict):
 #         self.dump_to_disk()
 
 
-store = Store(autocommit=True, filename='/tmp/localstripe.sqlite', journal_mode=False)
+# store = Store(autocommit=True, filename='/tmp/localstripe.sqlite', journal_mode=False)
+redisStore = redis.Redis()
 
 def random_id(n):
     return ''.join(random.choice(string.ascii_letters + string.digits)
@@ -134,9 +136,9 @@ class StripeObject(object):
             self.livemode = False
 
             key = self.object + ':' + self.id
-            if key in store.keys():
+            if redisStore.exists(key) > 0:
                 raise UserError(409, 'Conflict')
-            store[key] = self
+            redisStore.set(key, pickle.dumps(self))
 
     def _store_key(self):
         return self.object + ':' + self.id
@@ -154,7 +156,7 @@ class StripeObject(object):
 
     @classmethod
     def _api_retrieve(cls, id):
-        obj = store.get(cls.object + ':' + id, None)
+        obj = pickle.loads(redisStore.get(cls.object + ':' + id))
 
         if obj is None:
             raise UserError(404, 'Not Found')
@@ -170,19 +172,17 @@ class StripeObject(object):
     @classmethod
     def _api_delete(cls, id):
         key = cls.object + ':' + id
-        if key not in store.keys():
+        if redisStore.exists(key) == 0:
             raise UserError(404, 'Not Found')
-        del store[key]
+        redisStore.delete(key)
         return {"deleted": True, "id": id}
 
     @classmethod
     def _api_list_all(cls, url, limit=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
-
         li = List(url, limit=limit)
-        li._list = [value for key, value in store.items()
-                    if key.startswith(cls.object + ':')]
+        li._list = redisStore.mget(redisStore.keys(cls.object + ':'))
         return li
 
     def _update(self, **data):
@@ -320,7 +320,7 @@ class Card(StripeObject):
 
         self.customer = None
 
-        store[self._store_key()] = self
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
     @property
     def last4(self):
@@ -398,7 +398,7 @@ class Charge(StripeObject):
         self.failure_message = None
         self.captured = capture
 
-        store[self._store_key()] = self
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
     def _trigger_payment(self, on_success=None, on_failure_now=None,
                          on_failure_later=None):
@@ -547,7 +547,7 @@ class Coupon(StripeObject):
         self.times_redeemed = 0
         self.valid = True
 
-        store[self._store_key()] = self
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
 
 class Customer(StripeObject):
@@ -625,7 +625,7 @@ class Customer(StripeObject):
         self.tax_ids._list = [TaxId(customer=self.id, **data)
                               for data in tax_id_data]
 
-        store[self._store_key()] = self
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
         schedule_webhook(Event('customer.created', self))
 
@@ -656,11 +656,9 @@ class Customer(StripeObject):
 
         li = List(url, limit=limit)
         if email is None:
-            li._list = [value for key, value in store.items()
-                        if key.startswith(cls.object + ':')]
+            li._list = redisStore.mget(redisStore.keys(cls.object + ':'))
         else:
-            li._list = [value for key, value in store.items()
-                        if key.startswith(cls.object + ':') and value.email == email]
+            li._list = list(filter(lambda x: x.email == email), redisStore.mget(redisStore.keys(cls.object + ':')))
         return li
 
     @classmethod
@@ -874,7 +872,7 @@ class Event(StripeObject):
         self.data = {'object': data._export()}
         self.api_version = '2017-08-15'
 
-        store[self._store_key()] = self
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
     @classmethod
     def _api_create(cls, **data):
@@ -989,7 +987,7 @@ class Invoice(StripeObject):
         self._draft = True
         self._voided = False
 
-        store[self._store_key()] = self
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
         if not simulation:
             schedule_webhook(Event('invoice.created', self))
@@ -1313,7 +1311,7 @@ class Invoice(StripeObject):
             subscription_trial_end=subscription_trial_end)
 
         # Do not store this invoice
-        del store[cls.object + ':' + invoice.id]
+        redisStore.delete(cls.object + ':' + invoice.id)
         invoice.id = None
 
         return invoice
@@ -1453,7 +1451,7 @@ class InvoiceItem(StripeObject):
         self.tax_rates = tax_rates
         self.metadata = metadata or {}
 
-        store[self._store_key()] = self
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
     @classmethod
     def _api_list_all(cls, url, customer=None, limit=None):
@@ -1516,7 +1514,7 @@ class InvoiceLineItem(StripeObject):
         self.metadata = item.metadata
         self.quantity = item.quantity
 
-        store[self._store_key()] = self
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
     @property
     def tax_amounts(self):
@@ -1613,7 +1611,7 @@ class PaymentIntent(StripeObject):
         self._canceled = False
         self._authentication_failed = False
 
-        store[self._store_key()] = self
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
     def _trigger_payment(self):
         if self.status != 'requires_confirmation':
@@ -1839,7 +1837,7 @@ class PaymentMethod(StripeObject):
         self.customer = None
         self.metadata = metadata or {}
 
-        store[self._store_key()] = self
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
     def _requires_authentication(self):
         if self.type == 'card':
@@ -2017,7 +2015,7 @@ class Plan(StripeObject):
         self.tiers = tiers
         self.tiers_mode = tiers_mode
 
-        store[self._store_key()] = self
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
         schedule_webhook(Event('plan.created', self))
 
@@ -2076,7 +2074,7 @@ class Product(StripeObject):
         self.statement_descriptor = statement_descriptor
         self.metadata = metadata or {}
 
-        store[self._store_key()] = self
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
         schedule_webhook(Event('product.created', self))
 
@@ -2109,7 +2107,7 @@ class Refund(StripeObject):
         self.currency = charge_obj.currency
         self.status = 'succeeded'
 
-        store[self._store_key()] = self
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
         if self.amount is None:
             self.amount = charge_obj.amount
@@ -2149,7 +2147,7 @@ class Source(StripeObject):
             if token is not None:
                 assert _type(token) is str
                 # Copy the source from the token properties
-                token_object = store.get(f"{Token.object}:{token}", None)
+                token_object = pickle.loads(redisStore.get(f"{Token.object}:{token}"))
                 assert token_object is not None and token_object.type == type
                 self.card = token_object.card
             if owner is not None:
@@ -2207,7 +2205,7 @@ class Source(StripeObject):
                 'mandate_url': 'https://fake/NXDSYREGC9PSMKWY',
             }
 
-        store[self._store_key()] = self
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
     def _requires_authentication(self):
         if self.type == 'sepa_debit':
@@ -2260,7 +2258,7 @@ class SetupIntent(StripeObject):
         self.status = 'requires_payment_method'
         self.next_action = None
 
-        store[self._store_key()] = self
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
     @classmethod
     def _api_confirm(cls, id, use_stripe_sdk=None, client_secret=None,
@@ -2453,7 +2451,7 @@ class Subscription(StripeObject):
         if create_an_invoice:
             self._create_invoice()
 
-        store[self._store_key()] = self
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
         schedule_webhook(Event('customer.subscription.created', self))
 
@@ -2745,7 +2743,7 @@ class SubscriptionItem(StripeObject):
 
         self._subscription = subscription
 
-        store[self._store_key()] = self
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
     def _calculate_amount(self):
         if self.plan.billing_scheme == 'per_unit':
@@ -2828,7 +2826,7 @@ class TaxId(StripeObject):
         elif '222222222' in value:
             self.verification['status'] = 'pending'
 
-        store[self._store_key()] = self
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
 
 class TaxRate(StripeObject):
@@ -2866,7 +2864,7 @@ class TaxRate(StripeObject):
         self.jurisdiction = jurisdiction
         self.metadata = metadata or {}
 
-        store[self._store_key()] = self
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
     def _tax_amount(self, amount):
         return {'amount': int(amount * self.percentage / 100.0),
@@ -2901,4 +2899,4 @@ class Token(StripeObject):
         self.type = 'card'
         self.card = card_obj
 
-        store[self._store_key()] = self
+        redisStore.set(self._store_key(), pickle.dumps(self))
