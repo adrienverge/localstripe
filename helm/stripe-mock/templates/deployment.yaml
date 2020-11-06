@@ -29,6 +29,15 @@ spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
+        - name: redis
+          image: library/redis:6-alpine
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            tcpSocket:
+              port: 6379
+          args:
+            - '--save ""'
+            - appendonly no
         - name: {{ .Chart.Name }}
           env:
             - name: DD_VERSION
