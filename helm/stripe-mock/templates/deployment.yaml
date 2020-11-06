@@ -32,12 +32,15 @@ spec:
         - name: redis
           image: library/redis:6-alpine
           imagePullPolicy: IfNotPresent
+          command:
+            - redis-server
+            - "/redis-config/redis.conf"
           livenessProbe:
             tcpSocket:
               port: 6379
-          args:
-            - '--save ""'
-            - appendonly no
+          volumeMounts:
+            - mountPath: /redis-config
+              name: {{ include "stripe-mock.fullname" . }}-redis-config
         - name: {{ .Chart.Name }}
           env:
             - name: DD_VERSION
@@ -71,3 +74,10 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      volumes:
+        - name: redis-config
+          configMap:
+            name: {{ include "stripe-mock.fullname" . }}-redis-config
+            items:
+              - key: redis-config
+                path: redis.conf
