@@ -40,7 +40,7 @@ spec:
               port: 6379
           volumeMounts:
             - mountPath: /redis-config
-              name: {{ include "stripe-mock.fullname" . }}-redis-config
+              name: redis-config
         - name: {{ .Chart.Name }}
           env:
             - name: DD_VERSION
