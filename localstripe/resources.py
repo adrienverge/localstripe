@@ -2868,11 +2868,42 @@ class IssuingCardholder(StripeObject):
     object = 'issuing.cardholder'
     _id_prefix = 'ich_'
 
-    def __init__(self, email=None, phone_number=None, **kwargs):
+    def __init__(self, name=None, status=None, billing=None, type=None,
+                 metadata=None, email=None, phone_number=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
+        try:
+            if name is not None:
+                assert _type(name) is str
+            if status is not None:
+                assert _type(status) is str and status in ["active", "inactive", "blocked"]
+            if billing is not None:
+                assert _type(billing) is dict
+                assert set(billing.keys()).issubset({
+                    'city', 'country', 'line1', 'line2', 'postal_code',
+                    'state'})
+                assert all(type(f) is str for f in billing.values())
+            if metadata is not None:
+                assert _type(metadata) is dict
+            if email is not None:
+                assert _type(email) is str
+            if phone_number is not None:
+                assert _type(phone_number) is str
+        except AssertionError:
+            raise UserError(400, "Bad request")
+
         super().__init__()
+
+        self.name = name
+        self.status = status
+        self.type = type
+        self.metadata = metadata
+        self.email = email
+        self.phone_number = phone_number
+        self.billing = billing
+
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
     @classmethod
     def _api_list_all(cls, url, limit=None, email=None, phone_number=None, **kwargs):
@@ -2882,6 +2913,10 @@ class IssuingCardholder(StripeObject):
         li = List(url, limit=limit)
         if email is None and phone_number is None:
             li._list = redisStore.mget(redisStore.keys(cls.object + ':'))
-        else:
+        elif phone_number is not None and email is None:
+            li._list = list(filter(lambda x: x.phone_number == phone_number, redisStore.mget(redisStore.keys(cls.object + ':'))))
+        elif phone_number is None and email is not None:
             li._list = list(filter(lambda x: x.email == email, redisStore.mget(redisStore.keys(cls.object + ':'))))
+        else:
+            li._list = list(filter(lambda x: x.email == email and x.phone_number == phone_number, redisStore.mget(redisStore.keys(cls.object + ':'))))
         return li
