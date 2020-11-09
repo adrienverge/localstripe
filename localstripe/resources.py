@@ -2931,3 +2931,35 @@ class IssuingCardholder(StripeObject):
         else:
             li._list = list(filter(lambda x: x.email == email and x.phone_number == phone_number, redisStore.mget(redisStore.keys(cls.object + ':'))))
         return li
+
+
+class IssuingCards(StripeObject):
+    object = 'issuing.card'
+    _id_prefix = 'ic_'
+
+    def __init__(self, cardholder=None, currency=None, metadata=None, status=None, type=None):
+        try:
+            assert _type(cardholder) is str and cardholder
+            assert _type(currency) is str and currency
+            if metadata is not None:
+                assert _type(metadata) is dict
+            if status is not None:
+                assert _type(status) is str and status in ["active", "inactive", "blocked"]
+            assert _type(type) is str and type in ['physical', 'virtual']
+
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        cardholder_object = pickle.loads(redisStore.get(f"{IssuingCardholder.object}:{cardholder}"))
+        if cardholder is None:
+            raise UserError(400, f"No cardholder matching ID: {cardholder}")
+
+        super().__init__()
+
+        self.type = type
+        self.metadata = metadata
+        self.currency = currency
+        self.cardholder = cardholder_object
+        self.status = status
+
+        redisStore.set(self._store_key(), pickle.dumps(self))
