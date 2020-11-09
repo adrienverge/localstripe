@@ -2873,3 +2873,15 @@ class IssuingCardholder(StripeObject):
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         super().__init__()
+
+    @classmethod
+    def _api_list_all(cls, url, limit=None, email=None, phone_number=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        li = List(url, limit=limit)
+        if email is None and phone_number is None:
+            li._list = redisStore.mget(redisStore.keys(cls.object + ':'))
+        else:
+            li._list = list(filter(lambda x: x.email == email, redisStore.mget(redisStore.keys(cls.object + ':'))))
+        return li
