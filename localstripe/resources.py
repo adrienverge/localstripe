@@ -2874,17 +2874,6 @@ class IssuingCardholder(StripeObject):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
-        logger = logging.getLogger("StripeObject.IssuingCardholder")
-        print(json.dumps({
-            'email': email,
-            'phone': phone_number,
-            'name': name,
-            'status': status,
-            'billing': billing,
-            'type': type,
-            'metadata': metadata
-        }, indent=2))
-
         try:
             if name is not None:
                 assert _type(name) is str
@@ -2892,7 +2881,8 @@ class IssuingCardholder(StripeObject):
                 assert _type(status) is str and status in ["active", "inactive", "blocked"]
             if billing is not None:
                 assert _type(billing) is dict
-                assert set(billing.keys()).issubset({
+                assert _type(billing['address']) is dict
+                assert set(billing['address'].keys()).issubset({
                     'city', 'country', 'line1', 'line2', 'postal_code',
                     'state'})
                 assert all(type(f) is str for f in billing.values())
@@ -2901,8 +2891,17 @@ class IssuingCardholder(StripeObject):
             if email is not None:
                 assert _type(email) is str
             if phone_number is not None:
-                assert _type(phone_number) is str or _type(phone_number) is int
+                assert _type(phone_number) is str
         except AssertionError:
+            print(json.dumps({
+                'email': email,
+                'phone': phone_number,
+                'name': name,
+                'status': status,
+                'billing': billing,
+                'type': type,
+                'metadata': metadata
+            }, indent=2))
             raise UserError(400, "Bad request")
 
         super().__init__()
@@ -2912,7 +2911,7 @@ class IssuingCardholder(StripeObject):
         self.type = type
         self.metadata = metadata
         self.email = email
-        self.phone_number = str(phone_number)
+        self.phone_number = phone_number
         self.billing = billing
 
         redisStore.set(self._store_key(), pickle.dumps(self))
