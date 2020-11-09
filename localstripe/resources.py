@@ -18,6 +18,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 import hashlib
+import json
 import pickle
 import random
 import re
@@ -2889,7 +2890,7 @@ class IssuingCardholder(StripeObject):
             if email is not None:
                 assert _type(email) is str
             if phone_number is not None:
-                assert _type(phone_number) is str
+                assert _type(phone_number) is str or _type(phone_number) is int
         except AssertionError:
             raise UserError(400, "Bad request")
 
