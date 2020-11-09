@@ -2874,6 +2874,17 @@ class IssuingCardholder(StripeObject):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
+        logger = logging.getLogger("StripeObject.IssuingCardholder")
+        logger.debug(json.dumps({
+            'email': email,
+            'phone': phone_number,
+            'name': name,
+            'status': status,
+            'billing': billing,
+            'type': type,
+            'metadata': metadata
+        }, indent=2))
+
         try:
             if name is not None:
                 assert _type(name) is str
