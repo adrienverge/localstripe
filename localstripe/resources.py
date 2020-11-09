@@ -2901,7 +2901,7 @@ class IssuingCardholder(StripeObject):
         self.type = type
         self.metadata = metadata
         self.email = email
-        self.phone_number = phone_number
+        self.phone_number = str(phone_number)
         self.billing = billing
 
         redisStore.set(self._store_key(), pickle.dumps(self))
