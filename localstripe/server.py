@@ -28,7 +28,7 @@ from .resources import Charge, Coupon, Customer, \
                        Event, Invoice, InvoiceItem, PaymentIntent, \
                        PaymentMethod, Plan, Product, Refund, SetupIntent, \
                        Source, Subscription, SubscriptionItem, TaxRate, \
-                       Token, IssuingCardholder, extra_apis, redisStore
+                       Token, IssuingCardholder, IssuingCard, extra_apis, redisStore
 from .errors import UserError
 from .webhooks import register_webhook
 
@@ -276,7 +276,7 @@ for cls in (Charge, Coupon, Customer, Event, Invoice, InvoiceItem,
         app.router.add_route(method, url, func(cls, url))
 
 # Issuing Support
-for cls in (IssuingCardholder,):
+for cls in (IssuingCardholder, IssuingCard):
     for method, url, func in (
             ('POST', '/v1/' + cls.object.replace('.', '/') + 's', api_create),
             ('GET', '/v1/' + cls.object.replace('.', '/') + 's/{id}', api_retrieve),

@@ -2933,7 +2933,7 @@ class IssuingCardholder(StripeObject):
         return li
 
 
-class IssuingCards(StripeObject):
+class IssuingCard(StripeObject):
     object = 'issuing.card'
     _id_prefix = 'ic_'
 
