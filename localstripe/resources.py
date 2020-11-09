@@ -658,7 +658,7 @@ class Customer(StripeObject):
         if email is None:
             li._list = redisStore.mget(redisStore.keys(cls.object + ':'))
         else:
-            li._list = list(filter(lambda x: x.email == email), redisStore.mget(redisStore.keys(cls.object + ':')))
+            li._list = list(filter(lambda x: x.email == email, redisStore.mget(redisStore.keys(cls.object + ':'))))
         return li
 
     @classmethod

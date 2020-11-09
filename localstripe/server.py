@@ -316,8 +316,8 @@ def start():
     parser.add_argument('--from-scratch', action='store_true')
     args = parser.parse_args()
 
-    if not args.from_scratch:
-        store.try_load_from_disk()
+    if args.from_scratch:
+        redisStore.flushall(asynchronous=False)
 
     # Listen on both IPv4 and IPv6
     sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
