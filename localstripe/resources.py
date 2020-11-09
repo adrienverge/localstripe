@@ -2875,7 +2875,7 @@ class IssuingCardholder(StripeObject):
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         logger = logging.getLogger("StripeObject.IssuingCardholder")
-        logger.debug(json.dumps({
+        print(json.dumps({
             'email': email,
             'phone': phone_number,
             'name': name,
