@@ -2868,7 +2868,7 @@ class IssuingCardholder(StripeObject):
     object = 'issuing.cardholder'
     _id_prefix = 'ich_'
 
-    def __init__(self, **kwargs):
+    def __init__(self, email=None, phone_number=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
