@@ -24,7 +24,6 @@ import re
 import string
 import time
 
-# from sqlitedict import SqliteDict
 import redis
 
 from dateutil.relativedelta import relativedelta
@@ -37,45 +36,8 @@ from .webhooks import schedule_webhook
 # `type` as a method argument:
 _type = type
 
-
-# class Store(SqliteDict):
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-
-#     def try_load_from_disk(self):
-#         pass
-
-#     def dump_to_disk(self):
-#         pass
-
-# class Store(dict):
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-#
-#     def try_load_from_disk(self):
-#         try:
-#             with open('/tmp/localstripe.pickle', 'rb') as f:
-#                 old = pickle.load(f)
-#                 self.clear()
-#                 self.update(old)
-#         except FileNotFoundError:
-#             pass
-#
-#     def dump_to_disk(self):
-#         with open('/tmp/localstripe.pickle', 'wb') as f:
-#             pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
-#
-#     def __setitem__(self, *args, **kwargs):
-#         super().__setitem__(*args, **kwargs)
-#         self.dump_to_disk()
-#
-#     def __delitem__(self, *args, **kwargs):
-#         super().__delitem__(*args, **kwargs)
-#         self.dump_to_disk()
-
-
-# store = Store(autocommit=True, filename='/tmp/localstripe.sqlite', journal_mode=False)
 redisStore = redis.Redis()
+
 
 def random_id(n):
     return ''.join(random.choice(string.ascii_letters + string.digits)
@@ -2900,3 +2862,14 @@ class Token(StripeObject):
         self.card = card_obj
 
         redisStore.set(self._store_key(), pickle.dumps(self))
+
+
+class IssuingCardholder(StripeObject):
+    object = 'issuing.cardholder'
+    _id_prefix = 'ich_'
+
+    def __init__(self, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        super().__init__()

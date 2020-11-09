@@ -28,7 +28,7 @@ from .resources import Charge, Coupon, Customer, \
                        Event, Invoice, InvoiceItem, PaymentIntent, \
                        PaymentMethod, Plan, Product, Refund, SetupIntent, \
                        Source, Subscription, SubscriptionItem, TaxRate, \
-                       Token, extra_apis, redisStore
+                       Token, IssuingCardholder, extra_apis, redisStore
 from .errors import UserError
 from .webhooks import register_webhook
 
@@ -274,6 +274,17 @@ for cls in (Charge, Coupon, Customer, Event, Invoice, InvoiceItem,
             ('DELETE', '/v1/' + cls.object + 's/{id}', api_delete),
             ('GET', '/v1/' + cls.object + 's', api_list_all)):
         app.router.add_route(method, url, func(cls, url))
+
+# Issuing Support
+for cls in (IssuingCardholder,):
+    for method, url, func in (
+            ('POST', '/v1/' + cls.object.replace('.', '/') + 's', api_create),
+            ('GET', '/v1/' + cls.object.replace('.', '/') + 's/{id}', api_retrieve),
+            ('POST', '/v1/' + cls.object.replace('.', '/') + 's/{id}', api_update),
+            ('DELETE', '/v1/' + cls.object.replace('.', '/') + 's/{id}', api_delete),
+            ('GET', '/v1/' + cls.object.replace('.', '/') + 's', api_list_all)):
+        app.router.add_route(method, url, func(cls, url))
+
 
 
 def localstripe_js(request):
