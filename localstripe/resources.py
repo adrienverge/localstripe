@@ -2885,7 +2885,7 @@ class IssuingCardholder(StripeObject):
                 assert set(billing['address'].keys()).issubset({
                     'city', 'country', 'line1', 'line2', 'postal_code',
                     'state'})
-                assert all(_type(f) is str for f in billing.values())
+                assert all(_type(f) is str for f in billing['address'].values())
             if metadata is not None:
                 assert _type(metadata) is dict
             if email is not None:
