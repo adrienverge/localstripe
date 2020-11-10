@@ -2049,7 +2049,7 @@ class Refund(StripeObject):
     object = 'refund'
     _id_prefix = 're_'
 
-    def __init__(self, charge=None, amount=None, metadata=None, **kwargs):
+    def __init__(self, charge=None, amount=None, metadata=None, reason=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -2058,6 +2058,8 @@ class Refund(StripeObject):
             assert type(charge) is str and charge.startswith('ch_')
             if amount is not None:
                 assert type(amount) is int and amount > 0
+            if reason is not None:
+                assert type(reason) is str
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -2072,11 +2074,12 @@ class Refund(StripeObject):
         self.date = self.created
         self.currency = charge_obj.currency
         self.status = 'succeeded'
-
-        redisStore.set(self._store_key(), pickle.dumps(self))
+        self.reason = reason
 
         if self.amount is None:
             self.amount = charge_obj.amount
+
+        redisStore.set(self._store_key(), pickle.dumps(self))
 
     @classmethod
     def _api_list_all(cls, url, charge=None, limit=None):
@@ -2100,7 +2103,7 @@ class Source(StripeObject):
 
     def __init__(self, type=None, currency=None, owner=None, metadata=None,
                  # custom arguments depending on the type:
-                 sepa_debit=None, token=None, amount=None,
+                 sepa_debit=None, token=None, amount=None, card=None,
                  **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
@@ -2110,6 +2113,9 @@ class Source(StripeObject):
                 'ach_credit_transfer', 'ach_debit', 'alipay', 'bancontact',
                 'bitcoin', 'card', 'eps', 'giropay', 'ideal', 'multibanco',
                 'p24', 'sepa_debit', 'sofort', 'three_d_secure')
+            if card is not None:
+                assert _type(card) is dict
+                self.card = card
             if token is not None:
                 assert _type(token) is str
                 # Copy the source from the token properties
