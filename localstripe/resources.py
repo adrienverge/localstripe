@@ -2062,7 +2062,7 @@ class Refund(StripeObject):
             if reason is not None:
                 assert type(reason) is str
             if reverse_transfer is not None:
-                assert type(reverse_transfer) is bool
+                assert type(reverse_transfer) is str and (reverse_transfer == 'True' or reverse_transfer == 'False')
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -2078,7 +2078,13 @@ class Refund(StripeObject):
         self.currency = charge_obj.currency
         self.status = 'succeeded'
         self.reason = reason
-        self.reverse_transfer = reverse_transfer
+
+        if reverse_transfer == 'True':
+            self.reverse_transfer = True
+        elif reverse_transfer == 'False':
+            self.reverse_transfer = False
+        else:
+            self.reverse_transfer = None
 
         if self.amount is None:
             self.amount = charge_obj.amount
