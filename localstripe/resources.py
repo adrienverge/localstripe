@@ -210,6 +210,8 @@ class StripeObject(object):
                 if type(obj[k]) is str:
                     id = obj[k]
                     cls = StripeObject._get_class_for_id(id)
+                    if cls is None:
+                        print(f"Could not find class for ID {id}")
                     obj[k] = cls._api_retrieve(id)._export()
                 if path is not None:
                     do_expand(path, obj[k])
