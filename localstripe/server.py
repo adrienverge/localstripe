@@ -201,7 +201,12 @@ def api_create(cls, url):
         data = await get_post_data(request)
         data = data or {}
         expand = data.pop('expand', None)
-        return json_response(cls._api_create(**data)._export(expand=expand))
+        try:
+            response = json_response(cls._api_create(**data)._export(expand=expand))
+        except UserError as e:
+            print(f"Invalid request: {json.dumps(data, indent=2)}")
+            raise e
+        return response
     return f
 
 
