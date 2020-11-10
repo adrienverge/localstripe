@@ -2049,7 +2049,8 @@ class Refund(StripeObject):
     object = 'refund'
     _id_prefix = 're_'
 
-    def __init__(self, charge=None, amount=None, metadata=None, reason=None, **kwargs):
+    def __init__(self, charge=None, amount=None, metadata=None, reason=None,
+                 reverse_transfer=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -2060,6 +2061,8 @@ class Refund(StripeObject):
                 assert type(amount) is int and amount > 0
             if reason is not None:
                 assert type(reason) is str
+            if reverse_transfer is not None:
+                assert type(reverse_transfer) is bool
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -2075,6 +2078,7 @@ class Refund(StripeObject):
         self.currency = charge_obj.currency
         self.status = 'succeeded'
         self.reason = reason
+        self.reverse_transfer = reverse_transfer
 
         if self.amount is None:
             self.amount = charge_obj.amount
