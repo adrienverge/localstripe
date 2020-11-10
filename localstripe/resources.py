@@ -2961,5 +2961,10 @@ class IssuingCard(StripeObject):
         self.currency = currency
         self.cardholder = cardholder_object
         self.status = status
+        self.number = '4242424242424242'
+        self.last4 = self.number[-4:]
+        self.exp_month = 7
+        self.exp_year = 2024
+        self.cvc = '010'
 
         redisStore.set(self._store_key(), pickle.dumps(self))
