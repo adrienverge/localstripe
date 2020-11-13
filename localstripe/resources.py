@@ -683,6 +683,7 @@ class Customer(StripeObject):
     @classmethod
     def _api_update_source(cls, id, source_id, **data):
         source_obj = cls._api_retrieve_source(id, source_id)
+        print(f"Attaching {type(source_obj)} to customer {id}")
         return type(source_obj)._api_update(source_id, **data)
 
     @classmethod
