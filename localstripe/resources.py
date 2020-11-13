@@ -40,6 +40,11 @@ _type = type
 redisStore = redis.Redis()
 
 
+def fetch_all(matching):
+    matching_keys = redisStore.scan_iter(match=matching)
+    return [pickle.loads(value) for value in redisStore.mget(matching_keys)]
+
+
 def random_id(n):
     return ''.join(random.choice(string.ascii_letters + string.digits)
                    for i in range(n))
@@ -145,7 +150,7 @@ class StripeObject(object):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
         li = List(url, limit=limit)
-        li._list = redisStore.mget(redisStore.keys(cls.object + ':'))
+        li._list = fetch_all(cls.object + ':*')
         return li
 
     def _update(self, **data):
@@ -622,9 +627,9 @@ class Customer(StripeObject):
 
         li = List(url, limit=limit)
         if email is None:
-            li._list = redisStore.mget(redisStore.keys(cls.object + ':'))
+            li._list = fetch_all(cls.object + ':*')
         else:
-            li._list = list(filter(lambda x: x.email == email, redisStore.mget(redisStore.keys(cls.object + ':'))))
+            li._list = list(filter(lambda x: x.email == email, fetch_all(cls.object + ':*')))
         return li
 
     @classmethod
@@ -2943,13 +2948,13 @@ class IssuingCardholder(StripeObject):
 
         li = List(url, limit=limit)
         if email is None and phone_number is None:
-            li._list = redisStore.mget(redisStore.keys(cls.object + ':'))
+            li._list = fetch_all(cls.object + ':*')
         elif phone_number is not None and email is None:
-            li._list = list(filter(lambda x: x.phone_number == phone_number, redisStore.mget(redisStore.keys(cls.object + ':'))))
+            li._list = list(filter(lambda x: x.phone_number == phone_number, fetch_all(cls.object + ':*')))
         elif phone_number is None and email is not None:
-            li._list = list(filter(lambda x: x.email == email, redisStore.mget(redisStore.keys(cls.object + ':'))))
+            li._list = list(filter(lambda x: x.email == email, fetch_all(cls.object + ':*')))
         else:
-            li._list = list(filter(lambda x: x.email == email and x.phone_number == phone_number, redisStore.mget(redisStore.keys(cls.object + ':'))))
+            li._list = list(filter(lambda x: x.email == email and x.phone_number == phone_number, fetch_all(cls.object + ':*')))
         return li
 
 
