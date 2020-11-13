@@ -347,7 +347,7 @@ class Charge(StripeObject):
             source = PaymentMethod._api_retrieve(source)
 
         if customer is None:
-            customer = source.customer
+            customer = getattr(source, 'customer', None)
 
         # All exceptions must be raised before this point.
         super().__init__()
