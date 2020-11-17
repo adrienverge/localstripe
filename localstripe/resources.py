@@ -38,7 +38,7 @@ from .webhooks import schedule_webhook
 # `type` as a method argument:
 _type = type
 
-sentinel = Sentinel(['redis.mocks', 26379], sentinel_kwargs={'password': 'QuadPay2020'})
+sentinel = Sentinel([('redis.mocks', 26379)], sentinel_kwargs={'password': 'QuadPay2020'})
 sentinel.discover_master('mymaster')
 sentinel.discover_slaves('mymaster')
 redis_master = sentinel.master_for('mymaster')
