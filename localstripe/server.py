@@ -28,7 +28,7 @@ from .resources import Charge, Coupon, Customer, \
                        Event, Invoice, InvoiceItem, PaymentIntent, \
                        PaymentMethod, Plan, Product, Refund, SetupIntent, \
                        Source, Subscription, SubscriptionItem, TaxRate, \
-                       Token, IssuingCardholder, IssuingCard, extra_apis, redisStore
+                       Token, IssuingCardholder, IssuingCard, extra_apis, redis_master, redis_slave
 from .errors import UserError
 from .webhooks import register_webhook
 
@@ -318,7 +318,7 @@ async def config_webhook(request):
 
 async def flush_store(request):
     # store.clear()
-    redisStore.flushall()
+    redis_master.flushall()
     return web.Response()
 
 
@@ -333,7 +333,7 @@ def start():
     args = parser.parse_args()
 
     if args.from_scratch:
-        redisStore.flushall(asynchronous=False)
+        redis_master.flushall(asynchronous=False)
 
     # Listen on both IPv4 and IPv6
     sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)

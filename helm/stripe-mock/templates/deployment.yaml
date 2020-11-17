@@ -29,6 +29,7 @@ spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
+        {{- if .Values.redis.sidecar.enabled }}
         - name: redis
           image: library/redis:6-alpine
           imagePullPolicy: IfNotPresent
@@ -41,6 +42,7 @@ spec:
           volumeMounts:
             - mountPath: /redis-config
               name: redis-config
+        {{- end }}
         - name: {{ .Chart.Name }}
           env:
             - name: DD_VERSION
