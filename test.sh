@@ -781,3 +781,5 @@ no_more_events=$(curl -sSfg -u $SK: $HOST/v1/events?starting_after=$last_event \
 zero_events=$(curl -sSfg -u $SK: $HOST/v1/events?starting_after=$last_event \
                  | grep -oE '^  "data": \[\]')
 [ -n "$zero_events" ]
+
+curl -sSfg -u $SK: $HOST/v1/balance

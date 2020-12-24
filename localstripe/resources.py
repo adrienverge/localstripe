@@ -244,6 +244,53 @@ class StripeObject(object):
         return obj
 
 
+class Balance(object):
+    object = 'balance'
+
+    def __init__(self):
+        self.livemode = False
+        self.available = {
+            'amount': 2000,
+            'currency': 'eur',
+            'source_types': {
+                'card': 2000
+            }
+        }
+        self.pending = {
+            'amount': 0,
+            'currency': 'eur',
+            'source_types': {
+                'card': 0
+            }
+        }
+
+        store[self.object] = self
+
+        schedule_webhook(Event('balance.available', self))
+
+    @classmethod
+    def _api_retrieve(self):
+        obj = store.get(self.object)
+        if obj is None:
+            return self()
+        return obj
+
+    def _export(self, expand=None):
+        obj = {}
+
+        for key, value in vars(self).items():
+            if not key.startswith('_'):
+                if isinstance(value, dict):
+                    obj[key] = value.copy()
+                else:
+                    obj[key] = value
+
+        return obj
+
+
+extra_apis.append(('GET', '/v1/balance', Balance._api_retrieve))
+
+
 class Card(StripeObject):
     object = 'card'
     _id_prefix = 'card_'
