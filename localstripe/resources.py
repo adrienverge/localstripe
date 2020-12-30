@@ -161,11 +161,11 @@ class StripeObject(object):
         return {"deleted": True, "id": id}
 
     @classmethod
-    def _api_list_all(cls, url, limit=None, **kwargs):
+    def _api_list_all(cls, url, limit=None, starting_after=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
-        li = List(url, limit=limit)
+        li = List(url, limit=limit, starting_after=starting_after)
         li._list = [value for key, value in store.items()
                     if key.startswith(cls.object + ':')]
         return li
@@ -476,7 +476,8 @@ class Charge(StripeObject):
         return self.amount <= self.amount_refunded
 
     @classmethod
-    def _api_list_all(cls, url, customer=None, created=None, limit=10):
+    def _api_list_all(cls, url, customer=None, created=None, limit=10,
+                      starting_after=None):
         try:
             if customer is not None:
                 assert type(customer) is str and customer.startswith('cus_')
@@ -499,7 +500,8 @@ class Charge(StripeObject):
             if type(created) is str or not created.get('gt'):
                 raise UserError(500, 'Not implemented')
 
-        li = super(Charge, cls)._api_list_all(url, limit=limit)
+        li = super(Charge, cls)._api_list_all(url, limit=limit,
+                                              starting_after=starting_after)
         if customer:
             li._list = [c for c in li._list if c.customer == customer]
         if created and created.get('gt'):
@@ -1254,7 +1256,8 @@ class Invoice(StripeObject):
         return super()._api_delete(id)
 
     @classmethod
-    def _api_list_all(cls, url, customer=None, subscription=None, limit=None):
+    def _api_list_all(cls, url, customer=None, subscription=None, limit=None,
+                      starting_after=None):
         try:
             if customer is not None:
                 assert type(customer) is str and customer.startswith('cus_')
@@ -1264,7 +1267,8 @@ class Invoice(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        li = super(Invoice, cls)._api_list_all(url, limit=limit)
+        li = super(Invoice, cls)._api_list_all(url, limit=limit,
+                                               starting_after=starting_after)
         if customer is not None:
             Customer._api_retrieve(customer)  # to return 404 if not existant
             li._list = [i for i in li._list if i.customer == customer]
@@ -1435,14 +1439,17 @@ class InvoiceItem(StripeObject):
         self.metadata = metadata or {}
 
     @classmethod
-    def _api_list_all(cls, url, customer=None, limit=None):
+    def _api_list_all(cls, url, customer=None, limit=None,
+                      starting_after=None):
         try:
             if customer is not None:
                 assert type(customer) is str and customer.startswith('cus_')
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        li = super(InvoiceItem, cls)._api_list_all(url, limit=limit)
+        li = super(InvoiceItem,
+                   cls)._api_list_all(url, limit=limit,
+                                      starting_after=starting_after)
         li._list = [ii for ii in li._list if ii.invoice is None]
         if customer is not None:
             Customer._api_retrieve(customer)  # to return 404 if not existant
@@ -1513,11 +1520,13 @@ class InvoiceLineItem(StripeObject):
 class List(StripeObject):
     object = 'list'
 
-    def __init__(self, url=None, limit=None):
+    def __init__(self, url=None, limit=None, starting_after=None):
         limit = try_convert_to_int(limit)
         limit = 10 if limit is None else limit
         try:
             assert type(limit) is int and limit > 0
+            if starting_after is not None:
+                assert type(starting_after) is str and len(starting_after) > 0
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -1527,11 +1536,16 @@ class List(StripeObject):
         self.url = url
 
         self._limit = limit
+        self._starting_after = starting_after
+        self._starting_pos = None
         self._list = []
 
     @property
     def data(self):
-        return [item._export() for item in self._list][:self._limit]
+        self._compute_starting_pos()
+        return [item._export() for item in self._list[
+            self._starting_pos:self._starting_pos + self._limit
+        ]]
 
     @property
     def total_count(self):
@@ -1539,7 +1553,21 @@ class List(StripeObject):
 
     @property
     def has_more(self):
-        return len(self._list) > self._limit
+        self._compute_starting_pos()
+        return len(self._list) > self._limit + self._starting_pos
+
+    def _compute_starting_pos(self):
+        if self._starting_pos is not None:
+            return
+
+        self._starting_pos = 0
+        if self._starting_after is None:
+            return
+
+        for i, item in enumerate(self._list):
+            if getattr(item, 'id', None) == self._starting_after:
+                self._starting_pos = i + 1
+                break
 
 
 class PaymentIntent(StripeObject):
@@ -1911,7 +1939,8 @@ class PaymentMethod(StripeObject):
         return super()._api_retrieve(id)
 
     @classmethod
-    def _api_list_all(cls, url, customer=None, type=None, limit=None):
+    def _api_list_all(cls, url, customer=None, type=None, limit=None,
+                      starting_after=None):
         try:
             assert _type(customer) is str and customer.startswith('cus_')
             assert type in ('card', )
@@ -1920,7 +1949,9 @@ class PaymentMethod(StripeObject):
 
         Customer._api_retrieve(customer)  # to return 404 if not existant
 
-        li = super(PaymentMethod, cls)._api_list_all(url, limit=limit)
+        li = super(PaymentMethod,
+                   cls)._api_list_all(url, limit=limit,
+                                      starting_after=starting_after)
         li._list = [pm for pm in li._list
                     if pm.customer == customer and pm.type == type]
         return li
@@ -2100,14 +2131,15 @@ class Refund(StripeObject):
             self.amount = charge_obj.amount
 
     @classmethod
-    def _api_list_all(cls, url, charge=None, limit=None):
+    def _api_list_all(cls, url, charge=None, limit=None, starting_after=None):
         try:
             if charge is not None:
                 assert type(charge) is str and charge.startswith('ch_')
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        li = super(Refund, cls)._api_list_all(url, limit=limit)
+        li = super(Refund, cls)._api_list_all(url, limit=limit,
+                                              starting_after=starting_after)
         if charge is not None:
             Charge._api_retrieve(charge)  # to return 404 if not existant
             li._list = [r for r in li._list if r.charge == charge]
@@ -2650,7 +2682,8 @@ class Subscription(StripeObject):
         return obj
 
     @classmethod
-    def _api_list_all(cls, url, customer=None, status=None, limit=None):
+    def _api_list_all(cls, url, customer=None, status=None, limit=None,
+                      starting_after=None):
         try:
             if customer is not None:
                 assert type(customer) is str and customer.startswith('cus_')
@@ -2661,7 +2694,9 @@ class Subscription(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        li = super(Subscription, cls)._api_list_all(url, limit=limit)
+        li = super(Subscription,
+                   cls)._api_list_all(url, limit=limit,
+                                      starting_after=starting_after)
         if status is None:
             li._list = [sub for sub in li._list if sub.status not in
                         ('canceled', 'incomplete_expired')]
