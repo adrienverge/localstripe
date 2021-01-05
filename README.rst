@@ -246,6 +246,22 @@ To quickly build and run localstripe from source:
  pip3 install --user --upgrade dist/localstripe-*.tar.gz
  localstripe
 
+To build the docker image from local code:
+
+.. code:: dockerfile
+
+ FROM python:3
+
+ COPY . /app
+ WORKDIR /app
+
+ RUN python3 ./setup.py sdist
+
+ RUN pip3 install --upgrade dist/localstripe-*.tar.gz
+
+ CMD ["localstripe"]
+
+
 License
 -------
 
