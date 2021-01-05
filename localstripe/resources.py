@@ -2413,6 +2413,7 @@ class Subscription(StripeObject):
                 subscription=self.id,
                 plan=items[0]['plan'],
                 quantity=items[0]['quantity'],
+                metadata=items[0]['metadata'],
                 tax_rates=items[0]['tax_rates']))
 
         create_an_invoice = \
