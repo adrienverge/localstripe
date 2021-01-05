@@ -2362,6 +2362,9 @@ class Subscription(StripeObject):
                 if item['tax_rates'] is not None:
                     assert type(item['tax_rates']) is list
                     assert all(type(tr) is str for tr in item['tax_rates'])
+                item['metadata'] = item.get('metadata', None)
+                if item['metadata'] is not None:
+                    assert type(item['metadata']) is dict
             assert type(enable_incomplete_payments) is bool
             assert payment_behavior in ('allow_incomplete',
                                         'error_if_incomplete')
@@ -2413,6 +2416,7 @@ class Subscription(StripeObject):
                 subscription=self.id,
                 plan=items[0]['plan'],
                 quantity=items[0]['quantity'],
+                metadata=items[0]['metadata'],
                 tax_rates=items[0]['tax_rates']))
 
         create_an_invoice = \
@@ -2557,6 +2561,9 @@ class Subscription(StripeObject):
                     if item['tax_rates'] is not None:
                         assert type(item['tax_rates']) is list
                         assert all(type(tr) is str for tr in item['tax_rates'])
+                    item['metadata'] = item.get('metadata', None)
+                    if item['metadata'] is not None:
+                        assert type(item['metadata']) is dict
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -2586,6 +2593,7 @@ class Subscription(StripeObject):
                 item = SubscriptionItem(subscription=self.id,
                                         plan=items[0]['plan'],
                                         quantity=items[0]['quantity'],
+                                        metadata=items[0]['metadata'],
                                         tax_rates=items[0]['tax_rates'])
                 self.items._list.append(item)
 
