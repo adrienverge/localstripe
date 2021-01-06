@@ -139,10 +139,11 @@ class StripeObject(object):
 
     @classmethod
     def _api_retrieve(cls, id):
-        obj = store.get(cls.object + ':' + id, None)
+        key = cls.object + ':' + id, None
+        obj = store.get(key)
 
         if obj is None:
-            raise UserError(404, 'Not Found')
+            raise UserError(404, "Not Found (key: {}".format(key))
 
         return obj
 
@@ -156,7 +157,7 @@ class StripeObject(object):
     def _api_delete(cls, id):
         key = cls.object + ':' + id
         if key not in store.keys():
-            raise UserError(404, 'Not Found')
+            raise UserError(404, "Not Found (key: {})".format(key))
         del store[key]
         return {"deleted": True, "id": id}
 
