@@ -139,8 +139,8 @@ class StripeObject(object):
 
     @classmethod
     def _api_retrieve(cls, id):
-        key = cls.object + ':' + id, None
-        obj = store.get(key)
+        key = cls.object + ':' + id
+        obj = store.get(key, None)
 
         if obj is None:
             raise UserError(404, "Not Found (key: {}".format(key))
