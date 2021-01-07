@@ -22,6 +22,7 @@ import random
 import re
 import string
 import time
+import traceback
 
 from dateutil.relativedelta import relativedelta
 
@@ -2421,8 +2422,8 @@ class Subscription(StripeObject):
         if create_an_invoice:
             try:
                 self._create_invoice()
-            except Exception as err:
-                print("New Subscription invoice creation failed: {}".format(err))
+            except Exception:
+                print("[error] new Subscription invoice creation failed: {}".format(traceback.format_exc()))
 
         schedule_webhook(Event('customer.subscription.created', self))
 
