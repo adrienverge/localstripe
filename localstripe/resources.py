@@ -2417,10 +2417,12 @@ class Subscription(StripeObject):
                 metadata=items[0].get('metadata', None),
                 tax_rates=items[0]['tax_rates']))
 
-        create_an_invoice = \
-            self.trial_end is None and self.trial_period_days is None
+        create_an_invoice = self.trial_end is None and self.trial_period_days is None
         if create_an_invoice:
-            self._create_invoice()
+            try:
+                self._create_invoice()
+            except Exception as err:
+                print("New Subscription invoice creation failed: {}".format(err))
 
         schedule_webhook(Event('customer.subscription.created', self))
 
