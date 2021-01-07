@@ -143,7 +143,7 @@ class StripeObject(object):
         obj = store.get(key, None)
 
         if obj is None:
-            raise UserError(404, "Not Found (key: {}".format(key))
+            raise UserError(404, "Not Found (key: {})".format(key))
 
         return obj
 
