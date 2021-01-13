@@ -2397,16 +2397,22 @@ class Subscription(StripeObject):
             assert type(items) is list
             for item in items:
                 assert type(item.get('plan', None)) is str
+
                 if item.get('quantity', None) is not None:
                     item['quantity'] = try_convert_to_int(item['quantity'])
                     assert type(item['quantity']) is int
                     assert item['quantity'] >= 0
                 else:
                     item['quantity'] = 1
+
                 item['tax_rates'] = item.get('tax_rates', None)
                 if item['tax_rates'] is not None:
                     assert type(item['tax_rates']) is list
                     assert all(type(tr) is str for tr in item['tax_rates'])
+
+                item['metadata'] = item.get('metadata', None)
+                if item['metadata'] is not None:
+                    assert type(item['metadata']) is dict
             assert type(enable_incomplete_payments) is bool
             assert payment_behavior in ('allow_incomplete',
                                         'error_if_incomplete')
@@ -2605,6 +2611,10 @@ class Subscription(StripeObject):
                     if item['tax_rates'] is not None:
                         assert type(item['tax_rates']) is list
                         assert all(type(tr) is str for tr in item['tax_rates'])
+
+                    item['metadata'] = item.get('metadata', None)
+                    if item['metadata'] is not None:
+                        assert type(item['metadata']) is dict
         except AssertionError:
             raise UserError(400, "Bad request: {}".format(traceback.format_exc()))
 
