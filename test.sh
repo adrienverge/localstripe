@@ -769,3 +769,15 @@ total_count=$(
   curl -sSfg -u $SK: $HOST/v1/charges?customer=$cus\&created[gt]=1588166306 \
   | grep -oE '"total_count": 6')
 [ -n "$total_count" ]
+
+no_more_events=$(curl -sSfg -u $SK: $HOST/v1/events \
+                 | grep -oE '^  "has_more": false' || true)
+[ -z "$no_more_events" ]
+last_event=$(curl -sSfg -u $SK: $HOST/v1/events?limit=100 \
+             | grep -oE 'evt_\w+' | tail -n 1)
+no_more_events=$(curl -sSfg -u $SK: $HOST/v1/events?starting_after=$last_event \
+                 | grep -oE '^  "has_more": false')
+[ -n "$no_more_events" ]
+zero_events=$(curl -sSfg -u $SK: $HOST/v1/events?starting_after=$last_event \
+                 | grep -oE '^  "data": \[\]')
+[ -n "$zero_events" ]
