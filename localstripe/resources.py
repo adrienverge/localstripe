@@ -139,7 +139,7 @@ class StripeObject(object):
 
     @classmethod
     def _api_retrieve(cls, id):
-        obj = store.get(cls.object + ':' + id, None)
+        obj = store.get(cls.object + ':' + id)
 
         if obj is None:
             raise UserError(404, 'Not Found')
@@ -301,18 +301,18 @@ class Card(StripeObject):
 
         try:
             assert type(source) is dict
-            assert source.get('object', None) == 'card'
-            number = source.get('number', None)
-            exp_month = try_convert_to_int(source.get('exp_month', None))
-            exp_year = try_convert_to_int(source.get('exp_year', None))
-            cvc = source.get('cvc', None)
-            address_city = source.get('address_city', None)
-            address_country = source.get('address_country', None)
-            address_line1 = source.get('address_line1', None)
-            address_line2 = source.get('address_line2', None)
-            address_state = source.get('address_state', None)
-            address_zip = source.get('address_zip', None)
-            name = source.get('name', None)
+            assert source.get('object') == 'card'
+            number = source.get('number')
+            exp_month = try_convert_to_int(source.get('exp_month'))
+            exp_year = try_convert_to_int(source.get('exp_year'))
+            cvc = source.get('cvc')
+            address_city = source.get('address_city')
+            address_country = source.get('address_country')
+            address_line1 = source.get('address_line1')
+            address_line2 = source.get('address_line2')
+            address_state = source.get('address_state')
+            address_zip = source.get('address_zip')
+            name = source.get('name')
             assert type(number) is str and len(number) == 16
             assert type(exp_month) is int
             assert exp_month >= 1 and exp_month <= 12
@@ -1145,8 +1145,8 @@ class Invoice(StripeObject):
             if subscription_items is not None:
                 assert type(subscription_items) is list
                 for si in subscription_items:
-                    assert type(si.get('plan', None)) is str
-                    si['tax_rates'] = si.get('tax_rates', None)
+                    assert type(si.get('plan')) is str
+                    si['tax_rates'] = si.get('tax_rates')
                     if si['tax_rates'] is not None:
                         assert type(si['tax_rates']) is list
                         assert all(type(tr) is str for tr in si['tax_rates'])
@@ -2430,18 +2430,18 @@ class Subscription(StripeObject):
                 assert proration_behavior in ['create_prorations', 'none']
             assert type(items) is list
             for item in items:
-                assert type(item.get('plan', None)) is str
-                if item.get('quantity', None) is not None:
+                assert type(item.get('plan')) is str
+                if item.get('quantity') is not None:
                     item['quantity'] = try_convert_to_int(item['quantity'])
                     assert type(item['quantity']) is int
                     assert item['quantity'] > 0
                 else:
                     item['quantity'] = 1
-                item['tax_rates'] = item.get('tax_rates', None)
+                item['tax_rates'] = item.get('tax_rates')
                 if item['tax_rates'] is not None:
                     assert type(item['tax_rates']) is list
                     assert all(type(tr) is str for tr in item['tax_rates'])
-                item['metadata'] = item.get('metadata', None)
+                item['metadata'] = item.get('metadata')
                 if item['metadata'] is not None:
                     assert type(item['metadata']) is dict
             assert type(enable_incomplete_payments) is bool
@@ -2627,20 +2627,20 @@ class Subscription(StripeObject):
             if items is not None:
                 assert type(items) is list
                 for item in items:
-                    id = item.get('id', None)
+                    id = item.get('id')
                     if id is not None:
                         assert type(id) is str and id.startswith('si_')
-                    if item.get('quantity', None) is not None:
+                    if item.get('quantity') is not None:
                         item['quantity'] = try_convert_to_int(item['quantity'])
                         assert type(item['quantity']) is int
                         assert item['quantity'] > 0
                     else:
                         item['quantity'] = 1
-                    item['tax_rates'] = item.get('tax_rates', None)
+                    item['tax_rates'] = item.get('tax_rates')
                     if item['tax_rates'] is not None:
                         assert type(item['tax_rates']) is list
                         assert all(type(tr) is str for tr in item['tax_rates'])
-                    item['metadata'] = item.get('metadata', None)
+                    item['metadata'] = item.get('metadata')
                     if item['metadata'] is not None:
                         assert type(item['metadata']) is dict
         except AssertionError:
@@ -2653,7 +2653,7 @@ class Subscription(StripeObject):
 
             # If no plan specified in update request, we stay on the current
             # one
-            if not items[0].get('plan', None):
+            if not items[0].get('plan'):
                 items[0]['plan'] = self.plan.id
 
             # To return 404 if not existant:
