@@ -1014,6 +1014,9 @@ class Invoice(StripeObject):
         else:
             self.currency = 'eur'  # arbitrary default
 
+        if subscription is not None and subscription_obj.status == "trialing":
+            self.lines = List()
+
         self._draft = True
         self._voided = False
 
@@ -2498,10 +2501,15 @@ class Subscription(StripeObject):
                 metadata=items[0]['metadata'],
                 tax_rates=items[0]['tax_rates']))
 
-        create_an_invoice = \
-            self.trial_end is None and self.trial_period_days is None
-        if create_an_invoice:
-            self._create_invoice()
+        is_trial = \
+            self.trial_end is not None and self.trial_end >= int(time.time())
+
+        if is_trial:
+            self.trial_start = int(time.time())
+            self.status = 'trialing'
+
+        # if subscription is in trial, a 0 € should still be created
+        self._create_invoice()
 
         schedule_webhook(Event('customer.subscription.created', self))
 
@@ -2540,6 +2548,9 @@ class Subscription(StripeObject):
 
         if invoice.status == 'paid':
             self.status = 'active'
+
+            if self.trial_end is not None and self.trial_end >= int(time.time()):
+                self.status = 'trialing'
         elif invoice.charge:
             if invoice.charge.status == 'failed':
                 if self.status != 'incomplete':
@@ -2712,6 +2723,8 @@ class Subscription(StripeObject):
 
         if trial_end is not None:
             self.trial_end = trial_end
+            if trial_end > int(time.time()):
+                self.status = "trialing"
 
         if cancel_at_period_end is not None:
             self.cancel_at_period_end = cancel_at_period_end
