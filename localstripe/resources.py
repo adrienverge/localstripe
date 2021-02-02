@@ -291,6 +291,82 @@ class Balance(object):
 extra_apis.append(('GET', '/v1/balance', Balance._api_retrieve))
 
 
+class BalanceTransaction(StripeObject):
+    object = 'balance_transaction'
+    _id_prefix = 'txn_'
+
+    def __init__(self, amount=None, currency=None, description=None,
+                 exchange_rate=None, reporting_category=None, source=None,
+                 type=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        amount = try_convert_to_int(amount)
+        exchange_rate = try_convert_to_float(exchange_rate)
+        try:
+            assert _type(amount) is int
+            assert _type(currency) is str and currency
+            assert description is None or _type(description) is str
+            assert exchange_rate is None or _type(exchange_rate) is float
+            assert reporting_category in ('charge', 'refund')
+            assert _type(source) is str
+            assert type in ('charge', 'refund')
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        if source.startswith('ch_'):
+            Charge._api_retrieve(source)  # to return 404 if not existent
+        elif source.startswith('re_'):
+            Refund._api_retrieve(source)  # to return 404 if not existent
+        else:
+            raise UserError(400, 'Bad request')
+
+        # All exceptions must be raised before this point
+        super().__init__()
+
+        self.amount = amount
+        self.available_on = self.created
+        self.currency = currency
+        self.description = description
+        self.exchange_rate = exchange_rate
+        self.fee = 0
+        self.fee_details = []
+        self.reporting_category = reporting_category
+        self.source = source
+        self.status = 'available'
+        self.type = type
+
+    @property
+    def net(self):
+        return self.amount - self.fee
+
+    @classmethod
+    def _api_create(cls, **data):
+        raise UserError(405, 'Method Not Allowed')
+
+    @classmethod
+    def _api_update(cls, id, **data):
+        raise UserError(405, 'Method Not Allowed')
+
+    @classmethod
+    def _api_delete(cls, id):
+        raise UserError(405, 'Method Not Allowed')
+
+    @classmethod
+    def _api_list_all(cls, url, limit=None, starting_after=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        li = super()._api_list_all(url, limit, starting_after)
+        li._list.sort(key=lambda b: b.created, reverse=True)
+        return li
+
+
+extra_apis.extend((
+    ('GET', '/v1/balance/history/{id}', BalanceTransaction._api_retrieve),
+    ('GET', '/v1/balance/history', BalanceTransaction._api_list_all)))
+
+
 class Card(StripeObject):
     object = 'card'
     _id_prefix = 'card_'
@@ -428,6 +504,7 @@ class Charge(StripeObject):
         self.failure_code = None
         self.failure_message = None
         self.captured = capture
+        self.balance_transaction = None
 
     def _trigger_payment(self, on_success=None, on_failure_now=None,
                          on_failure_later=None):
@@ -444,6 +521,13 @@ class Charge(StripeObject):
             else:
                 async def callback():
                     await asyncio.sleep(0.5)
+                    txn = BalanceTransaction(amount=self.amount,
+                                             currency=self.currency,
+                                             description=self.description,
+                                             exchange_rate=1.0,
+                                             reporting_category='charge',
+                                             source=self.id, type='charge')
+                    self.balance_transaction = txn.id
                     self.status = 'succeeded'
                     if on_success:
                         on_success()
@@ -457,6 +541,13 @@ class Charge(StripeObject):
                 if on_failure_now:
                     on_failure_now()
             else:
+                txn = BalanceTransaction(amount=self.amount,
+                                         currency=self.currency,
+                                         description=self.description,
+                                         exchange_rate=1.0,
+                                         reporting_category='charge',
+                                         source=self.id, type='charge')
+                self.balance_transaction = txn.id
                 self.status = 'succeeded'
                 if on_success:
                     on_success()
@@ -2279,6 +2370,15 @@ class Refund(StripeObject):
 
         if self.amount is None:
             self.amount = charge_obj.amount
+
+        if self.status == 'succeeded':
+            txn = BalanceTransaction(amount=-self.amount,
+                                     currency=self.currency,
+                                     description='REFUND FOR CHARGE',
+                                     exchange_rate=1.0,
+                                     reporting_category='refund',
+                                     source=self.id, type='refund')
+            self.balance_transaction = txn.id
 
     @classmethod
     def _api_list_all(cls, url, charge=None, limit=None, starting_after=None):

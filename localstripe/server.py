@@ -24,10 +24,10 @@ import socket
 
 from aiohttp import web
 
-from .resources import Charge, Coupon, Customer, Event, Invoice, \
-    InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, Product, Refund, \
-    SetupIntent, Source, Subscription, SubscriptionItem, TaxRate, Token, \
-    extra_apis, store
+from .resources import BalanceTransaction, Charge, Coupon, Customer, Event, \
+    Invoice, InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, \
+    Product, Refund, SetupIntent, Source, Subscription, SubscriptionItem, \
+    TaxRate, Token, extra_apis, store
 from .errors import UserError
 from .webhooks import register_webhook
 
@@ -263,10 +263,10 @@ for method, url, func in extra_apis:
     app.router.add_route(method, url, api_extra(func, url))
 
 
-for cls in (Charge, Coupon, Customer, Event, Invoice, InvoiceItem,
-            PaymentIntent, PaymentMethod, Payout, Plan, Product, Refund,
-            SetupIntent, Source, Subscription, SubscriptionItem, TaxRate,
-            Token):
+for cls in (BalanceTransaction, Charge, Coupon, Customer, Event, Invoice,
+            InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, Product,
+            Refund, SetupIntent, Source, Subscription, SubscriptionItem,
+            TaxRate, Token):
     for method, url, func in (
             ('POST', '/v1/' + cls.object + 's', api_create),
             ('GET', '/v1/' + cls.object + 's/{id}', api_retrieve),
