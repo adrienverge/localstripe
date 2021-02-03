@@ -372,6 +372,7 @@ class Charge(StripeObject):
 
     def __init__(self, amount=None, currency=None, description=None,
                  metadata=None, customer=None, source=None, capture=True,
+                 statement_descriptor=None,
                  **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
@@ -390,6 +391,10 @@ class Charge(StripeObject):
                 assert (source.startswith('pm_') or source.startswith('src_')
                         or source.startswith('card_'))
             assert type(capture) is bool
+            if statement_descriptor is not None:
+                assert type(statement_descriptor) is str
+                assert len(statement_descriptor) <= 22
+                assert re.search('[a-zA-Z]', statement_descriptor)
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -419,6 +424,7 @@ class Charge(StripeObject):
         self.receipt_email = None
         self.receipt_number = None
         self.payment_method = source.id
+        self.statement_descriptor = statement_descriptor
         self.failure_code = None
         self.failure_message = None
         self.captured = capture
