@@ -86,7 +86,7 @@ class Element {
 
   mount(domElement) {
     if (typeof domElement === 'string') {
-      domElement = document.querySelector(domElement)[0];
+      domElement = document.querySelector(domElement);
     }
 
     const span = document.createElement('span');
