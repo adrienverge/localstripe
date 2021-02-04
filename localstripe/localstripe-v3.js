@@ -151,10 +151,16 @@ Stripe = (apiKey) => {
   return {
     elements: () => {
       return {
-        create: (type, options) => {
-          console.log('localstripe: Stripe().elements().create()');
-          return new Element();
+        create: function(type, options) {
+          if (this._cardElement) {
+            throw new Error("Can only create one Element of type card");
+          }
+          this._cardElement = new Element();
+          return this._cardElement;
         },
+        getElement: function(type) {
+          return this._cardElement || null;
+        }
       };
     },
     createToken: async (element) => {
