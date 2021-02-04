@@ -357,6 +357,8 @@ Stripe = (apiKey) => {
         }
       }
     },
+
+    createPaymentMethod: async () => ({}),
   };
 };
 
