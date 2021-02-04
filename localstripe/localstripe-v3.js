@@ -161,7 +161,7 @@ Stripe = (apiKey) => {
       console.log('localstripe: Stripe().createToken()');
       let body = [];
       Object.keys(element.value.card).forEach(field => {
-        body.push('card[' + field + ']=' + card.value.card[field]);
+        body.push('card[' + field + ']=' + element.value.card[field]);
       });
       body.push('key=' + apiKey);
       body.push('payment_user_agent=localstripe');
