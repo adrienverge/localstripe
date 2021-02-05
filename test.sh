@@ -783,3 +783,31 @@ zero_events=$(curl -sSfg -u $SK: $HOST/v1/events?starting_after=$last_event \
 [ -n "$zero_events" ]
 
 curl -sSfg -u $SK: $HOST/v1/balance
+
+payout=$(
+  curl -sSfg -u $SK: $HOST/v1/payouts \
+       -d amount=1100 \
+       -d currency=eur \
+  | grep -oE 'po_\w+' | head -n 1)
+
+payout_status=$(
+  curl -sSfg -u $SK: $HOST/v1/payouts/$payout \
+  | grep -oE '"status": "pending",')
+[ -n "$payout_status" ]
+
+curl -sg -u $SK: $HOST/v1/payouts/$payout/cancel -X POST
+
+payout_status=$(
+  curl -sSfg -u $SK: $HOST/v1/payouts/$payout \
+  | grep -oE '"status": "canceled",')
+[ -n "$payout_status" ]
+
+curl -sg -u $SK: $HOST/v1/payouts \
+      -d amount=1100 \
+      -d currency=eur \
+      -d status=paid
+
+curl -sg -u $SK: $HOST/v1/payouts \
+      -d amount=1100 \
+      -d currency=eur \
+      -d status=failed

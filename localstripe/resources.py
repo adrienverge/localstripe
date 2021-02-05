@@ -2103,6 +2103,103 @@ class Plan(StripeObject):
         return Product._api_retrieve(self.product).statement_descriptor
 
 
+class Payout(StripeObject):
+    object = 'payout'
+    _id_prefix = 'po_'
+
+    def __init__(self, amount=None, currency=None, description=None,
+                 metadata=None, statement_descriptor=None, destination=None,
+                 method=None, source_type=None, status=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        amount = try_convert_to_int(amount)
+        try:
+            assert type(amount) is int and amount > 0
+            assert currency in ('eur',)
+            if description is not None:
+                assert type(description) is str
+            if metadata is not None:
+                assert type(metadata) is dict
+            if statement_descriptor is not None:
+                assert type(statement_descriptor) is str \
+                    and len(statement_descriptor) <= 22
+            if method is not None:
+                assert method in ('standard', 'instant')
+            if source_type is not None:
+                assert type(source_type) is str
+            if status is not None:
+                assert status in ('paid', 'pending', 'failed')
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        # All exceptions must be raised before this point.
+        super().__init__()
+
+        self.amount = amount
+        self.currency = currency
+        self.description = description or ''
+        self.destination = f'ba_{random_id(24)}'
+        self.metadata = metadata or {}
+        self.method = method or 'standard'
+        self.source_type = source_type or 'card'
+        self.statement_descriptor = statement_descriptor or ''
+
+        two_days = 60 * 60 * 24 * 2
+        self.arrival_date = int(time.time() + two_days)
+
+        # Payout scheduling is not implemented yet so all payouts are
+        # manually created
+        self.automatic = False
+        # Balance Transactions are no implemented yet so we fake one
+        self.balance_transaction = f"txn_{random_id(24)}"
+
+        self.failure_balance_transaction = None
+        self.failure_code = None
+        self.failure_message = None
+        self.original_payout = None
+        self.reversed_by = None
+        self.status = status or 'pending'
+        self.type = 'bank_account'
+
+        schedule_webhook(Event('payout.created', self))
+
+        if status == 'failed':
+            self.failure_balance_transaction = ''
+            self.failure_code = 'could_not_process'
+            self.failure_message = 'The bank could not process this payout.'
+
+        if status in ('paid', 'failed'):
+            schedule_webhook(Event(f'payout.{status}', self))
+
+    @classmethod
+    def _api_update(cls, id, **data):
+        obj = super()._api_update(id, **data)
+        schedule_webhook(Event('payout.updated', obj))
+        return obj
+
+    @classmethod
+    def _api_cancel(cls, id, **kwargs):
+        payout = Payout._api_retrieve(id)
+
+        # Only pending payouts can be canceled
+        if payout.status != 'pending':
+            raise UserError(400, 'Cannot cancel payout')
+
+        payout._update(status='canceled')
+
+        schedule_webhook(Event('payout.canceled', payout))
+
+        return payout
+
+    @classmethod
+    def _api_delete(cls, id):
+        raise UserError(405, 'Method Not Allowed')
+
+
+extra_apis.append(('POST', '/v1/payouts/{id}/cancel', Payout._api_cancel))
+
+
 class Product(StripeObject):
     object = 'product'
     _id_prefix = 'prod_'
