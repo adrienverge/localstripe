@@ -165,7 +165,7 @@ class StripeObject(object):
     @classmethod
     def _api_list_all(cls, url, limit=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ StripeObject._api_list_all) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         li = List(url, limit=limit)
         li._list = [value for key, value in store.items()
@@ -255,7 +255,7 @@ class Card(StripeObject):
 
     def __init__(self, source=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ Card.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         try:
             assert type(source) is dict
@@ -333,7 +333,7 @@ class Charge(StripeObject):
                  metadata=None, customer=None, source=None, capture=True,
                  **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ Charge.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         amount = try_convert_to_int(amount)
         capture = try_convert_to_bool(capture)
@@ -437,7 +437,7 @@ class Charge(StripeObject):
     @classmethod
     def _api_capture(cls, id, amount=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ Charge._api_capture_) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         try:
             assert type(id) is str and id.startswith('ch_')
@@ -529,7 +529,7 @@ class Coupon(StripeObject):
                  percent_off=None, currency=None, metadata=None,
                  duration_in_months=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ Coupon.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         amount_off = try_convert_to_int(amount_off)
         percent_off = try_convert_to_float(percent_off)
@@ -577,7 +577,7 @@ class Customer(StripeObject):
                  preferred_locales=None, tax_id_data=None,
                  metadata=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ Customer.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         try:
             if name is not None:
@@ -693,7 +693,7 @@ class Customer(StripeObject):
     @classmethod
     def _api_retrieve_source(cls, id, source_id, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ Customer._api_retrieve_source) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         # return 404 if does not exist
         Customer._api_retrieve(id)
@@ -718,7 +718,7 @@ class Customer(StripeObject):
     @classmethod
     def _api_add_source(cls, id, source=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ Customer.api_add_source) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         try:
             if type(source) is str:
@@ -773,7 +773,7 @@ class Customer(StripeObject):
     @classmethod
     def _api_add_tax_id(cls, id, type=None, value=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ Customer._api_add_tax_id) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         try:
             assert type in ('eu_vat', 'nz_gst', 'au_abn')
@@ -792,7 +792,7 @@ class Customer(StripeObject):
     @classmethod
     def _api_list_tax_ids(cls, id, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ Customer._api_list_tax_ids) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         obj = cls._api_retrieve(id)
         return obj.tax_ids
@@ -800,7 +800,7 @@ class Customer(StripeObject):
     @classmethod
     def _api_list_subscriptions(cls, id, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ Customer._api_list_subscriptions) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         return cls._api_retrieve(id).subscriptions
 
@@ -811,7 +811,7 @@ class Customer(StripeObject):
     @classmethod
     def _api_retrieve_subscription(cls, id, subscription_id, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ Customer._api_retrieve_subscription) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         obj = Subscription._api_retrieve(subscription_id)
 
@@ -893,7 +893,7 @@ class Invoice(StripeObject):
                  default_tax_rates=None,
                  **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ Invoice.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         tax_percent = try_convert_to_float(tax_percent)
         date = try_convert_to_int(date)
@@ -1371,7 +1371,7 @@ class Invoice(StripeObject):
     @classmethod
     def _api_list_lines(cls, id, limit=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ Invoice._api_list_lines) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         obj = cls._api_retrieve(id)
 
@@ -1397,7 +1397,7 @@ class InvoiceItem(StripeObject):
                  period_end=None, proration=False, description=None,
                  tax_rates=None, metadata=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ InvoiceItem.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         amount = try_convert_to_int(amount)
         period_start = try_convert_to_int(period_start)
@@ -1575,7 +1575,7 @@ class PaymentIntent(StripeObject):
     def __init__(self, amount=None, currency=None, customer=None,
                  payment_method=None, metadata=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ PaymentIntent.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         amount = try_convert_to_int(amount)
         try:
@@ -1701,7 +1701,7 @@ class PaymentIntent(StripeObject):
     @classmethod
     def _api_confirm(cls, id, payment_method=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ PaymentIntent._api_confirm) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         if payment_method is not None:
             raise UserError(500, 'Not implemented')
@@ -1734,7 +1734,7 @@ class PaymentIntent(StripeObject):
     @classmethod
     def _api_cancel(cls, id, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ PaymentIntent._api_cancel) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         try:
             assert type(id) is str and id.startswith('pi_')
@@ -1756,7 +1756,7 @@ class PaymentIntent(StripeObject):
     def _api_authenticate(cls, id, client_secret=None, success=False,
                           **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ PaymentIntent._api_authenticate) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         success = try_convert_to_bool(success)
         try:
@@ -1802,7 +1802,7 @@ class PaymentMethod(StripeObject):
     def __init__(self, type=None, billing_details=None, card=None,
                  sepa_debit=None, metadata=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ PaymentMethod.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         try:
             assert type in ('card', 'sepa_debit')
@@ -1902,7 +1902,7 @@ class PaymentMethod(StripeObject):
     @classmethod
     def _api_attach(cls, id, customer=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ PaymentMethod._api_attach) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         try:
             assert type(id) is str and id.startswith('pm_')
@@ -1923,7 +1923,7 @@ class PaymentMethod(StripeObject):
     @classmethod
     def _api_detach(cls, id, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ PaymentMethod._api_detach) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         try:
             assert type(id) is str and id.startswith('pm_')
@@ -1981,7 +1981,7 @@ class Plan(StripeObject):
                  name=None, statement_descriptor=None,
                  **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ Plan.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         # Support Stripe API <= 2018-02-05:
         if product is None and name is not None:
@@ -2065,7 +2065,7 @@ class Product(StripeObject):
                  shippable=True, url=None, statement_descriptor=None,
                  metadata=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ Product.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         active = try_convert_to_bool(active)
         try:
@@ -2112,7 +2112,7 @@ class Refund(StripeObject):
 
     def __init__(self, charge=None, amount=None, metadata=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ Refund.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         amount = try_convert_to_int(amount)
         try:
@@ -2164,7 +2164,7 @@ class Source(StripeObject):
                  sepa_debit=None,
                  **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ Source.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         try:
             assert type in (
@@ -2230,7 +2230,7 @@ class SetupIntent(StripeObject):
     def __init__(self, customer=None, usage=None, payment_method_types=None,
                  metadata=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ SetupIntent.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         try:
             if customer is not None:
@@ -2263,7 +2263,7 @@ class SetupIntent(StripeObject):
     def _api_confirm(cls, id, use_stripe_sdk=None, client_secret=None,
                      payment_method_data=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ SetupIntent._api_confirm) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         try:
             assert type(id) is str and id.startswith('seti_')
@@ -2314,7 +2314,7 @@ class SetupIntent(StripeObject):
     def _api_cancel(cls, id, use_stripe_sdk=None, client_secret=None,
                     **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ SetupIntent._api_cancel) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         try:
             assert type(id) is str and id.startswith('seti_')
@@ -2353,7 +2353,7 @@ class Subscription(StripeObject):
                  trial_period_days=None, billing_cycle_anchor=None,
                  proration_behavior=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ Subscriptoin.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         # Legacy support (stripe-php still uses these parameters instead of
         # providing `items: [...]`):
@@ -2739,7 +2739,7 @@ class SubscriptionItem(StripeObject):
     def __init__(self, subscription=None, plan=None, quantity=1,
                  tax_rates=None, metadata=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ SubscriptionItem.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         quantity = try_convert_to_int(quantity)
         try:
@@ -2836,7 +2836,7 @@ class TaxId(StripeObject):
     def __init__(self, country=None, customer=None, type=None, value=None,
                  **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ TaxId.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         try:
             assert _type(customer) is str
@@ -2878,7 +2878,7 @@ class TaxRate(StripeObject):
                  active=True, description=None, jurisdiction=None,
                  metadata=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ TaxRate.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         inclusive = try_convert_to_bool(inclusive)
         percentage = try_convert_to_float(percentage)
@@ -2917,7 +2917,7 @@ class Token(StripeObject):
 
     def __init__(self, card=None, customer=None, **kwargs):
         if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ Token.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()), trace=traceback.format_tb())
 
         try:
             assert type(card) is dict
