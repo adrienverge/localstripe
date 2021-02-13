@@ -1,4 +1,4 @@
-.PHONY: image
+.PHONY: all image image-publish
 
 all: image
 
@@ -9,3 +9,6 @@ IMAGE_FULL_NAME ?= $(IMAGE_NAME):$(IMAGE_VERSION)
 
 image:
 	$(DOCKER) build -t $(IMAGE_FULL_NAME) .
+
+image-publish: image
+	$(DOCKER) publish $(IMAGE_FULL_NAME)
