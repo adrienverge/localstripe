@@ -11,4 +11,4 @@ image:
 	$(DOCKER) build -t $(IMAGE_FULL_NAME) .
 
 image-publish: image
-	$(DOCKER) publish $(IMAGE_FULL_NAME)
+	$(DOCKER) push $(IMAGE_FULL_NAME)
