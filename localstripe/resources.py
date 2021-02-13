@@ -163,13 +163,23 @@ class StripeObject(object):
         return {"deleted": True, "id": id}
 
     @classmethod
-    def _api_list_all(cls, url, limit=None, **kwargs):
+    def _api_list_all(cls, url, limit=None, subscription=None, **kwargs):
         if kwargs:
             raise UserError(400, '(@ StripeObject._api_list_all) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         li = List(url, limit=limit)
-        li._list = [value for key, value in store.items()
-                    if key.startswith(cls.object + ':')]
+        li._list = [
+            value for key, value in store.items() if key.startswith(cls.object + ':')
+        ]
+
+        # Filter for subscriptoin
+        if subscription is not None:
+            li._list = [
+                item for key, value
+                in store.items()
+                if key.startswith(cls.object + ':') and value.subscription == subscription
+            ]
+
         return li
 
     def _update(self, **data):
