@@ -1,0 +1,32 @@
+name: Test
+
+on: [pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 4
+      matrix:
+        python-version: [3.8, 3.9]
+        poetry-version: [1.1.4]
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Download poetry
+      uses: abatilo/actions-poetry@v2.1.0
+      with:
+        poetry-version: ${{ matrix.poetry-version }}
+    - name: Install Dependencies
+      run: |
+        poetry install
+    - name: Run server in the background
+      run: |
+        poetry run python -m localstripe &
+    - name: Run Tests
+      run: |
+        make test
