@@ -2,12 +2,16 @@ DEFAULT_PORT := "8420"
 PORT := "12111"
 
 run:
-	poetry run python -m localstripe ${PORT}
+	poetry run python -m localstripe --port ${PORT}
+
+run-dev:
+	poetry run python -m localstripe --port ${DEFAULT_PORT}
 
 requirements:
 	poetry export -f requirements.txt --output requirements.txt --without-hashes
 
 test:
+	curl -sSfg -u $SK: -X DELETE http://localhost:${DEFAULT_PORT}/_config/data
 	./test.sh
 
 test-auto:

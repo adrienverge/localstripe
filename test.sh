@@ -866,3 +866,15 @@ txn=$(
        -d charge=$charge \
   | grep -oE 'txn_\w+')
 [ -n "$txn" ]
+
+now=$(date +%s)
+
+curl -sSfg -u $SK: $HOST/v1/invoices?created[gte]=$now
+
+curl -sSfg -u $SK: $HOST/v1/invoices?created[gt]=$now
+
+curl -sSfg -u $SK: $HOST/v1/invoices?created[lt]=$now
+
+curl -sSfg -u $SK: $HOST/v1/charges?created[lte]=$now
+
+curl -sSfg -u $SK: $HOST/v1/charges?created[gt]=$(($now - 60))\&created[lte]=$(date +%s)

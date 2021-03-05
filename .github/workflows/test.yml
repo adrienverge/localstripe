@@ -26,7 +26,7 @@ jobs:
         poetry install
     - name: Run server in the background
       run: |
-        poetry run python -m localstripe &
+        make run-dev &
     - name: Run Tests
       run: |
         make test
