@@ -163,7 +163,7 @@ class StripeObject(object):
         return {"deleted": True, "id": id}
 
     @classmethod
-    def _api_list_all(cls, url, limit=None, subscriptions=None, starting_after=None, **kwargs):
+    def _api_list_all(cls, url, limit=None, subscription=None, subscriptions=None, starting_after=None, **kwargs):
         if kwargs:
             raise UserError(400, '(@ StripeObject._api_list_all) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
@@ -2640,7 +2640,7 @@ class Subscription(StripeObject):
                  trial_period_days=None, billing_cycle_anchor=None,
                  proration_behavior=None, **kwargs):
         if kwargs:
-            raise UserError(400, '(@ Subscriptoin.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
+            raise UserError(400, '(@ Subscription.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         # Legacy support (stripe-php still uses these parameters instead of
         # providing `items: [...]`):
