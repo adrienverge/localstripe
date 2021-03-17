@@ -163,7 +163,6 @@ class StripeObject(object):
         return {"deleted": True, "id": id}
 
     @classmethod
-    def _api_list_all(cls, url, limit=None, subscription=None, **kwargs):
     def _api_list_all(cls, url, limit=None, subscriptions=None, starting_after=None, **kwargs):
         if kwargs:
             raise UserError(400, '(@ StripeObject._api_list_all) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
@@ -2997,8 +2996,7 @@ class Subscription(StripeObject):
         return obj
 
     @classmethod
-    def _api_list_all(cls, url, customer=None, status=None, limit=None,
-                      starting_after=None):
+    def _api_list_all(cls, url, customer=None, status=None, limit=None, starting_after=None):
         try:
             if customer is not None:
                 assert type(customer) is str and customer.startswith('cus_')
