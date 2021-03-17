@@ -769,3 +769,100 @@ total_count=$(
   curl -sSfg -u $SK: $HOST/v1/charges?customer=$cus\&created[gt]=1588166306 \
   | grep -oE '"total_count": 6')
 [ -n "$total_count" ]
+
+no_more_events=$(curl -sSfg -u $SK: $HOST/v1/events \
+                 | grep -oE '^  "has_more": false' || true)
+[ -z "$no_more_events" ]
+last_event=$(curl -sSfg -u $SK: $HOST/v1/events?limit=100 \
+             | grep -oE 'evt_\w+' | tail -n 1)
+no_more_events=$(curl -sSfg -u $SK: $HOST/v1/events?starting_after=$last_event \
+                 | grep -oE '^  "has_more": false')
+[ -n "$no_more_events" ]
+zero_events=$(curl -sSfg -u $SK: $HOST/v1/events?starting_after=$last_event \
+                 | grep -oE '^  "data": \[\]')
+[ -n "$zero_events" ]
+
+curl -sSfg -u $SK: $HOST/v1/balance
+
+payout=$(
+  curl -sSfg -u $SK: $HOST/v1/payouts \
+       -d amount=1100 \
+       -d currency=eur \
+  | grep -oE 'po_\w+' | head -n 1)
+
+payout_status=$(
+  curl -sSfg -u $SK: $HOST/v1/payouts/$payout \
+  | grep -oE '"status": "pending",')
+[ -n "$payout_status" ]
+
+curl -sg -u $SK: $HOST/v1/payouts/$payout/cancel -X POST
+
+payout_status=$(
+  curl -sSfg -u $SK: $HOST/v1/payouts/$payout \
+  | grep -oE '"status": "canceled",')
+[ -n "$payout_status" ]
+
+curl -sg -u $SK: $HOST/v1/payouts \
+      -d amount=1100 \
+      -d currency=eur \
+      -d status=paid
+
+curl -sg -u $SK: $HOST/v1/payouts \
+      -d amount=1100 \
+      -d currency=eur \
+      -d status=failed
+
+card=$(
+  curl -sSfg -u $SK: $HOST/v1/customers/$cus/cards \
+       -d source[object]=card \
+       -d source[number]=4242424242424242 \
+       -d source[exp_month]=12 \
+       -d source[exp_year]=2020 \
+       -d source[cvc]=123 \
+       -d source[name]=John\ Smith \
+  | grep -oE 'card_\w+')
+
+# immediately-captured charge has a balance transaction
+txn=$(
+  curl -sSfg -u $SK: $HOST/v1/charges \
+       -d customer=$cus \
+       -d source=$card \
+       -d amount=1000 \
+       -d currency=usd \
+  | grep -oE 'txn_\w+')
+[ -n "$txn" ]
+
+# pre-auth charge has no balance transaction
+charge=$(
+  curl -sSfg -u $SK: $HOST/v1/charges \
+       -d customer=$cus \
+       -d source=$card \
+       -d amount=1000 \
+       -d currency=usd \
+       -d capture=false \
+  | grep -oE 'ch_\w+' | head -n 1)
+
+txn=$(
+  curl -sSfg -u $SK: $HOST/v1/charges/$charge \
+  | grep -oE 'txn_\w+' || true)
+[ -z "$txn" ]
+
+# captured pre-auth charge has a balance transaction
+txn=$(
+  curl -sSfg -u $SK: $HOST/v1/charges/$charge/capture \
+       -X POST \
+  | grep -oE 'txn_\w+')
+[ -n "$txn" ]
+
+# transaction is linked back to its source
+src=$(
+  curl -sSfg -u $SK: $HOST/v1/balance_transactions/$txn \
+  | grep -oE "$charge")
+[ -n "$src" ]
+
+# refund has a balance transaction
+txn=$(
+  curl -sSfg -u $SK: $HOST/v1/refunds \
+       -d charge=$charge \
+  | grep -oE 'txn_\w+')
+[ -n "$txn" ]
