@@ -4,7 +4,8 @@ all: image
 
 DOCKER ?= docker
 IMAGE_NAME ?= registry.gitlab.com/mrman/localstripe
-IMAGE_VERSION ?= 1.12.7
+# Image version is updated manually to match latest version of adrianverge/localstripe that has been  merged
+IMAGE_VERSION ?= 1.13.0
 IMAGE_FULL_NAME ?= $(IMAGE_NAME):$(IMAGE_VERSION)
 
 image:
