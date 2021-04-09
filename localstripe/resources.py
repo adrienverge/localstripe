@@ -1154,6 +1154,10 @@ class Invoice(StripeObject):
         return self.total
 
     @property
+    def amount_paid(self):
+        return self.amount_due if self.status == 'paid' else 0
+
+    @property
     def next_payment_attempt(self):
         if self.status in ('draft', 'open'):
             return self.date
