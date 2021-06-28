@@ -1583,7 +1583,7 @@ class InvoiceItem(StripeObject):
         self.period = dict(start=period_start, end=period_end)
         self.proration = proration
         self.description = description
-        self.tax_rates = tax_rates
+        self.tax_rates = tax_rates or []
         self.metadata = metadata or {}
 
     @classmethod
