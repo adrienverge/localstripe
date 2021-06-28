@@ -3010,7 +3010,7 @@ class SubscriptionItem(StripeObject):
 
         self.plan = plan
         self.quantity = quantity
-        self.tax_rates = tax_rates
+        self.tax_rates = tax_rates or []
         self.metadata = metadata or {}
 
         self._subscription = subscription
