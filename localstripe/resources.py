@@ -710,7 +710,7 @@ class Customer(StripeObject):
                  phone=None, address=None,
                  invoice_settings=None, business_vat_id=None,
                  preferred_locales=None, tax_id_data=None,
-                 metadata=None, **kwargs):
+                 metadata=None, payment_method=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -751,8 +751,13 @@ class Customer(StripeObject):
                 assert set(data.keys()) == {'type', 'value'}
                 assert data['type'] in ('eu_vat', 'nz_gst', 'au_abn')
                 assert type(data['value']) is str and len(data['value']) > 10
+            if payment_method is not None:
+                assert type(payment_method) is str
         except AssertionError:
             raise UserError(400, 'Bad request')
+
+        if payment_method is not None:
+            PaymentMethod._api_retrieve(payment_method)  # to return 404 if not existant
 
         # All exceptions must be raised before this point.
         super().__init__()
@@ -771,6 +776,9 @@ class Customer(StripeObject):
         self.discount = None
         self.shipping = None
         self.default_source = None
+
+        if payment_method is not None:
+            PaymentMethod._api_attach(payment_method, customer=self.id)
 
         self.sources = List('/v1/customers/' + self.id + '/sources')
         self.tax_ids = List('/v1/customers/' + self.id + '/tax_ids')
