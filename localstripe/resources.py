@@ -445,8 +445,7 @@ class Charge(StripeObject):
 
     def __init__(self, amount=None, currency=None, description=None,
                  metadata=None, customer=None, source=None, capture=True,
-                 statement_descriptor=None,
-                 **kwargs):
+                 disputed=None, **kwargs):
         if kwargs:
             logger = logging.getLogger('localstripe.resources.Charge')
             logger.warning('Unexpected ' + ', '.join(kwargs.keys()))
@@ -454,6 +453,7 @@ class Charge(StripeObject):
 
         amount = try_convert_to_int(amount)
         capture = try_convert_to_bool(capture)
+        disputed = try_convert_to_bool(disputed)
         try:
             assert type(amount) is int and amount >= 0
             assert type(currency) is str and currency
@@ -466,6 +466,7 @@ class Charge(StripeObject):
                 assert (source.startswith('pm_') or source.startswith('src_')
                         or source.startswith('card_'))
             assert type(capture) is bool
+            assert type(disputed) is bool
             if statement_descriptor is not None:
                 assert type(statement_descriptor) is str
                 assert len(statement_descriptor) <= 22
@@ -503,6 +504,7 @@ class Charge(StripeObject):
         self.failure_code = None
         self.failure_message = None
         self.captured = capture
+        self.disputed = disputed
         self.balance_transaction = None
 
         redis_master.set(self._store_key(), pickle.dumps(self))
@@ -656,10 +658,85 @@ class Charge(StripeObject):
                         if c.created > try_convert_to_int(created['gt'])]
         return li
 
+extra_apis.append((('POST', '/v1/charges/{id}/capture', Charge._api_capture)))
 
-extra_apis.append((
-    ('POST', '/v1/charges/{id}/capture', Charge._api_capture)))
+class Dispute(StripeObject):
+    object = 'dispute'
+    _id_prefix = 'dp_'
 
+    def __init__(self, amount=None, charge=None, currency=None, evidence=None,
+                 payment_intent=None, reason=None, status=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+        
+        amount = try_convert_to_int(amount)
+        try:
+            if amount is not None:
+                assert type(amount) is int
+            if charge is not None:
+                assert type(charge) is str
+            if currency is not None:
+                assert type(currency) is str
+            if evidence is not None:
+                assert type(evidence) is dict
+                assert set(evidence.keys()).issubset({
+                    "access_activity_log", "billing_address", "cancellation_policy",
+                    "cancellation_policy_disclosure", "cancellation_rebuttal",
+                    "customer_communication", "customer_email_address",
+                    "customer_name", "customer_purchase_ip", "customer_signature",
+                    "duplicate_charge_documentation", "duplicate_charge_explanation",
+                    "duplicate_charge_id", "product_description", "receipt",
+                    "refund_policy", "refund_policy_disclosure",
+                    "refund_refusal_explanation", "service_date",
+                    "service_documentation", "shipping_address", "shipping_carrier",
+                    "shipping_date", "shipping_documentation",
+                    "shipping_tracking_number", "uncategorized_file",
+                    "uncategorized_text"})
+                assert all(type(f) is str for f in evidence.values())
+            if payment_intent is not None:
+                assert type(payment_intent) is str
+            if status is not None:
+                assert type(status) is str
+            if reason is not None:
+                reasonTypes = ['bank_cannot_process', 'check_returned', 
+                                'credit_not_processed', 'customer_initiated', 
+                                'debit_not_authorized', 'duplicate', 'fraudulent', 
+                                'general', 'incorrect_account_details', 
+                                'insufficient_funds', 'product_not_received', 
+                                'product_unacceptable', 'subscription_canceled', 
+                                'unrecognized']
+                assert type(reason) is str
+                assert reason in reasonTypes
+        except AssertionError:
+            raise UserError(400, 'Bad Request')
+
+        super().__init__()
+
+        self.amount = amount
+        self.charge = charge
+        self.currency = currency
+        self.evidence = evidence or {}
+        self.payment_intent = payment_intent
+        self.reason = reason
+        self.status = "needs_response"
+
+        schedule_webhook(Event('charge.dispute.created', self))
+
+    @classmethod
+    def _api_update(cls, id, **data):
+        obj = super()._api_update(id, **data)
+        obj._update
+        schedule_webhook(Event('charge.dispute.updated', obj))
+        return obj
+    
+    @classmethod
+    def _api_close(cls, id):
+        obj = super()._api_retrieve(id)
+        obj.status = "lost"
+        schedule_webhook(Event('charge.dispute.closed', obj))
+        return obj
+
+extra_apis.extend((('POST', '/v1/disputes/{id}/close', Dispute._api_close)))
 
 class Coupon(StripeObject):
     object = 'coupon'
