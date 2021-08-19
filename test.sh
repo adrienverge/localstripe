@@ -149,6 +149,14 @@ curl -sSfg -u $SK: $HOST/v1/products/PRODUCT1234
 
 curl -sSfg -u $SK: $HOST/v1/plans?expand[]=data.product
 
+count=$(curl -sSfg -u $SK: $HOST/v1/products?active=false \
+        | grep -oP 'total_count": \K([0-9]+)')
+[ "$count" -eq 0 ]
+
+count=$(curl -sSfg -u $SK: $HOST/v1/products?active=true \
+        | grep -oP 'total_count": \K([0-9]+)')
+[ "$count" -eq 9 ]
+
 code=$(curl -sg -o /dev/null -w '%{http_code}' -u $SK: \
             $HOST/v1/plans?expand[]=data.doesnotexist)
 [ "$code" -eq 400 ]
