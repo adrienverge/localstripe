@@ -1,0 +1,10 @@
+{{- if .Values.redis.sidecar.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "stripe-mock.fullname" . }}-redis-config
+data:
+  redis-config: |
+    save ""
+    appendonly no
+{{- end }}

@@ -24,11 +24,10 @@ import socket
 
 from aiohttp import web
 
-from .resources import Charge, Coupon, Customer, \
-                       Event, Invoice, InvoiceItem, PaymentIntent, \
-                       PaymentMethod, Plan, Product, Refund, SetupIntent, \
-                       Source, Subscription, SubscriptionItem, TaxRate, \
-                       Token, extra_apis, store
+from .resources import BalanceTransaction, Charge, Coupon, Customer, Event, \
+    Invoice, InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, \
+    Product, Refund, SetupIntent, Source, Subscription, SubscriptionItem, \
+    TaxRate, Token, extra_apis, store
 from .errors import UserError
 from .webhooks import register_webhook
 
@@ -148,7 +147,7 @@ def get_api_key(request):
     elif header[0] == 'Bearer':
         api_key = header[1]
 
-    if api_key.startswith('sk_') and len(api_key) > 5:
+    if (api_key.startswith('sk_') or api_key.startswith('pk_')) and len(api_key) > 5:
         return api_key
 
 
@@ -192,7 +191,17 @@ async def auth_middleware(request, handler):
     return await handler(request)
 
 
-app = web.Application(middlewares=[error_middleware, auth_middleware])
+@web.middleware
+async def save_store_middleware(request, handler):
+    try:
+        return await handler(request)
+    finally:
+        if request.method in ('PUT', 'POST', 'DELETE'):
+            store.dump_to_disk()
+
+
+app = web.Application(middlewares=[error_middleware, auth_middleware,
+                                   save_store_middleware])
 app.on_response_prepare.append(add_cors_headers)
 
 
@@ -201,7 +210,12 @@ def api_create(cls, url):
         data = await get_post_data(request)
         data = data or {}
         expand = data.pop('expand', None)
-        return json_response(cls._api_create(**data)._export(expand=expand))
+        try:
+            print(f"Incoming request for url: {url} \n {json.dumps(data, indent=2)}")
+            response = json_response(cls._api_create(**data)._export(expand=expand))
+        except UserError as e:
+            raise e
+        return response
     return f
 
 
@@ -264,9 +278,10 @@ for method, url, func in extra_apis:
     app.router.add_route(method, url, api_extra(func, url))
 
 
-for cls in (Charge, Coupon, Customer, Event, Invoice, InvoiceItem,
-            PaymentIntent, PaymentMethod, Plan, Product, Refund, SetupIntent,
-            Source, Subscription, SubscriptionItem, TaxRate, Token):
+for cls in (BalanceTransaction, Charge, Coupon, Customer, Event, Invoice,
+            InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, Product,
+            Refund, SetupIntent, Source, Subscription, SubscriptionItem,
+            TaxRate, Token):
     for method, url, func in (
             ('POST', '/v1/' + cls.object + 's', api_create),
             ('GET', '/v1/' + cls.object + 's/{id}', api_retrieve),
@@ -274,6 +289,17 @@ for cls in (Charge, Coupon, Customer, Event, Invoice, InvoiceItem,
             ('DELETE', '/v1/' + cls.object + 's/{id}', api_delete),
             ('GET', '/v1/' + cls.object + 's', api_list_all)):
         app.router.add_route(method, url, func(cls, url))
+
+# Issuing Support
+for cls in (IssuingCardholder, IssuingCard):
+    for method, url, func in (
+            ('POST', '/v1/' + cls.object.replace('.', '/') + 's', api_create),
+            ('GET', '/v1/' + cls.object.replace('.', '/') + 's/{id}', api_retrieve),
+            ('POST', '/v1/' + cls.object.replace('.', '/') + 's/{id}', api_update),
+            ('DELETE', '/v1/' + cls.object.replace('.', '/') + 's/{id}', api_delete),
+            ('GET', '/v1/' + cls.object.replace('.', '/') + 's', api_list_all)):
+        app.router.add_route(method, url, func(cls, url))
+
 
 
 def localstripe_js(request):
@@ -301,7 +327,8 @@ async def config_webhook(request):
 
 
 async def flush_store(request):
-    store.clear()
+    # store.clear()
+    redis_master.flushall()
     return web.Response()
 
 
@@ -315,8 +342,8 @@ def start():
     parser.add_argument('--from-scratch', action='store_true')
     args = parser.parse_args()
 
-    if not args.from_scratch:
-        store.try_load_from_disk()
+    if args.from_scratch:
+        redis_master.flushall(asynchronous=False)
 
     # Listen on both IPv4 and IPv6
     sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)

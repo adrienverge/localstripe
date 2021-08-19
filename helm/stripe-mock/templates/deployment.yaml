@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "stripe-mock.fullname" . }}
+  labels:
+    {{- include "stripe-mock.labels" . | nindent 4 }}
+spec:
+{{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+{{- end }}
+  revisionHistoryLimit: 0
+  selector:
+    matchLabels:
+      {{- include "stripe-mock.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+    {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      labels:
+        {{- include "stripe-mock.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "stripe-mock.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        {{- if .Values.redis.sidecar.enabled }}
+        - name: redis
+          image: library/redis:6-alpine
+          imagePullPolicy: IfNotPresent
+          command:
+            - redis-server
+            - "/redis-config/redis.conf"
+          livenessProbe:
+            tcpSocket:
+              port: 6379
+          volumeMounts:
+            - mountPath: /redis-config
+              name: redis-config
+        {{- end }}
+        - name: {{ .Chart.Name }}
+          env:
+            - name: DD_VERSION
+              value: {{ .Values.image.tag | lower | quote }}
+            - name: DD_SERVICE
+              value: stripe-mock
+            - name: DD_ENV
+              value: development
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8420
+              protocol: TCP
+          livenessProbe:
+            tcpSocket:
+              port: 8420
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: redis-config
+          configMap:
+            name: {{ include "stripe-mock.fullname" . }}-redis-config
+            items:
+              - key: redis-config
+                path: redis.conf
