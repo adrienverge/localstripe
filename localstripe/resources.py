@@ -2351,6 +2351,28 @@ class Product(StripeObject):
 
         schedule_webhook(Event('product.created', self))
 
+    @classmethod
+    def _api_list_all(cls, url, active=None, limit=None, starting_after=None,
+                      **kwargs):
+        try:
+            if active is not None:
+                assert isinstance(active, str)
+                assert active.lower() in ('true', 'false')
+                active = active.lower() == 'true'
+
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        li = super(Product, cls)._api_list_all(
+            url, limit=limit, starting_after=starting_after
+        )
+
+        if active is not None:
+            active = bool(active)
+            li._list = [obj for obj in li._list if obj.active == active]
+
+        return li
+
 
 class Refund(StripeObject):
     object = 'refund'
