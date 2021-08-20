@@ -213,6 +213,11 @@ res=$(
   | grep -oE $card)
 [ -n "$res" ]
 
+# make sure cards exist in customer sources
+count=$(curl -sSfg -u $SK: $HOST/v1/customers/$cus/sources?object=card \
+        | grep -oP 'total_count": \K([0-9]+)')
+[ "$count" -eq 3 ]
+
 # delete the card
 curl -sSfg -u $SK: $HOST/v1/customers/$cus/sources/$card \
      -X DELETE
@@ -222,6 +227,11 @@ res=$(
   curl -sSfg -u $SK: $HOST/v1/customers/$cus \
   | grep -oE $card || true)
 [ -z "$res" ]
+
+# make sure cards is removed from customer sources
+count=$(curl -sSfg -u $SK: $HOST/v1/customers/$cus/sources?object=card \
+        | grep -oP 'total_count": \K([0-9]+)')
+[ "$count" -eq 2 ]
 
 # add a new card
 card=$(
