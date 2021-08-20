@@ -161,6 +161,14 @@ code=$(curl -sg -o /dev/null -w '%{http_code}' -u $SK: \
             $HOST/v1/plans?expand[]=data.doesnotexist)
 [ "$code" -eq 400 ]
 
+count=$(curl -sSfg -u $SK: $HOST/v1/plans?active=false \
+        | grep -oP 'total_count": \K([0-9]+)')
+[ "$count" -eq 0 ]
+
+count=$(curl -sSfg -u $SK: $HOST/v1/plans?active=true \
+        | grep -oP 'total_count": \K([0-9]+)')
+[ "$count" -eq 6 ]
+
 curl -sSfg -u $SK: $HOST/v1/coupons \
    -d id=PARRAIN \
    -d percent_off=30 \

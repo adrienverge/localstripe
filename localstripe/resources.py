@@ -2204,6 +2204,32 @@ class Plan(StripeObject):
     def statement_descriptor(self):  # Support Stripe API <= 2018-02-05
         return Product._api_retrieve(self.product).statement_descriptor
 
+    @classmethod
+    def _api_list_all(cls, url, active=None, product=None, limit=None,
+                      starting_after=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        active = try_convert_to_bool(active)
+        try:
+            if active is not None:
+                assert type(active) is bool
+            if product is not None:
+                assert type(product) is str
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        li = super(Plan, cls)._api_list_all(
+            url, limit=limit, starting_after=starting_after
+        )
+
+        if active is not None:
+            li._list = [obj for obj in li._list if obj.active == active]
+        if product is not None:
+            li._list = [obj for obj in li._list if obj.product == product]
+
+        return li
+
 
 class Payout(StripeObject):
     object = 'payout'
