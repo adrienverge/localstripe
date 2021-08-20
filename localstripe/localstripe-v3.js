@@ -105,8 +105,9 @@ class Element {
       if (domElement === this._domChildren[0].parentElement) {
         return;
       }
-      throw new Error('This Element is already mounted. Use `unmount()` to ' +
-                      'unmount the Element before re-mounting.');
+      return;
+      // throw new Error('This Element is already mounted. Use `unmount()` to ' +
+      //                 'unmount the Element before re-mounting.');
     }
 
     const labelSpan = document.createElement('span');
@@ -190,7 +191,7 @@ Stripe = (apiKey) => {
         _cardElement: null,
         create: function(type, options) {
           if (this._cardElement) {
-            throw new Error("Can only create one Element of type card");
+            return this._cardElement;
           }
           this._cardElement = new Element(this);
           return this._cardElement;
