@@ -944,6 +944,15 @@ class Customer(StripeObject):
         return cls._api_retrieve(id).subscriptions
 
     @classmethod
+    def _api_list_sources(cls, id, object=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        # TODO: filter by "object=card"
+
+        return cls._api_retrieve(id).sources
+
+    @classmethod
     def _api_add_subscription(cls, id, **data):
         return Subscription._api_create(customer=id, **data)
 
@@ -976,6 +985,8 @@ extra_apis.extend((
     # Retrieve single source by id:
     ('GET', '/v1/customers/{id}/sources/{source_id}',
      Customer._api_retrieve_source),
+    # List a customer's sources
+    ('GET', '/v1/customers/{id}/sources', Customer._api_list_sources),
     # Update single source by id:
     ('POST', '/v1/customers/{id}/sources/{source_id}',
      Customer._api_update_source),
