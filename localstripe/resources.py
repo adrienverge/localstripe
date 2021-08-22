@@ -520,6 +520,7 @@ class Charge(StripeObject):
                     await asyncio.sleep(0.5)
                     self.status = 'failed'
                     if on_failure_later:
+                        schedule_webhook(Event('charge.failed', self))
                         on_failure_later()
             else:
                 async def callback():
@@ -533,6 +534,7 @@ class Charge(StripeObject):
                     self.balance_transaction = txn.id
                     self.status = 'succeeded'
                     if on_success:
+                        schedule_webhook(Event('charge.succeeded', self))
                         on_success()
             asyncio.ensure_future(callback())
 
@@ -542,6 +544,7 @@ class Charge(StripeObject):
                 self.failure_code = 'card_declined'
                 self.failure_message = 'Your card was declined.'
                 if on_failure_now:
+                    schedule_webhook(Event('charge.failed', self))
                     on_failure_now()
             else:
                 txn = BalanceTransaction(amount=self.amount,
@@ -553,6 +556,7 @@ class Charge(StripeObject):
                 self.balance_transaction = txn.id
                 self.status = 'succeeded'
                 if on_success:
+                    schedule_webhook(Event('charge.succeeded', self))
                     on_success()
 
     @classmethod
@@ -2525,6 +2529,7 @@ class Refund(StripeObject):
                                      reporting_category='refund',
                                      source=self.id, type='refund')
             self.balance_transaction = txn.id
+            schedule_webhook(Event('charge.refunded', self))
 
     @classmethod
     def _api_list_all(cls, url, charge=None, limit=None, starting_after=None):
