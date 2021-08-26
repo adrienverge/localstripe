@@ -1256,10 +1256,9 @@ class Invoice(StripeObject):
                 assert type(subscription_items) is list
                 for si in subscription_items:
                     assert type(si.get('plan')) is str
-                    si['tax_rates'] = si.get('tax_rates')
-                    if si['tax_rates'] is not None:
-                        assert type(si['tax_rates']) is list
-                        assert all(type(tr) is str for tr in si['tax_rates'])
+                    si['tax_rates'] = si.get('tax_rates', [])
+                    assert type(si['tax_rates']) is list
+                    assert all(type(tr) is str for tr in si['tax_rates'])
                 if subscription_default_tax_rates is not None:
                     assert subscription_tax_percent is None
                     assert type(subscription_default_tax_rates) is list
@@ -1279,7 +1278,7 @@ class Invoice(StripeObject):
             for si in subscription_items:
                 Plan._api_retrieve(si['plan'])  # to return 404 if not existant
                 # To return 404 if not existant:
-                if si['tax_rates'] is not None:
+                if len(si['tax_rates']):
                     [TaxRate._api_retrieve(tr) for tr in si['tax_rates']]
             # To return 404 if not existant:
             if subscription_default_tax_rates is not None:
@@ -1326,7 +1325,7 @@ class Invoice(StripeObject):
             else:
                 plan = si.plan
                 quantity = si.quantity
-                tax_rates = [tr.id for tr in (si.tax_rates or [])]
+                tax_rates = [tr.id for tr in si.tax_rates]
             invoice_items.append(
                 SubscriptionItem(subscription=subscription,
                                  plan=plan.id,
@@ -1534,7 +1533,7 @@ class InvoiceItem(StripeObject):
     def __init__(self, invoice=None, subscription=None, plan=None, amount=None,
                  currency=None, customer=None, period_start=None,
                  period_end=None, proration=False, description=None,
-                 tax_rates=None, metadata=None, **kwargs):
+                 tax_rates=[], metadata=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -1563,9 +1562,8 @@ class InvoiceItem(StripeObject):
                 assert type(description) is str
             else:
                 description = 'Invoice item'
-            if tax_rates is not None:
-                assert type(tax_rates) is list
-                assert all(type(tr) is str for tr in tax_rates)
+            assert type(tax_rates) is list
+            assert all(type(tr) is str for tr in tax_rates)
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -1574,7 +1572,7 @@ class InvoiceItem(StripeObject):
             Invoice._api_retrieve(invoice)  # to return 404 if not existant
         if plan is not None:
             plan = Plan._api_retrieve(plan)  # to return 404 if not existant
-        if tax_rates is not None:
+        if len(tax_rates):
             # To return 404 if not existant:
             tax_rates = [TaxRate._api_retrieve(tr) for tr in tax_rates]
 
@@ -1592,7 +1590,7 @@ class InvoiceItem(StripeObject):
         self.period = dict(start=period_start, end=period_end)
         self.proration = proration
         self.description = description
-        self.tax_rates = tax_rates or []
+        self.tax_rates = tax_rates
         self.metadata = metadata or {}
 
     @classmethod
@@ -1653,7 +1651,7 @@ class InvoiceLineItem(StripeObject):
         # Legacy support, before InvoiceLineItem
         self.invoice = item.invoice
 
-        self.tax_rates = item.tax_rates or []
+        self.tax_rates = item.tax_rates
         self.metadata = item.metadata
         self.quantity = item.quantity
 
@@ -2653,10 +2651,9 @@ class Subscription(StripeObject):
                     assert item['quantity'] > 0
                 else:
                     item['quantity'] = 1
-                item['tax_rates'] = item.get('tax_rates')
-                if item['tax_rates'] is not None:
-                    assert type(item['tax_rates']) is list
-                    assert all(type(tr) is str for tr in item['tax_rates'])
+                item['tax_rates'] = item.get('tax_rates', [])
+                assert type(item['tax_rates']) is list
+                assert all(type(tr) is str for tr in item['tax_rates'])
                 item['metadata'] = item.get('metadata')
                 if item['metadata'] is not None:
                     assert type(item['metadata']) is dict
@@ -2673,7 +2670,7 @@ class Subscription(StripeObject):
         for item in items:
             Plan._api_retrieve(item['plan'])  # to return 404 if not existant
             # To return 404 if not existant:
-            if item['tax_rates'] is not None:
+            if len(item['tax_rates']):
                 [TaxRate._api_retrieve(tr) for tr in item['tax_rates']]
         # To return 404 if not existant:
         if default_tax_rates is not None:
@@ -2852,10 +2849,9 @@ class Subscription(StripeObject):
                         assert item['quantity'] > 0
                     else:
                         item['quantity'] = 1
-                    item['tax_rates'] = item.get('tax_rates')
-                    if item['tax_rates'] is not None:
-                        assert type(item['tax_rates']) is list
-                        assert all(type(tr) is str for tr in item['tax_rates'])
+                    item['tax_rates'] = item.get('tax_rates', [])
+                    assert type(item['tax_rates']) is list
+                    assert all(type(tr) is str for tr in item['tax_rates'])
                     item['metadata'] = item.get('metadata')
                     if item['metadata'] is not None:
                         assert type(item['metadata']) is dict
@@ -2876,7 +2872,7 @@ class Subscription(StripeObject):
             Plan._api_retrieve(items[0]['plan'])
 
             # To return 404 if not existant:
-            if items[0]['tax_rates'] is not None:
+            if len(items[0]['tax_rates']):
                 [TaxRate._api_retrieve(tr) for tr in items[0]['tax_rates']]
 
             self.quantity = items[0]['quantity']
@@ -2901,7 +2897,7 @@ class Subscription(StripeObject):
                                                  limit=99)
                 for previous_invoice in previous._list:
                     previous_tax_rates = [tr.id for tr in (
-                        previous_invoice.lines._list[0].tax_rates or [])]
+                        previous_invoice.lines._list[0].tax_rates)]
                     InvoiceItem(amount=- previous_invoice.subtotal,
                                 currency=previous_invoice.currency,
                                 proration=True,
@@ -2984,7 +2980,7 @@ class SubscriptionItem(StripeObject):
     _id_prefix = 'si_'
 
     def __init__(self, subscription=None, plan=None, quantity=1,
-                 tax_rates=None, metadata=None, **kwargs):
+                 tax_rates=[], metadata=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -2995,15 +2991,14 @@ class SubscriptionItem(StripeObject):
                 assert subscription.startswith('sub_')
             assert type(plan) is str
             assert type(quantity) is int and quantity > 0
-            if tax_rates is not None:
-                assert type(tax_rates) is list
-                assert all(type(tr) is str for tr in tax_rates)
+            assert type(tax_rates) is list
+            assert all(type(tr) is str for tr in tax_rates)
         except AssertionError:
             raise UserError(400, 'Bad request')
 
         plan = Plan._api_retrieve(plan)  # to return 404 if not existant
         # To return 404 if not existant:
-        if tax_rates is not None:
+        if len(tax_rates):
             tax_rates = [TaxRate._api_retrieve(tr) for tr in tax_rates]
 
         # All exceptions must be raised before this point.
@@ -3011,7 +3006,7 @@ class SubscriptionItem(StripeObject):
 
         self.plan = plan
         self.quantity = quantity
-        self.tax_rates = tax_rates or []
+        self.tax_rates = tax_rates
         self.metadata = metadata or {}
 
         self._subscription = subscription
