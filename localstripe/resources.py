@@ -441,6 +441,22 @@ class Card(StripeObject):
     def _charging_is_declined(self):
         return PaymentMethod._charging_is_declined(self)
 
+    @classmethod
+    def _api_list_all(cls, url, customer=None, limit=10):
+        try:
+            if customer is not None:
+                assert type(customer) is str and customer.startswith('cus_')
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        if customer:
+            Customer._api_retrieve(customer)  # to return 404 if not existant
+
+        li = super(Card, cls)._api_list_all(url, limit=limit)
+        if customer:
+            li._list = [c for c in li._list if c.customer == customer]
+        return li
+
 
 class Charge(StripeObject):
     object = 'charge'
@@ -834,6 +850,28 @@ class Customer(StripeObject):
         return super()._api_delete(id)
 
     @classmethod
+    def _api_list_sources(cls, id, object=None, limit=10):
+        print(object)
+        try:
+            if object is not None:
+                assert object in ('card', 'bank_account')
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+        
+        obj = cls._api_retrieve(id) # return 404 if does not exist
+        
+        url = '/v1/customers/' + obj.id + '/sources'
+
+        if object is 'card':
+            return Card._api_list_all(url, customer=obj.id)
+
+        #TODO: implement bank accounts
+        if object is 'bank_account':
+            return List(url, limit=limit)
+
+        return obj.sources
+
+    @classmethod
     def _api_retrieve_source(cls, id, source_id, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
@@ -973,6 +1011,9 @@ class Customer(StripeObject):
 
 
 extra_apis.extend((
+    # Retrieve list of sources:
+    ('GET', '/v1/customers/{id}/sources', Customer._api_list_sources),
+    # Add a source
     ('POST', '/v1/customers/{id}/sources', Customer._api_add_source),
     # Retrieve single source by id:
     ('GET', '/v1/customers/{id}/sources/{source_id}',
