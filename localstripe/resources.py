@@ -757,7 +757,8 @@ class Customer(StripeObject):
             raise UserError(400, 'Bad request')
 
         if payment_method is not None:
-            PaymentMethod._api_retrieve(payment_method)  # to return 404 if not existant
+            # return 404 if not existant
+            PaymentMethod._api_retrieve(payment_method)
 
         # All exceptions must be raised before this point.
         super().__init__()
@@ -837,7 +838,7 @@ class Customer(StripeObject):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
-        # return 404 if does not exist
+        # return 404 if not existant
         Customer._api_retrieve(id)
 
         if type(source_id) is str and source_id.startswith('src_'):
