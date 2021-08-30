@@ -158,7 +158,7 @@ class StripeObject(object):
         if key not in store.keys():
             raise UserError(404, 'Not Found')
         del store[key]
-        return {"deleted": True, "id": id}
+        return {'deleted': True, 'id': id}
 
     @classmethod
     def _api_list_all(cls, url, limit=None, starting_after=None, **kwargs):
@@ -2300,7 +2300,7 @@ class Payout(StripeObject):
         # manually created
         self.automatic = False
         # Balance Transactions are no implemented yet so we fake one
-        self.balance_transaction = f"txn_{random_id(24)}"
+        self.balance_transaction = f'txn_{random_id(24)}'
 
         self.failure_balance_transaction = None
         self.failure_code = None
