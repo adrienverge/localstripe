@@ -2661,6 +2661,7 @@ class Subscription(StripeObject):
 
     def __init__(self, customer=None, metadata=None, items=None,
                  trial_end=None, default_tax_rates=None,
+                 trial_from_plan=False,
                  backdate_start_date=None,
                  plan=None, quantity=None,  # legacy support
                  tax_percent=None,  # deprecated
@@ -2677,6 +2678,7 @@ class Subscription(StripeObject):
             items = [{'plan': plan, 'quantity': quantity}]
 
         trial_end = try_convert_to_int(trial_end)
+        trial_from_plan = try_convert_to_bool(trial_from_plan)
         tax_percent = try_convert_to_float(tax_percent)
         enable_incomplete_payments = try_convert_to_bool(
             enable_incomplete_payments)
@@ -2691,6 +2693,9 @@ class Subscription(StripeObject):
                     trial_end = int(time.time())
                 assert type(trial_end) is int
                 assert trial_end > 1500000000
+                assert not trial_from_plan
+            if trial_from_plan is not None:
+                assert type(trial_from_plan) is bool
             if tax_percent is not None:
                 assert default_tax_rates is None
                 assert type(tax_percent) is float
@@ -2763,6 +2768,7 @@ class Subscription(StripeObject):
         self.trial_end = trial_end
         self.trial_start = None
         self.trial_period_days = trial_period_days
+        self.trial_from_plan = trial_from_plan
         self.latest_invoice = None
         self.start_date = backdate_start_date or int(time.time())
         self.billing_cycle_anchor = billing_cycle_anchor
