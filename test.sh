@@ -866,3 +866,36 @@ txn=$(
        -d charge=$charge \
   | grep -oE 'txn_\w+')
 [ -n "$txn" ]
+
+# creating a customer with a payment method
+pm=$(curl -sSfg -u $SK: $HOST/v1/payment_methods \
+          -d type=card \
+          -d card[number]=4242424242424242 \
+          -d card[exp_month]=12 \
+          -d card[exp_year]=2020 \
+          -d card[cvc]=123 \
+    | grep -oE 'pm_\w+' | head -n 1)
+
+cus=$(curl -sSfg -u $SK: $HOST/v1/customers \
+           -d description='This customer will have a payment_method when created' \
+           -d payment_method=$pm \
+     | grep -oE 'cus_\w+' | head -n 1)
+
+card=$(curl -sSfg -u $SK: $HOST/v1/payment_methods?customer=$cus\&type=card \
+      | grep -oE "$pm" | head -n 1)
+
+[ -n "$card" ]
+
+# trying to create a customer with a non-existant payment_method returns a 404, and doesn't create customer
+total_count=$( curl -sSfg -u $SK: $HOST/v1/customers \
+             | grep -oE '"total_count": 9')
+[ -n "$total_count" ]
+
+code=$(curl -sg -o /dev/null -w '%{http_code}' -u $SK: $HOST/v1/customers \
+           -d description='This customer should not be created, payment_method is wrong' \
+           -d payment_method='pm_doesnotexist')
+[ "$code" -eq 404 ]
+
+total_count=$( curl -sSfg -u $SK: $HOST/v1/customers \
+             | grep -oE '"total_count": 9')
+[ -n "$total_count" ]

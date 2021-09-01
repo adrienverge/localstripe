@@ -191,7 +191,17 @@ async def auth_middleware(request, handler):
     return await handler(request)
 
 
-app = web.Application(middlewares=[error_middleware, auth_middleware])
+@web.middleware
+async def save_store_middleware(request, handler):
+    try:
+        return await handler(request)
+    finally:
+        if request.method in ('PUT', 'POST', 'DELETE'):
+            store.dump_to_disk()
+
+
+app = web.Application(middlewares=[error_middleware, auth_middleware,
+                                   save_store_middleware])
 app.on_response_prepare.append(add_cors_headers)
 
 
