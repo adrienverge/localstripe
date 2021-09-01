@@ -1,0 +1,51 @@
+---
+
+name: tests
+
+on:
+  push:
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  lint:
+    name: Linters
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      - run: pip install flake8 flake8-import-order doc8 Pygments
+      - run: flake8 .
+      - run: doc8 README.rst
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version:
+          - 3.7
+          - 3.8
+          - 3.9
+          - nightly
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.pyver }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.pyver }}
+      - run: python setup.py sdist
+      - run: pip install dist/localstripe-*.tar.gz
+      - run: python -m localstripe &
+      # Wait for server to be up:
+      - run: >
+          timeout=5; while [ $((timeout--)) -ge 0 ]; do
+            nc -z -w 1 localhost 8420; r=$?; [ $r -eq 0 ] && break; sleep 1;
+          done; exit $r
+      - run: ./test.sh

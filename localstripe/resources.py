@@ -168,7 +168,6 @@ class StripeObject(object):
             raise UserError(400, '(@ StripeObject._api_list_all) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
         li = List(url, limit=limit, starting_after=starting_after)
-
         li._list = [
             value for key, value
             in store.items()
@@ -726,7 +725,7 @@ class Customer(StripeObject):
                  phone=None, address=None,
                  invoice_settings=None, business_vat_id=None,
                  preferred_locales=None, tax_id_data=None,
-                 metadata=None, **kwargs):
+                 metadata=None, payment_method=None, **kwargs):
         if kwargs:
             raise UserError(400, '(@ Customer.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
@@ -767,9 +766,15 @@ class Customer(StripeObject):
                 assert set(data.keys()) == {'type', 'value'}
                 assert data['type'] in ('eu_vat', 'nz_gst', 'au_abn')
                 assert type(data['value']) is str and len(data['value']) > 10
+            if payment_method is not None:
+                assert type(payment_method) is str
         except AssertionError:
             raise UserError(400, "Bad request: {}".format(traceback.format_exc()))
 
+
+        if payment_method is not None:
+            # return 404 if not existant
+            PaymentMethod._api_retrieve(payment_method)
 
         # All exceptions must be raised before this point.
         super().__init__()
@@ -788,6 +793,9 @@ class Customer(StripeObject):
         self.discount = None
         self.shipping = None
         self.default_source = None
+
+        if payment_method is not None:
+            PaymentMethod._api_attach(payment_method, customer=self.id)
 
         self.sources = List('/v1/customers/' + self.id + '/sources')
         self.tax_ids = List('/v1/customers/' + self.id + '/tax_ids')
@@ -846,7 +854,7 @@ class Customer(StripeObject):
         if kwargs:
             raise UserError(400, '(@ Customer._api_retrieve_source) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
-        # return 404 if does not exist
+        # return 404 if not existant
         Customer._api_retrieve(id)
 
         if type(source_id) is str and source_id.startswith('src_'):
@@ -1175,6 +1183,10 @@ class Invoice(StripeObject):
         return self.total
 
     @property
+    def amount_paid(self):
+        return self.amount_due if self.status == 'paid' else 0
+
+    @property
     def next_payment_attempt(self):
         if self.status in ('draft', 'open'):
             return self.date
@@ -1288,7 +1300,7 @@ class Invoice(StripeObject):
             for si in subscription_items:
                 Plan._api_retrieve(si['plan'])  # to return 404 if not existant
                 # To return 404 if not existant:
-                if si['tax_rates'] is not None:
+                if len(si['tax_rates']):
                     [TaxRate._api_retrieve(tr) for tr in si['tax_rates']]
             # To return 404 if not existant:
             if subscription_default_tax_rates is not None:
@@ -1336,7 +1348,7 @@ class Invoice(StripeObject):
             else:
                 plan = si.plan
                 quantity = si.quantity
-                tax_rates = [tr.id for tr in (si.tax_rates or [])]
+                tax_rates = [tr.id for tr in si.tax_rates]
             invoice_items.append(
                 SubscriptionItem(subscription=subscription,
                                  plan=plan.id,
@@ -1548,7 +1560,7 @@ class InvoiceItem(StripeObject):
     def __init__(self, invoice=None, subscription=None, plan=None, amount=None,
                  currency=None, customer=None, period_start=None,
                  period_end=None, proration=False, description=None,
-                 tax_rates=None, metadata=None, **kwargs):
+                 tax_rates=[], metadata=None, **kwargs):
         if kwargs:
             raise UserError(400, '(@ InvoiceItem.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
@@ -1577,9 +1589,8 @@ class InvoiceItem(StripeObject):
                 assert type(description) is str
             else:
                 description = 'Invoice item'
-            if tax_rates is not None:
-                assert type(tax_rates) is list
-                assert all(type(tr) is str for tr in tax_rates)
+            assert type(tax_rates) is list
+            assert all(type(tr) is str for tr in tax_rates)
         except AssertionError:
             raise UserError(400, "Bad request: {}".format(traceback.format_exc()))
 
@@ -1589,7 +1600,7 @@ class InvoiceItem(StripeObject):
             Invoice._api_retrieve(invoice)  # to return 404 if not existant
         if plan is not None:
             plan = Plan._api_retrieve(plan)  # to return 404 if not existant
-        if tax_rates is not None:
+        if len(tax_rates):
             # To return 404 if not existant:
             tax_rates = [TaxRate._api_retrieve(tr) for tr in tax_rates]
 
@@ -1670,7 +1681,7 @@ class InvoiceLineItem(StripeObject):
         # Legacy support, before InvoiceLineItem
         self.invoice = item.invoice
 
-        self.tax_rates = item.tax_rates or []
+        self.tax_rates = item.tax_rates
         self.metadata = item.metadata
         self.quantity = item.quantity
 
@@ -2685,7 +2696,6 @@ class Subscription(StripeObject):
             for item in items:
 
                 assert type(item.get('plan', None)) is str
-
                 if item.get('quantity', None) is not None:
                     item['quantity'] = try_convert_to_int(item['quantity'])
                     assert type(item['quantity']) is int
@@ -2714,7 +2724,7 @@ class Subscription(StripeObject):
         for item in items:
             Plan._api_retrieve(item['plan'])  # to return 404 if not existant
             # To return 404 if not existant:
-            if item['tax_rates'] is not None:
+            if len(item['tax_rates']):
                 [TaxRate._api_retrieve(tr) for tr in item['tax_rates']]
         # To return 404 if not existant:
         if default_tax_rates is not None:
@@ -2919,7 +2929,7 @@ class Subscription(StripeObject):
             Plan._api_retrieve(items[0]['plan'])
 
             # To return 404 if not existant:
-            if items[0]['tax_rates'] is not None:
+            if len(items[0]['tax_rates']):
                 [TaxRate._api_retrieve(tr) for tr in items[0]['tax_rates']]
 
             self.quantity = items[0]['quantity']
@@ -2944,7 +2954,7 @@ class Subscription(StripeObject):
                                                  limit=99)
                 for previous_invoice in previous._list:
                     previous_tax_rates = [tr.id for tr in (
-                        previous_invoice.lines._list[0].tax_rates or [])]
+                        previous_invoice.lines._list[0].tax_rates)]
                     InvoiceItem(amount=- previous_invoice.subtotal,
                                 currency=previous_invoice.currency,
                                 proration=True,
@@ -3026,7 +3036,7 @@ class SubscriptionItem(StripeObject):
     _id_prefix = 'si_'
 
     def __init__(self, subscription=None, plan=None, quantity=1,
-                 tax_rates=None, metadata=None, **kwargs):
+                 tax_rates=[], metadata=None, **kwargs):
         if kwargs:
             raise UserError(400, '(@ SubscriptionItem.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
@@ -3045,7 +3055,7 @@ class SubscriptionItem(StripeObject):
 
         plan = Plan._api_retrieve(plan)  # to return 404 if not existant
         # To return 404 if not existant:
-        if tax_rates is not None:
+        if len(tax_rates):
             tax_rates = [TaxRate._api_retrieve(tr) for tr in tax_rates]
 
         # All exceptions must be raised before this point.
