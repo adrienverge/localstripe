@@ -1276,6 +1276,7 @@ class Invoice(StripeObject):
                 assert type(subscription_items) is list
                 for si in subscription_items:
                     assert type(si.get('plan')) is str
+                    assert type(si.get('price')) is str
                     si['tax_rates'] = si.get('tax_rates')
                     if si['tax_rates'] is not None:
                         assert type(si['tax_rates']) is list
@@ -1299,6 +1300,7 @@ class Invoice(StripeObject):
         if subscription_items:
             for si in subscription_items:
                 Plan._api_retrieve(si['plan'])  # to return 404 if not existant
+                Price._api_retrieve(si['price'])  # to return 404 if not existant
                 # To return 404 if not existant:
                 if len(si['tax_rates']):
                     [TaxRate._api_retrieve(tr) for tr in si['tax_rates']]
@@ -1343,15 +1345,18 @@ class Invoice(StripeObject):
         for si in items:
             if subscription_items is not None:
                 plan = Plan._api_retrieve(si['plan'])
+                price = Price._api_retrieve(si['price'])
                 quantity = si.get('quantity', 1)
                 tax_rates = si['tax_rates']
             else:
                 plan = si.plan
+                price = si.price
                 quantity = si.quantity
                 tax_rates = [tr.id for tr in si.tax_rates]
             invoice_items.append(
                 SubscriptionItem(subscription=subscription,
                                  plan=plan.id,
+                                 price=price.id,
                                  quantity=quantity,
                                  tax_rates=tax_rates))
 
@@ -1388,6 +1393,7 @@ class Invoice(StripeObject):
                                              limit=99)
                 for previous_invoice in previous._list:
                     old_plan = previous_invoice.lines._list[0].plan
+                    old_price = previous_invoice.lines._list[0].price
                     old_tax_rates = [
                         tr.id
                         for tr in previous_invoice.lines._list[0].tax_rates]
@@ -1398,6 +1404,7 @@ class Invoice(StripeObject):
                                     description='Unused time',
                                     subscription=subscription,
                                     plan=old_plan.id,
+                                    price=old_price.id,
                                     tax_rates=old_tax_rates,
                                     customer=customer,
                                     period_start=previous_invoice.period_start,
@@ -1557,10 +1564,11 @@ class InvoiceItem(StripeObject):
     object = 'invoiceitem'
     _id_prefix = 'ii_'
 
-    def __init__(self, invoice=None, subscription=None, plan=None, amount=None,
-                 currency=None, customer=None, period_start=None,
-                 period_end=None, proration=False, description=None,
-                 tax_rates=[], metadata=None, **kwargs):
+    def __init__(self, invoice=None, subscription=None, plan=None,
+                 price=None, amount=None,currency=None, customer=None,
+                 period_start=None, period_end=None, proration=False,
+                 description=None, tax_rates=[], metadata=None,
+                 **kwargs):
         if kwargs:
             raise UserError(400, '(@ InvoiceItem.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
 
@@ -1576,6 +1584,8 @@ class InvoiceItem(StripeObject):
                 assert subscription.startswith('sub_')
             if plan is not None:
                 assert type(plan) is str and plan
+            if price is not None:
+                assert type(price) is str and price
             assert type(amount) is int
             assert type(currency) is str and currency
             assert type(customer) is str and customer.startswith('cus_')
@@ -1600,6 +1610,8 @@ class InvoiceItem(StripeObject):
             Invoice._api_retrieve(invoice)  # to return 404 if not existant
         if plan is not None:
             plan = Plan._api_retrieve(plan)  # to return 404 if not existant
+        if price is not None:
+            price = Price._api_retrieve(price)  # to return 404 if not existant
         if len(tax_rates):
             # To return 404 if not existant:
             tax_rates = [TaxRate._api_retrieve(tr) for tr in tax_rates]
@@ -1610,6 +1622,7 @@ class InvoiceItem(StripeObject):
         self.invoice = invoice
         self.subscription = subscription
         self.plan = plan
+        self.price = price
         self.quantity = 1
         self.amount = amount
         self.currency = currency
@@ -1663,6 +1676,7 @@ class InvoiceLineItem(StripeObject):
             self.subscription_item = item.id
             self.subscription = item._subscription
             self.plan = item.plan
+            self.price = item.price
             self.proration = False
             self.currency = item.plan.currency
             self.description = item.plan.name
@@ -1672,6 +1686,7 @@ class InvoiceLineItem(StripeObject):
             self.invoice_item = item.id
             self.subscription = item.subscription
             self.plan = item.plan
+            self.price = item.price
             self.proration = item.proration
             self.currency = item.currency
             self.description = item.description
@@ -2157,7 +2172,6 @@ extra_apis.extend((
     ('POST', '/v1/payment_methods/{id}/attach', PaymentMethod._api_attach),
     ('POST', '/v1/payment_methods/{id}/detach', PaymentMethod._api_detach)))
 
-
 class Plan(StripeObject):
     object = 'plan'
     _id_prefix = 'plan_'
@@ -2185,36 +2199,36 @@ class Plan(StripeObject):
         active = try_convert_to_bool(active)
         try:
             assert id is None or type(id) is str and id
-            assert type(active) is bool
+            assert _type(active) is bool
             assert billing_scheme in ['per_unit', 'tiered']
             if billing_scheme == 'per_unit':
-                assert type(amount) is int and amount >= 0
+                assert _type(amount) is int and amount >= 0
             else:
                 assert tiers_mode in ['graduated', 'volume']
-                assert type(tiers) is list and len(tiers) > 0
+                assert _type(tiers) is list and len(tiers) > 0
                 for t in tiers:
                     assert \
-                        type(t) is dict and 'up_to' in t and \
+                        _type(t) is dict and 'up_to' in t and \
                         (t['up_to'] == 'inf' or
-                         type(try_convert_to_int(t['up_to'])) is int)
+                         _type(try_convert_to_int(t['up_to'])) is int)
                     unit_amount = try_convert_to_int(t.get('unit_amount', 0))
-                    assert type(unit_amount) is int and unit_amount >= 0
+                    assert _type(unit_amount) is int and unit_amount >= 0
                     flat_amount = try_convert_to_int(t.get('flat_amount', 0))
-                    assert type(flat_amount) is int and flat_amount >= 0
-            assert type(currency) is str and currency
-            assert type(interval) is str
+                    assert _type(flat_amount) is int and flat_amount >= 0
+            assert _type(currency) is str and currency
+            assert _type(interval) is str
             assert interval in ('day', 'week', 'month', 'year')
-            assert type(interval_count) is int
+            assert _type(interval_count) is int
             if trial_period_days is not None:
-                assert type(trial_period_days) is int
+                assert _type(trial_period_days) is int
             if nickname is not None:
-                assert type(nickname) is str
+                assert _type(nickname) is str
             assert usage_type in ['licensed', 'metered']
         except AssertionError:
             raise UserError(400, "Bad request: {}".format(traceback.format_exc()))
 
 
-        if type(product) is str:
+        if _type(product) is str:
             Product._api_retrieve(product)  # to return 404 if not existant
         else:
             product = Product(type='service', **product).id
@@ -2246,6 +2260,99 @@ class Plan(StripeObject):
     def statement_descriptor(self):  # Support Stripe API <= 2018-02-05
         return Product._api_retrieve(self.product).statement_descriptor
 
+
+class Price(StripeObject):
+    object = 'price'
+    _id_prefix = 'price_'
+
+    def __init__(self, id=None, metadata=None, amount=None, product=None,
+                 currency=None, nickname=None, billing_scheme='per_unit',
+                 tiers=None, tiers_mode=None, flat_amount=0, active=True,
+                 livemode=False, lookup_key=None, recurring=None,
+                 tax_behavior='unspecified', transform_quantity=None,
+                 type='recurring', unit_amount=None, unit_amount_decimal=None,
+                 # Legacy arguments, before Stripe API 2018-02-05:
+                 name=None, statement_descriptor=None,
+                 **kwargs):
+        if kwargs:
+            raise UserError(400, '(@ Price.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
+
+        # Support Stripe API <= 2018-02-05:
+        if product is None and name is not None:
+            product = dict(name=name, metadata=metadata,
+                           statement_descriptor=statement_descriptor)
+
+        unit_amount = try_convert_to_int(unit_amount)
+        active = try_convert_to_bool(active)
+
+        try:
+            assert id is None or _type(id) is str and id
+            assert _type(active) is bool
+            assert billing_scheme in ['per_unit', 'tiered']
+            assert tax_behavior in ['unspecified', 'inclusive', 'exclusive']
+            if lookup_key is not None:
+                assert _type(lookup_key) is str and len(lookup_key) > 0
+            # Ensure amount is valid
+            if billing_scheme == 'per_unit':
+                assert _type(unit_amount) is int and unit_amount >= 0
+                if unit_amount_decimal:
+                    # TODO: better checks for valid floats (only up to 12 decimal places, should be a valid float)
+                    assert _type(unit_amount_decimal) is str
+            else:
+                assert tiers_mode in ['graduated', 'volume']
+                assert _type(tiers) is list and len(tiers) > 0
+                for t in tiers:
+                    assert \
+                        _type(t) is dict and 'up_to' in t and \
+                        (t['up_to'] == 'inf' or
+                         _type(try_convert_to_int(t['up_to'])) is int)
+                    unit_amount = try_convert_to_int(t.get('unit_amount', 0))
+                    assert _type(unit_amount) is int and unit_amount >= 0
+                    flat_amount = try_convert_to_int(t.get('flat_amount', 0))
+                    assert _type(flat_amount) is int and flat_amount >= 0
+
+            assert _type(currency) is str and currency
+
+            # Validate recurring subobject
+            if recurring is not None:
+                if 'aggregate_usage' in recurring:
+                    assert _type(recurring['aggregate_usage']) is str and recurring['aggregate_usage'] in ('sum', 'last_during_period', 'last_ever', 'max')
+                assert _type(recurring['interval']) is str and recurring['interval'] in ('day', 'week', 'month', 'year')
+                if 'interval_count' in recurring:
+                    recurring['interval_count'] = try_convert_to_int(recurring['interval_count'])
+                    assert _type(recurring['interval_count']) is int
+                if 'usage_type' in recurring:
+                    assert _type(recurring['usage_type']) is str and recurring['usage_type'] in ('licensed', 'metered')
+
+            if nickname is not None:
+                assert _type(nickname) is str
+
+        except AssertionError:
+            raise UserError(400, "Bad request: {}".format(traceback.format_exc()))
+
+
+        if _type(product) is str:
+            Product._api_retrieve(product)  # to return 404 if not existant
+        else:
+            product = Product(type='service', **product).id
+
+        # All exceptions must be raised before this point.
+        super().__init__(id)
+
+        self.metadata = metadata or {}
+        self.product = product
+        self.active = active
+        self.unit_amount = unit_amount
+        self.unit_amount_decimal = unit_amount_decimal
+        self.currency = currency
+        self.recurring = recurring
+        self.nickname = nickname
+        self.billing_scheme = billing_scheme
+        self.tax_behavior = tax_behavior
+        self.tiers = tiers
+        self.tiers_mode = tiers_mode
+
+        schedule_webhook(Event('price.created', self))
 
 class Payout(StripeObject):
     object = 'payout'
@@ -2644,7 +2751,7 @@ class Subscription(StripeObject):
     def __init__(self, customer=None, metadata=None, items=None,
                  trial_end=None, default_tax_rates=None,
                  backdate_start_date=None,
-                 plan=None, quantity=None,  # legacy support
+                 plan=None, price=None, quantity=None,  # legacy support
                  tax_percent=None,  # deprecated
                  enable_incomplete_payments=True,  # legacy support
                  payment_behavior='allow_incomplete',
@@ -2656,7 +2763,7 @@ class Subscription(StripeObject):
         # Legacy support (stripe-php still uses these parameters instead of
         # providing `items: [...]`):
         if items is None and plan is not None:
-            items = [{'plan': plan, 'quantity': quantity}]
+            items = [{'plan': plan, 'price': price, 'quantity': quantity}]
 
         trial_end = try_convert_to_int(trial_end)
         tax_percent = try_convert_to_float(tax_percent)
@@ -2696,6 +2803,7 @@ class Subscription(StripeObject):
             for item in items:
 
                 assert type(item.get('plan', None)) is str
+                assert type(item.get('price', None)) is str
                 if item.get('quantity', None) is not None:
                     item['quantity'] = try_convert_to_int(item['quantity'])
                     assert type(item['quantity']) is int
@@ -2723,6 +2831,7 @@ class Subscription(StripeObject):
         Customer._api_retrieve(customer)  # to return 404 if not existant
         for item in items:
             Plan._api_retrieve(item['plan'])  # to return 404 if not existant
+            Price._api_retrieve(item['price'])  # to return 404 if not existant
             # To return 404 if not existant:
             if len(item['tax_rates']):
                 [TaxRate._api_retrieve(tr) for tr in item['tax_rates']]
@@ -2761,6 +2870,7 @@ class Subscription(StripeObject):
             SubscriptionItem(
                 subscription=self.id,
                 plan=items[0]['plan'],
+                price=items[0]['price'],
                 quantity=items[0]['quantity'],
                 metadata=items[0].get('metadata', None),
                 tax_rates=items[0]['tax_rates']))
@@ -2777,6 +2887,10 @@ class Subscription(StripeObject):
     @property
     def plan(self):
         return self.items._list[0].plan
+
+    @property
+    def price(self):
+        return self.items._list[0].price
 
     @property
     def current_period_start(self):
@@ -2850,7 +2964,7 @@ class Subscription(StripeObject):
 
     def _update(self, metadata=None, items=None, trial_end=None,
                 default_tax_rates=None, tax_percent=None,
-                plan=None, quantity=None,  # legacy support
+                plan=None, price=None, quantity=None,  # legacy support
                 prorate=None, proration_date=None, cancel_at_period_end=None,
                 cancel_at=None,
                 # Currently unimplemented, only False works as expected:
@@ -2859,7 +2973,7 @@ class Subscription(StripeObject):
         # Legacy support (stripe-php still uses these parameters instead of
         # providing `items: [...]`):
         if items is None and plan is not None:
-            items = [{'plan': plan, 'quantity': quantity}]
+            items = [{'plan': plan, 'price': price, 'quantity': quantity}]
 
         trial_end = try_convert_to_int(trial_end)
         tax_percent = try_convert_to_float(tax_percent)
@@ -2916,17 +3030,22 @@ class Subscription(StripeObject):
             raise UserError(400, "Bad request: {}".format(traceback.format_exc()))
 
         old_plan = self.plan
+        old_price = self.price
         if items is not None:
             if len(items) != 1:
                 raise UserError(500, 'Not implemented')
 
-            # If no plan specified in update request, we stay on the current
-            # one
+            # If no plan specified in update request, stay on the current one
             if not items[0].get('plan'):
                 items[0]['plan'] = self.plan.id
 
+            # If no price specified in update request, stay on the current one
+            if not items[0].get('price'):
+                items[0]['price'] = self.price.id
+
             # To return 404 if not existant:
             Plan._api_retrieve(items[0]['plan'])
+            Price._api_retrieve(items[0]['price'])
 
             # To return 404 if not existant:
             if len(items[0]['tax_rates']):
@@ -2934,12 +3053,15 @@ class Subscription(StripeObject):
 
             self.quantity = items[0]['quantity']
 
-            if (self.items._list[0].plan.id != items[0]['plan'] or
-                    self.items._list[0].quantity != items[0]['quantity']):
-                self.items = List('/v1/subscription_items?subscription=' +
-                                  self.id)
+            should_update_subscription_item = (self.items._list[0].plan.id != items[0]['plan'] or
+                                               self.items._list[0].price.id != items[0]['price'] or
+                                               self.items._list[0].quantity != items[0]['quantity'])
+
+            if should_update_subscription_item:
+                self.items = List("/v1/subscription_items?subscription={}".format(self.id))
                 item = SubscriptionItem(subscription=self.id,
                                         plan=items[0]['plan'],
+                                        price=items[0]['price'],
                                         quantity=items[0]['quantity'],
                                         metadata=items[0].get('metadata', None),
                                         tax_rates=items[0]['tax_rates'])
@@ -2961,6 +3083,7 @@ class Subscription(StripeObject):
                                 description='Unused time',
                                 subscription=self.id,
                                 plan=old_plan.id,
+                                price=old_price.id,
                                 tax_rates=previous_tax_rates,
                                 customer=self.customer)
 
@@ -2969,6 +3092,7 @@ class Subscription(StripeObject):
                                   self.id)
                 item = SubscriptionItem(subscription=self.id,
                                         plan=items[0]['plan'],
+                                        price=items[0]['price'],
                                         quantity=items[0]['quantity'],
                                         tax_rates=items[0]['tax_rates'])
                 self.items._list.append(item)
@@ -2993,7 +3117,9 @@ class Subscription(StripeObject):
         # be manually created using the POST /invoices route.
         create_an_invoice = self.plan.billing_scheme == 'per_unit' and (
             self.plan.interval != old_plan.interval or
-            self.plan.interval_count != old_plan.interval_count)
+            self.plan.interval_count != old_plan.interval_count or
+            self.price.interval != old_price.interval or
+            self.price.interval_count != old_price.interval_count)
         if create_an_invoice:
             self._create_invoice()
 
@@ -3035,7 +3161,7 @@ class SubscriptionItem(StripeObject):
     object = 'subscription_item'
     _id_prefix = 'si_'
 
-    def __init__(self, subscription=None, plan=None, quantity=1,
+    def __init__(self, subscription=None, plan=None, price=None, quantity=1,
                  tax_rates=[], metadata=None, **kwargs):
         if kwargs:
             raise UserError(400, '(@ SubscriptionItem.__init__) Unexpected argument(s): ' + ', '.join(kwargs.keys()))
@@ -3045,7 +3171,10 @@ class SubscriptionItem(StripeObject):
             if subscription is not None:
                 assert type(subscription) is str
                 assert subscription.startswith('sub_')
-            assert type(plan) is str
+            if plan is not None:
+                assert type(plan) is str
+            if price is not None:
+                assert type(price) is str
             assert type(quantity) is int and quantity >= 0
             if tax_rates is not None:
                 assert type(tax_rates) is list
@@ -3053,7 +3182,10 @@ class SubscriptionItem(StripeObject):
         except AssertionError:
             raise UserError(400, "Bad request: {}".format(traceback.format_exc()))
 
-        plan = Plan._api_retrieve(plan)  # to return 404 if not existant
+        if plan is not None:
+            plan = Plan._api_retrieve(plan)  # to return 404 if not existant
+        if price is not None:
+            price = Price._api_retrieve(price)  # to return 404 if not existant
         # To return 404 if not existant:
         if len(tax_rates):
             tax_rates = [TaxRate._api_retrieve(tr) for tr in tax_rates]
@@ -3062,6 +3194,7 @@ class SubscriptionItem(StripeObject):
         super().__init__()
 
         self.plan = plan
+        self.price = price
         self.quantity = quantity
         self.tax_rates = tax_rates
         self.metadata = metadata or {}
@@ -3076,35 +3209,50 @@ class SubscriptionItem(StripeObject):
             start_date = int(time.time())
 
         end_date = datetime.fromtimestamp(start_date)
-        if self.plan.interval == 'day':
+
+        if self.plan is None and self.price is None:
+            raise RuntimeError("Both plan and price are missing")
+
+        plan_or_price = self.plan
+        if self.price is not None:
+            plan_or_price = self.price
+
+        if plan_or_price.interval == 'day':
             end_date += timedelta(days=1)
-        elif self.plan.interval == 'week':
+        elif plan_or_price.interval == 'week':
             end_date += timedelta(days=7)
-        elif self.plan.interval == 'month':
+        elif plan_or_price.interval == 'month':
             end_date += relativedelta(months=1)
-        elif self.plan.interval == 'year':
+        elif plan_or_price.interval == 'year':
             end_date += relativedelta(years=1)
 
         return dict(start=start_date, end=int(end_date.timestamp()))
 
     def _calculate_amount(self):
-        if self.plan.billing_scheme == 'per_unit':
-            return self.plan.amount * self.quantity
+        if self.plan is None and self.price is None:
+            raise RuntimeError("Both plan and price are missing")
 
-        if self.plan.tiers_mode == 'volume':
+        plan_or_price = self.plan
+        if self.price is not None:
+            plan_or_price = self.price
+
+        if plan_or_price.billing_scheme == 'per_unit':
+            return plan_or_price.amount * self.quantity
+
+        if plan_or_price.tiers_mode == 'volume':
             index = next(
-                (i for i, t in enumerate(self.plan.tiers)
+                (i for i, t in enumerate(plan_or_price.tiers)
                     if t['up_to'] == 'inf'
                     or self.quantity <= int(t['up_to'])))
             return self._calculate_amount_in_tier(
                 self.quantity, index)
 
-        if self.plan.tiers_mode == 'graduated':
+        if plan_or_price.tiers_mode == 'graduated':
             quantity = self.quantity
             amount = 0
 
             tier_from = -1
-            for i, t in enumerate(self.plan.tiers):
+            for i, t in enumerate(plan_or_price.tiers):
                 tier_from += 1
                 if quantity <= 0 or tier_from > quantity:
                     break
@@ -3125,7 +3273,9 @@ class SubscriptionItem(StripeObject):
 
     def _calculate_amount_in_tier(self, quantity, index):
         t = self.plan.tiers[index]
-        return int(t['unit_amount']) * quantity + int(t['flat_amount'])
+        if self.price is not None:
+            t = self.price.tiers[index]
+        return int(t['unit_amount']) * quantity + int(t.get('flat_amount', 0))
 
 
 class TaxId(StripeObject):

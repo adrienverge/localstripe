@@ -25,12 +25,15 @@ import socket
 from aiohttp import web
 
 from .resources import BalanceTransaction, Charge, Coupon, Customer, Event, \
-    Invoice, InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, \
+    Invoice, InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, Price, \
     Product, Refund, SetupIntent, Source, Subscription, SubscriptionItem, \
     TaxRate, Token, extra_apis, store
 from .errors import UserError
 from .webhooks import register_webhook
 
+LOGGER = logging.getLogger('server.setup')
+LOGGER.setLevel(logging.DEBUG)
+LOGGER.addHandler(logging.StreamHandler())
 
 def json_response(*args, **kwargs):
     return web.json_response(
@@ -210,7 +213,8 @@ def api_create(cls, url):
         data = await get_post_data(request)
         data = data or {}
         expand = data.pop('expand', None)
-        return json_response(cls._api_create(**data)._export(expand=expand))
+        created = cls._api_create(**data)._export(expand=expand)
+        return json_response(created)
     return f
 
 
@@ -272,10 +276,10 @@ def api_extra(func, url):
 for method, url, func in extra_apis:
     app.router.add_route(method, url, api_extra(func, url))
 
-
+# Add per-object regular routes
 for cls in (BalanceTransaction, Charge, Coupon, Customer, Event, Invoice,
-            InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, Product,
-            Refund, SetupIntent, Source, Subscription, SubscriptionItem,
+            InvoiceItem, PaymentIntent, PaymentMethod, Payout, Price, Plan,
+            Product, Refund, SetupIntent, Source, Subscription, SubscriptionItem,
             TaxRate, Token):
     for method, url, func in (
             ('POST', '/v1/' + cls.object + 's', api_create),
@@ -284,7 +288,7 @@ for cls in (BalanceTransaction, Charge, Coupon, Customer, Event, Invoice,
             ('DELETE', '/v1/' + cls.object + 's/{id}', api_delete),
             ('GET', '/v1/' + cls.object + 's', api_list_all)):
         app.router.add_route(method, url, func(cls, url))
-
+        LOGGER.debug("[debug] Added route [{} {}]".format(method, url))
 
 def localstripe_js(request):
     path = os.path.dirname(os.path.realpath(__file__)) + '/localstripe-v3.js'
