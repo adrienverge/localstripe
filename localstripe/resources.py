@@ -29,6 +29,7 @@ from dateutil.relativedelta import relativedelta
 from .errors import UserError
 from .webhooks import schedule_webhook
 
+DEFAULT_CURRENCY = 'eur' # arbitrary default
 
 # Save built-in keyword `type`, because some classes override it by using
 # `type` as a method argument:
@@ -817,7 +818,7 @@ class Customer(StripeObject):
         source = self._get_default_payment_method_or_source()
         if isinstance(source, Source):  # not Card
             return source.currency
-        return 'eur'  # arbitrary default
+        return DEFAULT_CURRENCY
 
     @property
     def subscriptions(self):
@@ -1155,10 +1156,10 @@ class Invoice(StripeObject):
                 ii.invoice = self.id
             self.lines._list.append(InvoiceLineItem(ii))
 
-        if len(self.lines._list):
+        if len(self.lines._list) and hasattr(self.lines._list[0], 'currency'):
             self.currency = self.lines._list[0].currency
         else:
-            self.currency = 'eur'  # arbitrary default
+            self.currency = DEFAULT_CURRENCY
 
         self._draft = True
         self._voided = False
@@ -1295,7 +1296,8 @@ class Invoice(StripeObject):
             if subscription_items is not None:
                 assert type(subscription_items) is list
                 for si in subscription_items:
-                    assert type(si.get('plan')) is str
+                    if 'plan' in si:
+                        assert type(si['plan']) is str
                     if 'price' in si:
                         assert type(si['price']) is str
                     si['tax_rates'] = si.get('tax_rates', [])
@@ -1383,7 +1385,7 @@ class Invoice(StripeObject):
                 tax_rates = [tr.id for tr in si.tax_rates]
             invoice_items.append(
                 SubscriptionItem(subscription=subscription,
-                                 plan=plan.id,
+                                 plan=None if plan is None else plan.id,
                                  price=None if price is None else price.id,
                                  quantity=quantity,
                                  tax_rates=tax_rates))
@@ -1706,8 +1708,6 @@ class InvoiceLineItem(StripeObject):
             self.plan = item.plan
             self.price = item.price
             self.proration = False
-            self.currency = item.plan.currency
-            self.description = item.plan.name
             self.amount = item._calculate_amount()
             self.period = item._current_period()
         elif self.type == 'invoiceitem':
@@ -1716,10 +1716,15 @@ class InvoiceLineItem(StripeObject):
             self.plan = item.plan
             self.price = item.price
             self.proration = item.proration
-            self.currency = item.currency
-            self.description = item.description
             self.amount = item.amount
             self.period = item.period
+
+        if item.plan is not None:
+            self.currency = item.plan.currency
+            self.description = item.plan.description
+        if item.plan is not None:
+            self.currency = item.price.currency
+            self.description = item.price.description
 
         # Legacy support, before InvoiceLineItem
         self.invoice = item.invoice
@@ -3095,7 +3100,7 @@ class Subscription(StripeObject):
                 items[0]['price'] = self.price.id
 
             # To return 404 if not existant:
-            if items[0]['plan'] is not None:
+            if items[0].get('plan') is not None:
                 Plan._api_retrieve(items[0]['plan'])
             if items[0].get('price') is not None:
                 Price._api_retrieve(items[0]['price'])
@@ -3133,8 +3138,11 @@ class Subscription(StripeObject):
                                                  subscription=self.id,
                                                  limit=99)
                 for previous_invoice in previous._list:
-                    previous_tax_rates = [tr.id for tr in (
-                        previous_invoice.lines._list[0].tax_rates)]
+                    previous_tax_rates = [
+                        tr.id
+                        for tr
+                        in previous_invoice.lines._list[0].tax_rates
+                    ]
                     InvoiceItem(amount=- previous_invoice.subtotal,
                                 currency=previous_invoice.currency,
                                 proration=True,
@@ -3175,25 +3183,31 @@ class Subscription(StripeObject):
         # If the subscription is updated to a more expensive plan, an invoice
         # is not automatically generated. To achieve that, an invoice has to
         # be manually created using the POST /invoices route.
-        if self.plan is not None and self.plan.billing_scheme == 'per_unit':
-            # if the plans intervals differ, generate an invoice
-            if self.plan.interval != old_plan.interval or self.plan.interval_count != old_plan.interval_count:
-                create_an_invoice = True
+        billing_scheme_is_per_unit = (self.plan is not None and self.plan.billing_scheme == 'per_unit' or
+                                      self.price is not None and self.price.billing_scheme == 'per_unit')
+        if billing_scheme_is_per_unit:
+            # If using plans
+            if self.plan is not None:
+                # if the plans intervals differ, generate an invoice
+                if self.plan.interval != old_plan.interval or self.plan.interval_count != old_plan.interval_count:
+                    create_an_invoice = True
 
-            # If the price has been added, generate an invoice
-            if self.price is not None and old_price is None:
-                create_an_invoice = True
-            # If the price has been removed, generate an invoice (?)
-            if self.price is None and old_price is not None:
-                create_an_invoice = True
-            # If the prices are the same..
-            if self.price is not None and old_price is not None:
-                # and the interval has changed, generate an invoice
-                if self.price.recurring['interval'] != old_price.recurring['interval']:
+            # If using a price
+            if self.price is not None:
+                # If the price has been added, generate an invoice
+                if self.price is not None and old_price is None:
                     create_an_invoice = True
-                # and the interval_count has changed, generate an invoice
-                if self.price.recurring['interval_count'] != old_price.recurring['interval_count']:
+                # If the price has been removed, generate an invoice (?)
+                if self.price is None and old_price is not None:
                     create_an_invoice = True
+                # If the prices are the same..
+                if self.price is not None and old_price is not None:
+                    # and the interval has changed, generate an invoice
+                    if self.price.recurring['interval'] != old_price.recurring['interval']:
+                        create_an_invoice = True
+                    # and the interval_count has changed, generate an invoice
+                    if self.price.recurring['interval_count'] != old_price.recurring['interval_count']:
+                        create_an_invoice = True
 
         if create_an_invoice:
             self._create_invoice()
@@ -3308,9 +3322,10 @@ class SubscriptionItem(StripeObject):
 
         # Either plan or price should be present
         plan_or_price = self.price if self.plan is None else self.plan
+        amount = self.price.unit_amount if self.plan is None else self.plan.amount
 
         if plan_or_price.billing_scheme == 'per_unit':
-            return plan_or_price.amount * self.quantity
+            return amount * self.quantity
 
         if plan_or_price.tiers_mode == 'volume':
             index = next(
