@@ -262,6 +262,8 @@ def api_extra(func, url):
             data['source_id'] = request.match_info['source_id']
         if 'subscription_id' in request.match_info:
             data['subscription_id'] = request.match_info['subscription_id']
+        if 'subscription_item_id' in request.match_info:
+            data['subscription_item_id'] = request.match_info['subscription_item_id']
         expand = data.pop('expand', None)
         return json_response(func(**data)._export(expand=expand))
     return f

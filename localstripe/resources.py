@@ -1651,7 +1651,7 @@ class InvoiceLineItem(StripeObject):
 
         if self.type == 'subscription':
             self.subscription_item = item.id
-            self.subscription = item._subscription
+            self.subscription = item.subscription
             self.plan = item.plan
             self.proration = False
             self.currency = item.plan.currency
@@ -3082,12 +3082,11 @@ class SubscriptionItem(StripeObject):
         self.quantity = quantity
         self.tax_rates = tax_rates
         self.metadata = metadata or {}
-
-        self._subscription = subscription
+        self.subscription = subscription
 
     def _current_period(self):
-        if self._subscription:
-            obj = Subscription._api_retrieve(self._subscription).start_date
+        if self.subscription:
+            obj = Subscription._api_retrieve(self.subscription).start_date
             start_date = obj
         else:
             start_date = int(time.time())
@@ -3143,6 +3142,24 @@ class SubscriptionItem(StripeObject):
     def _calculate_amount_in_tier(self, quantity, index):
         t = self.plan.tiers[index]
         return int(t['unit_amount']) * quantity + int(t['flat_amount'])
+
+    @classmethod
+    def _api_list_all(cls, url, subscription=None, limit=None, starting_after=None, ending_before=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            assert _type(subscription) is str
+            assert subscription.startswith('sub_')
+            Subscription._api_retrieve(subscription)
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        # TODO: implement ending_before
+        li = List(url, limit=limit, starting_after=starting_after)
+        li._list = [value for key, value in store.items()
+                    if key.startswith(cls.object + ':') and value.subscription == subscription]
+        return li
 
 
 class TaxId(StripeObject):
@@ -3253,3 +3270,52 @@ class Token(StripeObject):
 
         self.type = 'card'
         self.card = card_obj
+
+
+class UsageRecord(StripeObject):
+    object = 'usage_record'
+    _id_prefix = 'mbur_'
+
+    class _UsageRecordSummaryWrapper(dict):
+        def _export(self, expand=None):
+            return self
+
+    def __init__(self, subscription_item_id=None, quantity=None, timestamp=None):
+        self.quantity = quantity
+        self.subscription_item = subscription_item_id
+        self.timestamp = timestamp
+
+        super().__init__()
+
+    @classmethod
+    def _api_list_summaries(cls, subscription_item_id=None, limit=None, starting_after=None, ending_before=None):
+        subscription_item = SubscriptionItem._api_retrieve(subscription_item_id)
+        usage_records = [value for key, value in store.items()
+                         if key.startswith(cls.object + ':') and value.subscription_item == subscription_item_id]
+
+        # TODO: improve summaries logic
+        summary_record = cls._UsageRecordSummaryWrapper({
+            "id": subscription_item_id.replace("si_", "sis_"),
+            "object": "usage_record_summary",
+            "invoice": subscription_item.invoice,
+            "livemode": subscription_item.livemode,
+            "period": {
+                "end": ending_before,
+                "start": starting_after
+            },
+            "subscription_item": subscription_item_id,
+            "total_usage": sum([int(r.quantity) for r in usage_records])
+        })
+
+        url = "/v1/subscription_items/%s/usage_record_summaries" % subscription_item_id
+        li = List(url, limit=limit, starting_after=starting_after)
+        li._list = [summary_record]
+
+        return li
+
+
+extra_apis.append(('POST', '/v1/subscription_items/{subscription_item_id}/usage_records', UsageRecord._api_create))
+
+extra_apis.extend((
+    ('GET', '/v1/subscription_items/{subscription_item_id}/usage_records', UsageRecord._api_create),
+    ('GET', '/v1/subscription_items/{subscription_item_id}/usage_record_summaries', UsageRecord._api_list_summaries)))

@@ -6,6 +6,8 @@ set -eux
 HOST=http://localhost:8420
 SK=sk_test_12345
 
+curl -X DELETE $HOST/_config/data
+
 cus=$(curl -sSfg -u $SK: $HOST/v1/customers \
           -d email=james.robinson@example.com \
       | grep -oE 'cus_\w+' | head -n 1)
