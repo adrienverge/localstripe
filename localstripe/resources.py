@@ -997,6 +997,8 @@ extra_apis.extend((
     # Retrieve single source by id:
     ('GET', '/v1/customers/{id}/sources/{source_id}',
      Customer._api_retrieve_source),
+    # List a customer's sources
+    ('GET', '/v1/customers/{id}/sources', Customer._api_list_sources),
     # Update single source by id:
     ('POST', '/v1/customers/{id}/sources/{source_id}',
      Customer._api_update_source),
