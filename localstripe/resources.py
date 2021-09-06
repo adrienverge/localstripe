@@ -3144,7 +3144,8 @@ class SubscriptionItem(StripeObject):
         return int(t['unit_amount']) * quantity + int(t['flat_amount'])
 
     @classmethod
-    def _api_list_all(cls, url, subscription=None, limit=None, starting_after=None, ending_before=None, **kwargs):
+    def _api_list_all(cls, url, subscription=None, limit=None,
+                      starting_after=None, ending_before=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -3158,7 +3159,8 @@ class SubscriptionItem(StripeObject):
         # TODO: implement ending_before
         li = List(url, limit=limit, starting_after=starting_after)
         li._list = [value for key, value in store.items()
-                    if key.startswith(cls.object + ':') and value.subscription == subscription]
+                    if key.startswith(cls.object + ':')
+                    and value.subscription == subscription]
         return li
 
 
@@ -3280,7 +3282,8 @@ class UsageRecord(StripeObject):
         def _export(self, expand=None):
             return self
 
-    def __init__(self, subscription_item_id=None, quantity=None, timestamp=None):
+    def __init__(self, subscription_item_id=None, quantity=None,
+                 timestamp=None):
         self.quantity = quantity
         self.subscription_item = subscription_item_id
         self.timestamp = timestamp
@@ -3288,10 +3291,15 @@ class UsageRecord(StripeObject):
         super().__init__()
 
     @classmethod
-    def _api_list_summaries(cls, subscription_item_id=None, limit=None, starting_after=None, ending_before=None):
-        subscription_item = SubscriptionItem._api_retrieve(subscription_item_id)
+    def _api_list_summaries(cls, subscription_item_id=None, limit=None,
+                            starting_after=None, ending_before=None):
+        subscription_item = SubscriptionItem._api_retrieve(
+            subscription_item_id
+        )
+
         usage_records = [value for key, value in store.items()
-                         if key.startswith(cls.object + ':') and value.subscription_item == subscription_item_id]
+                         if key.startswith(cls.object + ':')
+                         and value.subscription_item == subscription_item_id]
 
         # TODO: improve summaries logic
         summary_record = cls._UsageRecordSummaryWrapper({
@@ -3307,15 +3315,29 @@ class UsageRecord(StripeObject):
             "total_usage": sum([int(r.quantity) for r in usage_records])
         })
 
-        url = "/v1/subscription_items/%s/usage_record_summaries" % subscription_item_id
+        url = "/v1/subscription_items/%s/usage_record_summaries" \
+              % subscription_item_id
         li = List(url, limit=limit, starting_after=starting_after)
         li._list = [summary_record]
 
         return li
 
 
-extra_apis.append(('POST', '/v1/subscription_items/{subscription_item_id}/usage_records', UsageRecord._api_create))
+extra_apis.append((
+    'POST',
+    '/v1/subscription_items/{subscription_item_id}/usage_records',
+    UsageRecord._api_create
+))
 
 extra_apis.extend((
-    ('GET', '/v1/subscription_items/{subscription_item_id}/usage_records', UsageRecord._api_create),
-    ('GET', '/v1/subscription_items/{subscription_item_id}/usage_record_summaries', UsageRecord._api_list_summaries)))
+    (
+        'GET',
+        '/v1/subscription_items/{subscription_item_id}/usage_records',
+        UsageRecord._api_create
+    ),
+    (
+        'GET',
+        '/v1/subscription_items/{subscription_item_id}/usage_record_summaries',
+        UsageRecord._api_list_summaries
+    )
+))
