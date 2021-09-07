@@ -246,6 +246,10 @@ To quickly build and run localstripe from source:
  pip3 install --user --upgrade dist/localstripe-*.tar.gz
  localstripe
 
+If you plan to open a pull request to improve localstripe, that is so cool! To
+make reviews smooth you should follow `our contributing guidelines
+<CONTRIBUTING.rst>`_.
+
 License
 -------
 
