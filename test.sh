@@ -449,6 +449,14 @@ curl -sSfg -u $SK: $HOST/v1/invoices/upcoming?customer=$cus\&subscription=$sub\&
 
 curl -sSfg -u $SK: $HOST/v1/invoices/$in/lines
 
+res=$(curl -sSfg -u $SK: $HOST/v1/subscription_items?subscription=$sub)
+
+count=$(echo "$res" | grep -oP '"total_count": \K([0-9]+)')
+[ "$count" -eq 2 ]
+
+si=$(echo "$res" | grep -oE 'si_\w+' | head -n 1)
+[ -n "$si" ]
+
 cus=$(curl -sSfg -u $SK: $HOST/v1/customers \
            -d description='This customer will have a subscription with volume tiered pricing' \
            -d email=tiered@bar.com \
