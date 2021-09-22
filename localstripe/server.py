@@ -153,10 +153,8 @@ def get_api_key(request):
 
 @web.middleware
 async def auth_middleware(request, handler):
-    if request.path.startswith('/js.stripe.com/'):
-        is_auth = True
-
-    elif request.path.startswith('/_config/'):
+    unauthenticated_paths = ['/js.stripe.com/', '/_config/', '/healthz']
+    if any(request.path.startswith(path) for path in unauthenticated_paths):
         is_auth = True
 
     else:
@@ -270,6 +268,14 @@ def api_extra(func, url):
         return json_response(func(**data)._export(expand=expand))
     return f
 
+
+def health_check():
+    async def f(request):
+        return web.Response()
+    return f
+
+
+app.router.add_route('GET', '/healthz', health_check())
 
 # Extra routes must be added *before* regular routes, because otherwise
 # `/invoices/upcoming` would fall into `/invoices/{id}`.
