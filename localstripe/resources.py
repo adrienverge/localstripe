@@ -659,7 +659,9 @@ class Charge(StripeObject):
                         if c.created > try_convert_to_int(created['gt'])]
         return li
 
-extra_apis.append((('POST', '/v1/charges/{id}/capture', Charge._api_capture)))
+
+extra_apis.append(('POST', '/v1/charges/{id}/capture', Charge._api_capture))
+
 
 class Dispute(StripeObject):
     object = 'dispute'
@@ -737,7 +739,9 @@ class Dispute(StripeObject):
         schedule_webhook(Event('charge.dispute.closed', obj))
         return obj
 
-extra_apis.extend((('POST', '/v1/disputes/{id}/close', Dispute._api_close)))
+
+extra_apis.append(('POST', '/v1/disputes/{id}/close', Dispute._api_close))
+
 
 class Coupon(StripeObject):
     object = 'coupon'
