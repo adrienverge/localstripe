@@ -40,7 +40,7 @@ _type = type
 
 redis_password = 'QuadPay2020'
 
-sentinel = Sentinel([('redis.mocks', 26379)], sentinel_kwargs={'password': redis_password})
+sentinel = Sentinel([('localstripe-redis', 26379)])
 sentinel.discover_master('mymaster')
 sentinel.discover_slaves('mymaster')
 redis_master = sentinel.master_for('mymaster', password=redis_password)
