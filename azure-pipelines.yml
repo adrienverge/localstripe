@@ -10,6 +10,9 @@ pr:
 variables:
   azureSubscription: 'QuadPay PAYG (4225a42d-cebe-4062-a1a1-7ce5954c40c6)'
 
+pool:
+  vmImage: ubuntu-latest
+
 stages:
   - stage: Build
     displayName: Build & Push
