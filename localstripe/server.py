@@ -27,7 +27,7 @@ from aiohttp import web
 from .resources import BalanceTransaction, Charge, Coupon, Customer, Event, \
     Invoice, InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, \
     Product, Refund, SetupIntent, Source, Subscription, SubscriptionItem, \
-    TaxRate, Token, extra_apis, store
+    TaxRate, Token, extra_apis, redis_master, redis_slave, IssuingCard, IssuingCardholder
 from .errors import UserError
 from .webhooks import register_webhook
 

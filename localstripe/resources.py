@@ -38,13 +38,11 @@ from .webhooks import schedule_webhook
 # `type` as a method argument:
 _type = type
 
-redis_password = 'QuadPay2020'
-
 sentinel = Sentinel([('localstripe-redis', 26379)])
 sentinel.discover_master('mymaster')
 sentinel.discover_slaves('mymaster')
-redis_master = sentinel.master_for('mymaster', password=redis_password)
-redis_slave = sentinel.slave_for('mymaster', password=redis_password)
+redis_master = sentinel.master_for('mymaster')
+redis_slave = sentinel.slave_for('mymaster')
 
 
 def fetch_all(matching):
