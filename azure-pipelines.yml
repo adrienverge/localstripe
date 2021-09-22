@@ -38,18 +38,3 @@ stages:
                   tags: |
                     latest
                     $(Build.BuildNumber)
-              - task: HelmDeploy@0
-                displayName: Deploy Stripe Mock
-                inputs:
-                  azureSubscription: $(azureSubscription)
-                  azureResourceGroup: qp-eastus2-dev-cluster
-                  kubernetesCluster: quadpay-eastus2-dev-cluster
-                  useClusterAdmin: true
-                  namespace: mocks
-                  command: upgrade
-                  chartType: FilePath
-                  chartPath: helm/stripe-mock
-                  releaseName: stripe-mock
-                  overrideValues: image.tag=$(Build.BuildNumber)
-                  install: true
-                  arguments: --timeout 5m --create-namespace
