@@ -129,7 +129,7 @@ class StripeObject(object):
 
     @classmethod
     def _api_retrieve(cls, id):
-        obj = store.get(cls.object + ':' + id)
+        obj = pickle.loads(redis_slave.get(cls.object + ':' + id))
 
         if obj is None:
             raise UserError(404, 'Not Found')
@@ -156,8 +156,7 @@ class StripeObject(object):
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         li = List(url, limit=limit, starting_after=starting_after)
-        li._list = [value for key, value in store.items()
-                    if key.startswith(cls.object + ':')]
+        li._list = fetch_all(cls.object + ':*')
         return li
 
     def _update(self, **data):
@@ -257,13 +256,13 @@ class Balance(object):
             }
         }
 
-        store[self.object] = self
+        redis_master.set(self.object, pickle.dumps(self))
 
         schedule_webhook(Event('balance.available', self))
 
     @classmethod
     def _api_retrieve(self):
-        obj = store.get(self.object)
+        obj = pickle.loads(redis_slave.get(f"{self.object}"))
         if obj is None:
             return self()
         return obj
@@ -443,7 +442,7 @@ class Charge(StripeObject):
 
     def __init__(self, amount=None, currency=None, description=None,
                  metadata=None, customer=None, source=None, capture=True,
-                 disputed=None, **kwargs):
+                 disputed=None, statement_descriptor=None, **kwargs):
         if kwargs:
             logger = logging.getLogger('localstripe.resources.Charge')
             logger.warning('Unexpected ' + ', '.join(kwargs.keys()))
