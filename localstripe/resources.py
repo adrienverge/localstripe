@@ -442,7 +442,8 @@ class Charge(StripeObject):
 
     def __init__(self, amount=None, currency=None, description=None,
                  metadata=None, customer=None, source=None, capture=True,
-                 disputed=None, statement_descriptor=None, **kwargs):
+                 disputed=None, statement_descriptor=None, statement_descriptor_suffix=None,
+                 destination=None, **kwargs):
         if kwargs:
             logger = logging.getLogger('localstripe.resources.Charge')
             logger.warning('Unexpected ' + ', '.join(kwargs.keys()))
@@ -468,6 +469,17 @@ class Charge(StripeObject):
                 assert type(statement_descriptor) is str
                 assert len(statement_descriptor) <= 22
                 assert re.search('[a-zA-Z]', statement_descriptor)
+            if statement_descriptor_suffix is not None:
+                assert type(statement_descriptor_suffix) is str
+                assert len(statement_descriptor_suffix) <= 22
+                assert re.search('[a-zA-Z]', statement_descriptor_suffix)
+            # TODO: This is a Stripe Connect feature. localstripe does not support Stripe Connect, and if we need to
+            #  start validating these balances, we will have to implement Account objects and other infra for Connect
+            if destination is not None:
+                assert type(destination) is dict
+                assert type(destination['account']) is str
+                destination['amount'] = try_convert_to_int(destination['amount'])
+                assert type(destination['amount']) is int and destination['amount'] >= 0
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -498,11 +510,13 @@ class Charge(StripeObject):
         self.receipt_number = None
         self.payment_method = source.id
         self.statement_descriptor = statement_descriptor
+        self.statement_descriptor_suffix = statement_descriptor_suffix
         self.failure_code = None
         self.failure_message = None
         self.captured = capture
         self.disputed = disputed
         self.balance_transaction = None
+        self.destination = destination
 
         redis_master.set(self._store_key(), pickle.dumps(self))
 
