@@ -38,7 +38,7 @@ from .webhooks import register_webhook
 def json_response(*args, **kwargs):
     return web.json_response(
         *args,
-        dumps=lambda x: json.dumps(x, indent=2, sort_keys=True) + '\n',
+        dumps=lambda x: json.dumps(x, indent=2, sort_keys=True, default=lambda o: o.__dict__) + '\n',
         **kwargs)
 
 
