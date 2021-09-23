@@ -38,7 +38,7 @@ from .webhooks import schedule_webhook
 # `type` as a method argument:
 _type = type
 
-sentinel = Sentinel([('127.0.0.1', 5000)])
+sentinel = Sentinel([('localstripe-redis', 26379)])
 sentinel.discover_master('mymaster')
 sentinel.discover_slaves('mymaster')
 redis_master = sentinel.master_for('mymaster')
