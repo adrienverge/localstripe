@@ -38,13 +38,17 @@ def register_webhook(id, url, secret, events):
 
 
 async def _send_webhook(event):
+    logger = logging.getLogger('aiohttp.access')
+
     payload = json.dumps(event._export(), indent=2, sort_keys=True)
     payload = payload.encode('utf-8')
     signed_payload = b'%d.%s' % (event.created, payload)
 
+    logger.info(f'Sleeping prior to sending webhook')
+
     await asyncio.sleep(1)
 
-    logger = logging.getLogger('aiohttp.access')
+    logger.info(f'Searching for webhooks matching "{event}"')
 
     for webhook in _webhooks.values():
         if webhook.events is not None and event.type not in webhook.events:

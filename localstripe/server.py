@@ -28,6 +28,9 @@ from .resources import BalanceTransaction, Charge, Coupon, Customer, Event, \
     Invoice, InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, \
     Product, Refund, SetupIntent, Source, Subscription, SubscriptionItem, \
     TaxRate, Token, extra_apis, redis_master, redis_slave, IssuingCard, IssuingCardholder
+
+from .webhooks import _webhooks
+
 from .errors import UserError
 from .webhooks import register_webhook
 
@@ -331,6 +334,14 @@ async def config_webhook(request):
     return web.Response()
 
 
+async def get_webhooks(request):
+    return json_response(_webhooks)
+
+async def get_webhook(request):
+    id = request.match_info['id']
+    return json_response(_webhooks[id])
+
+
 async def flush_store(request):
     # store.clear()
     redis_master.flushall()
@@ -338,6 +349,8 @@ async def flush_store(request):
 
 
 app.router.add_post('/_config/webhooks/{id}', config_webhook)
+app.router.add_get('/_config/webhooks', get_webhooks)
+app.router.add_route('/_config/webhooks/{id}', get_webhook)
 app.router.add_delete('/_config/data', flush_store)
 
 
