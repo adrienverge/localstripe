@@ -339,7 +339,10 @@ async def get_webhooks(request):
 
 async def get_webhook(request):
     id = request.match_info['id']
-    return json_response(_webhooks[id])
+    if id in _webhooks:
+        return json_response(_webhooks[id])
+    else:
+        raise UserError(404, 'Not Found')
 
 
 async def flush_store(request):
