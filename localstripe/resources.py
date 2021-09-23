@@ -38,7 +38,7 @@ from .webhooks import schedule_webhook
 # `type` as a method argument:
 _type = type
 
-sentinel = Sentinel([('localstripe-redis', 26379)])
+sentinel = Sentinel([('127.0.0.1', 5000)])
 sentinel.discover_master('mymaster')
 sentinel.discover_slaves('mymaster')
 redis_master = sentinel.master_for('mymaster')
@@ -442,7 +442,7 @@ class Charge(StripeObject):
 
     def __init__(self, amount=None, currency=None, description=None,
                  metadata=None, customer=None, source=None, capture=True,
-                 disputed=None, statement_descriptor=None, statement_descriptor_suffix=None,
+                 statement_descriptor=None, statement_descriptor_suffix=None,
                  destination=None, **kwargs):
         if kwargs:
             logger = logging.getLogger('localstripe.resources.Charge')
@@ -451,7 +451,6 @@ class Charge(StripeObject):
 
         amount = try_convert_to_int(amount)
         capture = try_convert_to_bool(capture)
-        disputed = try_convert_to_bool(disputed)
         try:
             assert type(amount) is int and amount >= 0
             assert type(currency) is str and currency
@@ -464,7 +463,6 @@ class Charge(StripeObject):
                 assert (source.startswith('pm_') or source.startswith('src_')
                         or source.startswith('card_'))
             assert type(capture) is bool
-            assert type(disputed) is bool
             if statement_descriptor is not None:
                 assert type(statement_descriptor) is str
                 assert len(statement_descriptor) <= 22
@@ -514,7 +512,7 @@ class Charge(StripeObject):
         self.failure_code = None
         self.failure_message = None
         self.captured = capture
-        self.disputed = disputed
+        self.disputed = False
         self.balance_transaction = None
         self.destination = destination
 
