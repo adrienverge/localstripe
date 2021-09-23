@@ -19,6 +19,7 @@ import base64
 import json
 import logging
 import os.path
+import pickle
 import re
 import socket
 
@@ -27,12 +28,10 @@ from aiohttp import web
 from .resources import BalanceTransaction, Charge, Coupon, Customer, Event, \
     Invoice, InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, \
     Product, Refund, SetupIntent, Source, Subscription, SubscriptionItem, \
-    TaxRate, Token, extra_apis, redis_master, redis_slave, IssuingCard, IssuingCardholder
-
-from .webhooks import _webhooks
+    TaxRate, Token, extra_apis, redis_master, redis_slave, IssuingCard, IssuingCardholder, fetch_all
 
 from .errors import UserError
-from .webhooks import register_webhook
+from .webhooks import register_webhook, Webhook
 
 
 def json_response(*args, **kwargs):
@@ -335,13 +334,14 @@ async def config_webhook(request):
 
 
 async def get_webhooks(request):
-    return json_response(_webhooks)
+    return json_response(fetch_all(f"{Webhook.object}:*"))
 
 
 async def get_webhook(request):
-    id = request.match_info['id']
-    if id in _webhooks:
-        return json_response(_webhooks[id])
+    hook_id = request.match_info['id']
+    hook = pickle.loads(redis_slave.get(f"{Webhook.object}:{hook_id}"))
+    if hook is not None:
+        return json_response(hook)
     else:
         raise UserError(404, 'Not Found')
 

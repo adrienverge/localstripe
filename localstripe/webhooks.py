@@ -19,14 +19,16 @@ import hashlib
 import hmac
 import json
 import logging
+import pickle
+
+from .redis_store import redis_master, fetch_all
 
 import aiohttp
 
 
-_webhooks = {}
-
-
 class Webhook(object):
+    object = 'webhook'
+
     def __init__(self, url, secret, events):
         self.url = url
         self.secret = secret
@@ -34,7 +36,8 @@ class Webhook(object):
 
 
 def register_webhook(id, url, secret, events):
-    _webhooks[id] = Webhook(url, secret, events)
+    webhook = Webhook(url, secret, events)
+    redis_master.set(f"{Webhook.object}:{id}", pickle.dumps(webhook))
 
 
 async def _send_webhook(event):
@@ -50,7 +53,7 @@ async def _send_webhook(event):
 
     logger.info(f'Searching for webhooks matching "{event}"')
 
-    for webhook in _webhooks.values():
+    for webhook in fetch_all(f"{Webhook.object}:*"):
         if webhook.events is not None and event.type not in webhook.events:
             continue
 

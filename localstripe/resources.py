@@ -25,30 +25,16 @@ import re
 import string
 import time
 
-import redis
-from redis.sentinel import Sentinel
-
 from dateutil.relativedelta import relativedelta
 
 from .errors import UserError
+from .redis_store import fetch_all, redis_slave, redis_master
 from .webhooks import schedule_webhook
 
 
 # Save built-in keyword `type`, because some classes override it by using
 # `type` as a method argument:
 _type = type
-
-sentinel = Sentinel([('localstripe-redis', 26379)])
-sentinel.discover_master('mymaster')
-sentinel.discover_slaves('mymaster')
-redis_master = sentinel.master_for('mymaster')
-redis_slave = sentinel.slave_for('mymaster')
-
-
-def fetch_all(matching):
-    matching_keys = redis_slave.scan_iter(match=matching)
-    return [pickle.loads(value) for value in redis_slave.mget(matching_keys)]
-
 
 def random_id(n):
     return ''.join(random.choice(string.ascii_letters + string.digits)
