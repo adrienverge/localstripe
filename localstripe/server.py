@@ -337,6 +337,7 @@ async def config_webhook(request):
 async def get_webhooks(request):
     return json_response(_webhooks)
 
+
 async def get_webhook(request):
     id = request.match_info['id']
     if id in _webhooks:
