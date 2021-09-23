@@ -41,7 +41,7 @@ def register_webhook(id, url, secret, events):
 
 
 async def _send_webhook(event):
-    logger = logging.getLogger('aiohttp.access')
+    logger = logging.getLogger('localstripe.webhooks')
 
     payload = json.dumps(event._export(), indent=2, sort_keys=True)
     payload = payload.encode('utf-8')
@@ -70,10 +70,10 @@ async def _send_webhook(event):
                         logger.info('webhook "%s" successfully delivered'
                                     % event.type)
                     else:
-                        logger.info('webhook "%s" failed with response code %d'
+                        logger.warning('webhook "%s" failed with response code %d'
                                     % (event.type, r.status))
             except aiohttp.client_exceptions.ClientError as e:
-                logger.info('webhook "%s" failed: %s' % (event.type, e))
+                logger.warning('webhook "%s" failed: %s' % (event.type, e))
 
 
 def schedule_webhook(event):
