@@ -796,7 +796,7 @@ class Customer(StripeObject):
                  invoice_settings=None, business_vat_id=None,
                  preferred_locales=None, tax_id_data=None,
                  metadata=None, payment_method=None, balance=None,
-                 invoice_prefix=None, tax_exempt=None, next_invoice_sequence=1, **kwargs):
+                 invoice_prefix=None, tax_exempt=None, next_invoice_sequence=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -840,19 +840,19 @@ class Customer(StripeObject):
             if payment_method is not None:
                 assert type(payment_method) is str
             if balance is not None:
-                assert balance is int
+                assert type(balance) is int
             else:
                 balance = 0
             if invoice_prefix is not None:
-                assert invoice_prefix is str
+                assert type(invoice_prefix) is str
                 assert 3 <= len(invoice_prefix) <= 12
                 assert re.search('[A-Z0-9]', invoice_prefix)
             if next_invoice_sequence is not None:
-                assert next_invoice_sequence is int and next_invoice_sequence > 0
+                assert type(next_invoice_sequence) is int and next_invoice_sequence > 0
             else:
                 next_invoice_sequence = 1
             if tax_exempt is not None:
-                assert tax_exempt is str
+                assert type(tax_exempt) is str
                 assert tax_exempt in ('none', 'exempt', 'reverse')
         except AssertionError:
             raise UserError(400, 'Bad request')
