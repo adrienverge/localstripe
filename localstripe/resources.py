@@ -795,7 +795,8 @@ class Customer(StripeObject):
                  phone=None, address=None,
                  invoice_settings=None, business_vat_id=None,
                  preferred_locales=None, tax_id_data=None,
-                 metadata=None, payment_method=None, **kwargs):
+                 metadata=None, payment_method=None, balance=None,
+                 invoice_prefix=None, tax_exempt=None, next_invoice_sequence=1, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -838,6 +839,21 @@ class Customer(StripeObject):
                 assert type(data['value']) is str and len(data['value']) > 10
             if payment_method is not None:
                 assert type(payment_method) is str
+            if balance is not None:
+                assert balance is int
+            else:
+                balance = 0
+            if invoice_prefix is not None:
+                assert invoice_prefix is str
+                assert 3 <= len(invoice_prefix) <= 12
+                assert re.search('[A-Z0-9]', invoice_prefix)
+            if next_invoice_sequence is not None:
+                assert next_invoice_sequence is int and next_invoice_sequence > 0
+            else:
+                next_invoice_sequence = 1
+            if tax_exempt is not None:
+                assert tax_exempt is str
+                assert tax_exempt in ('none', 'exempt', 'reverse')
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -852,14 +868,20 @@ class Customer(StripeObject):
         self.email = email
         self.phone = phone
         self.address = address
+        self.invoice_prefix = invoice_prefix
         self.invoice_settings = invoice_settings
         self.business_vat_id = business_vat_id
         self.preferred_locales = preferred_locales
         self.metadata = metadata or {}
         self.account_balance = 0
+        self.balance = balance
         self.delinquent = False
         self.discount = None
+        self.next_invoice_sequence = next_invoice_sequence
         self.shipping = None
+        self.tax_exempt = tax_exempt
+        self.tax_info = None
+        self.tax_info_verification = None
         self.default_source = None
 
         if payment_method is not None:
