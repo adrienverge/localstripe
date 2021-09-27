@@ -519,6 +519,7 @@ class Charge(StripeObject):
 
         # for successful pre-auth, return unpaid charge
         if not obj.captured and obj._authorized:
+            print("Skipping payment trigger as capture was false on charge creation")
             return obj
 
         def on_failure():
@@ -534,8 +535,8 @@ class Charge(StripeObject):
 
     @classmethod
     def _api_capture(cls, id, amount=None, destination=None, statement_descriptor_suffix=None, **kwargs):
+        logger = logging.getLogger('localstripe.resources.charge')
         if kwargs:
-            logger = logging.getLogger('localstripe.resources.Charge')
             logger.warning('Unexpected ' + ', '.join(kwargs.keys()))
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -562,6 +563,8 @@ class Charge(StripeObject):
                 refunded = obj.amount - amount
                 Refund(obj.id, refunded)
 
+        logger.info("Charge succeeded, triggering payment")
+        print("Charge succeeded, triggering payment")
         obj._trigger_payment(on_success)
         return obj
 
