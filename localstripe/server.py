@@ -210,7 +210,7 @@ def api_create(cls, url):
         data = data or {}
         expand = data.pop('expand', None)
         try:
-            print(f"Incoming request for url: {url} \n {json.dumps(data, indent=2, sort_keys=True)}")
+            print(f"Incoming create request for url: {url} \n {json.dumps(data, indent=2, sort_keys=True)}")
             response = json_response(cls._api_create(**data)._export(expand=expand))
         except UserError as e:
             raise e
@@ -231,6 +231,7 @@ def api_update(cls, url):
     async def f(request):
         id = request.match_info['id']
         data = await get_post_data(request)
+        print(f"Incoming update request for url: {url} \n {json.dumps(data, indent=2, sort_keys=True)}")
         if not data:
             raise UserError(400, 'Bad request')
         expand = data.pop('expand', None)
@@ -251,14 +252,14 @@ def api_list_all(cls, url):
     def f(request):
         data = unflatten_data(request.query)
         expand = data.pop('expand', None)
-        return json_response(cls._api_list_all(url, **data)
-                             ._export(expand=expand))
+        return json_response(cls._api_list_all(url, **data)._export(expand=expand))
     return f
 
 
 def api_extra(func, url):
     async def f(request):
         data = await get_post_data(request) or {}
+        print(f"Incoming request for url: {url} \n {json.dumps(data, indent=2, sort_keys=True)}")
         data.update(unflatten_data(request.query) or {})
         if 'id' in request.match_info:
             data['id'] = request.match_info['id']
