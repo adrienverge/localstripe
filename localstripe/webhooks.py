@@ -43,7 +43,10 @@ def register_webhook(id, url, secret, events):
 async def _send_webhook(event):
     logger = logging.getLogger('localstripe.webhooks')
 
-    payload = json.dumps(event._export(), indent=2, sort_keys=True)
+    webhook_body = event._export()
+    webhook_body['pending_webhooks'] = 0
+
+    payload = json.dumps(webhook_body, indent=2, sort_keys=True)
     payload = payload.encode('utf-8')
     signed_payload = b'%d.%s' % (event.created, payload)
 
@@ -66,7 +69,7 @@ async def _send_webhook(event):
             try:
                 async with session.post(webhook.url,
                                         data=payload, headers=headers) as r:
-                    if r.status >= 200 and r.status < 300:
+                    if 200 <= r.status < 300:
                         logger.info('webhook "%s" successfully delivered'
                                     % event.type)
                     else:

@@ -16,65 +16,24 @@
 
 import asyncio
 import logging
+import uuid
 from datetime import datetime, timedelta
-import hashlib
 import json
 import pickle
-import random
 import re
-import string
 import time
 
 from dateutil.relativedelta import relativedelta
 
 from .errors import UserError
 from .redis_store import fetch_all, redis_slave, redis_master
+from .utilities import *
 from .webhooks import schedule_webhook
 
 
 # Save built-in keyword `type`, because some classes override it by using
 # `type` as a method argument:
 _type = type
-
-def random_id(n):
-    return ''.join(random.choice(string.ascii_letters + string.digits)
-                   for i in range(n))
-
-
-def fingerprint(s: str):
-    return hashlib.sha1(s.encode('utf-8')).hexdigest()[:16]
-
-
-def try_convert_to_bool(arg):
-    if type(arg) is str:
-        if arg.lower() == 'false':
-            return False
-        elif arg.lower() == 'true':
-            return True
-    return arg
-
-
-def try_convert_to_int(arg):
-    if type(arg) == int:
-        return arg
-    elif type(arg) in (str, float):
-        try:
-            return int(arg)
-        except ValueError:
-            pass
-    return arg
-
-
-def try_convert_to_float(arg):
-    if type(arg) == float:
-        return arg
-    elif type(arg) in (str, int):
-        try:
-            return float(arg)
-        except ValueError:
-            pass
-    return arg
-
 
 extra_apis = []
 
@@ -829,6 +788,8 @@ class Customer(StripeObject):
             if preferred_locales is not None:
                 assert type(preferred_locales) is list
                 assert all(type(lo) is str for lo in preferred_locales)
+            else:
+                preferred_locales = []
             if tax_id_data is None:
                 tax_id_data = []
             assert type(tax_id_data) is list
@@ -854,6 +815,8 @@ class Customer(StripeObject):
             if tax_exempt is not None:
                 assert type(tax_exempt) is str
                 assert tax_exempt in ('none', 'exempt', 'reverse')
+            else:
+                tax_exempt = "none"
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -1139,6 +1102,10 @@ class Event(StripeObject):
         self.type = type
         self.data = {'object': data._export()}
         self.api_version = '2017-08-15'
+        self.request = {
+            'id': f'req_{random_id(14)}',
+            'idempotency_key': str(uuid.uuid4())
+        }
 
         redis_master.set(self._store_key(), pickle.dumps(self))
 
