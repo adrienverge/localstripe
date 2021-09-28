@@ -564,7 +564,9 @@ class Charge(StripeObject):
                 Refund(obj.id, refunded)
 
         logger.info("Charge succeeded, triggering payment")
-        print("Charge succeeded, triggering payment")
+
+        schedule_webhook(Event('charge.captured', obj))
+
         obj._trigger_payment(on_success)
         return obj
 
