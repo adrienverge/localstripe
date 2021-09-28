@@ -85,6 +85,7 @@ class StripeObject(object):
     def _api_update(cls, id, **data):
         obj = cls._api_retrieve(id)
         obj._update(**data)
+        redis_master.set(obj._store_key(), pickle.dumps(obj))
         return obj
 
     @classmethod
