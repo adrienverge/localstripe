@@ -559,13 +559,12 @@ class Charge(StripeObject):
 
         def on_success():
             obj.captured = True
+            schedule_webhook(Event('charge.captured', obj))
             if amount < obj.amount:
                 refunded = obj.amount - amount
                 Refund(obj.id, refunded)
 
         logger.info("Charge succeeded, triggering payment")
-
-        schedule_webhook(Event('charge.captured', obj))
 
         obj._trigger_payment(on_success)
         return obj
