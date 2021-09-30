@@ -1840,7 +1840,8 @@ class PaymentIntent(StripeObject):
     object = 'payment_intent'
     _id_prefix = 'pi_'
 
-    # TODO: Add payment_method_data and payment_method_options
+    # TODO: Add payment_method_data and payment_method_options,
+    #  move commented sections to change behavior during _api_create
     def __init__(self, amount=None, application_fee_amount=None, capture_method=None, currency=None, customer=None,
                  confirmation_method=None, payment_method=None, metadata=None, description=None,
                  on_behalf_of=None, payment_method_types=None,
@@ -1999,6 +2000,9 @@ class PaymentIntent(StripeObject):
                         customer=self.customer,
                         source=self.payment_method)
         self.charges._list.append(charge)
+
+        # Update persisted object after adding charge
+        redis_master.set(self._store_key(), pickle.dumps(self))
         charge._trigger_payment(on_success, on_failure_now, on_failure_later)
 
     @property
