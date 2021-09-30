@@ -1998,7 +1998,8 @@ class PaymentIntent(StripeObject):
         charge = Charge(amount=self.amount,
                         currency=self.currency,
                         customer=self.customer,
-                        source=self.payment_method)
+                        source=self.payment_method,
+                        metadata=self.metadata)
         self.charges._list.append(charge)
 
         # Update persisted object after adding charge
