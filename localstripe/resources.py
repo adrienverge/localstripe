@@ -2058,7 +2058,7 @@ class PaymentIntent(StripeObject):
 
         if confirm:
             cls._api_confirm(obj.id)
-            obj = cls._api_retrieve(id)
+            obj = cls._api_retrieve(obj.id)
 
         return obj
 
