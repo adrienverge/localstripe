@@ -1977,6 +1977,7 @@ class PaymentIntent(StripeObject):
         self.statement_descriptor_suffix = statement_descriptor_suffix
         self.transfer_data = transfer_data
         self.transfer_group = transfer_group
+        self.use_stripe_sdk = use_stripe_sdk
 
         self._canceled = False
         self._authentication_failed = False
