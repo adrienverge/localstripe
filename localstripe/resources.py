@@ -1842,11 +1842,10 @@ class PaymentIntent(StripeObject):
 
     # TODO: Add payment_method_data and payment_method_options
     def __init__(self, amount=None, application_fee_amount=None, capture_method=None, currency=None, customer=None,
-                 confirm=None, confirmation_method=None, error_on_requires_action=None,
-                 payment_method=None, metadata=None, mandate=None, mandate_data=None,
-                 description=None, on_behalf_of=None, off_session=None, payment_method_types=None, receipt_email=None,
-                 statement_descriptor=None, statement_descriptor_suffix=None,
-                 transfer_data=None, transfer_group=None, use_stripe_sdk=None, **kwargs):
+                 confirmation_method=None, payment_method=None, metadata=None, description=None,
+                 on_behalf_of=None, payment_method_types=None,
+                 receipt_email=None, statement_descriptor=None, statement_descriptor_suffix=None,
+                 transfer_data=None, transfer_group=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -1863,10 +1862,6 @@ class PaymentIntent(StripeObject):
                 assert capture_method in ('automatic', 'manual')
             else:
                 capture_method = "automatic"
-            if confirm is not None:
-                assert type(confirm) is bool
-            else:
-                confirm = False
             if confirmation_method is not None:
                 assert type(confirmation_method) is str
                 assert confirmation_method in ('automatic', 'manual')
@@ -1876,37 +1871,34 @@ class PaymentIntent(StripeObject):
                 assert type(customer) is str and customer.startswith('cus_')
             if description is not None:
                 assert type(description) is str
-            if error_on_requires_action is not None:
-                assert type(error_on_requires_action) is bool
-                assert confirm
-            if mandate is not None:
-                assert confirm
-                assert mandate_data is None
-                assert type(mandate) is str and mandate.startswith('mandate_')
-            if mandate_data is not None:
-                assert confirm
-                assert mandate is None
-                assert type(mandate_data) is dict
-                assert type(mandate_data.get('customer_acceptance')) is dict
-                acceptance = mandate_data.get('customer_acceptance')
-                assert acceptance.get('type') in ('online', 'offline')
-                accepted_at = acceptance.get('accepted_at')
-                offline = acceptance.get('offline')
-                online = acceptance.get('online')
-                if accepted_at is not None:
-                    assert type(accepted_at) is str
-                if type == 'offline':
-                    assert type(offline) is dict
-                    assert online is None
-                if type == 'online':
-                    assert type(online) is dict
-                    assert offline is None
-                    assert type(online.get('ip_address')) is str
-                    assert type(online.get('user_agent')) is str
+            # if error_on_requires_action is not None:
+            #     assert type(error_on_requires_action) is bool
+            #     assert confirm
+            # if mandate is not None:
+            #     assert confirm
+            #     assert mandate_data is None
+            #     assert type(mandate) is str and mandate.startswith('mandate_')
+            # if mandate_data is not None:
+            #     assert confirm
+            #     assert mandate is None
+            #     assert type(mandate_data) is dict
+            #     assert type(mandate_data.get('customer_acceptance')) is dict
+            #     acceptance = mandate_data.get('customer_acceptance')
+            #     assert acceptance.get('type') in ('online', 'offline')
+            #     accepted_at = acceptance.get('accepted_at')
+            #     offline = acceptance.get('offline')
+            #     online = acceptance.get('online')
+            #     if accepted_at is not None:
+            #         assert type(accepted_at) is str
+            #     if type == 'offline':
+            #         assert type(offline) is dict
+            #         assert online is None
+            #     if type == 'online':
+            #         assert type(online) is dict
+            #         assert offline is None
+            #         assert type(online.get('ip_address')) is str
+            #         assert type(online.get('user_agent')) is str
 
-            if off_session is not None:
-                assert type(off_session) is bool
-                assert confirm
             if on_behalf_of is not None:
                 assert type(on_behalf_of) is str and on_behalf_of.startswith('acct_')
             if payment_method is not None:
@@ -1939,8 +1931,8 @@ class PaymentIntent(StripeObject):
                     transfer_data['amount'] = transfer_amount
             if transfer_group is not None:
                 assert type(transfer_group) is str
-            if use_stripe_sdk is not None:
-                assert type(use_stripe_sdk) is bool
+            # if use_stripe_sdk is not None:
+            #     assert type(use_stripe_sdk) is bool
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -1962,14 +1954,13 @@ class PaymentIntent(StripeObject):
         self.client_secret = self.id + '_secret_' + random_id(16)
         self.customer = customer
         self.description = description
-        self.error_on_requires_action = error_on_requires_action
+        # self.error_on_requires_action = error_on_requires_action
         self.payment_method = payment_method
-        self.mandate = mandate
-        self.mandate_data = mandate_data
+        # self.mandate = mandate
+        # self.mandate_data = mandate_data
         self.metadata = metadata or {}
         self.invoice = None
         self.next_action = None
-        self.off_session = off_session
         self.on_behalf_of = on_behalf_of
         self.payment_method_types = payment_method_types
         self.receipt_email = receipt_email
@@ -1977,7 +1968,7 @@ class PaymentIntent(StripeObject):
         self.statement_descriptor_suffix = statement_descriptor_suffix
         self.transfer_data = transfer_data
         self.transfer_group = transfer_group
-        self.use_stripe_sdk = use_stripe_sdk
+        # self.use_stripe_sdk = use_stripe_sdk
 
         self._canceled = False
         self._authentication_failed = False
