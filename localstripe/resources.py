@@ -2159,6 +2159,13 @@ class PaymentMethod(StripeObject):
 
     def __init__(self, type=None, billing_details=None, card=None,
                  sepa_debit=None, metadata=None, **kwargs):
+        if 'billing_details[address[postal_code]]' in kwargs:
+            billing_details = {
+                'address': {
+                    'postal_code': kwargs['billing_details[address[postal_code]]']
+                }
+            }
+            kwargs.pop('billing_details[address[postal_code]]')
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -2175,8 +2182,8 @@ class PaymentMethod(StripeObject):
                 assert _type(card['exp_year']) is int
                 assert _type(card['cvc']) is str
                 assert len(card['number']) == 16
-                assert card['exp_month'] >= 1 and card['exp_month'] <= 12
-                if card['exp_year'] > 0 and card['exp_year'] < 100:
+                assert 1 <= card['exp_month'] <= 12
+                if 0 < card['exp_year'] < 100:
                     card['exp_year'] += 2000
                 assert len(card['cvc']) == 3
             elif type == 'sepa_debit':
@@ -2205,7 +2212,7 @@ class PaymentMethod(StripeObject):
                 'exp_year': card['exp_year'],
                 'last4': self._card_number[-4:],
                 'brand': 'visa',
-                'country': 'FR',
+                'country': 'US',
                 'fingerprint': fingerprint(self._card_number),
                 'funding': 'credit',
                 'three_d_secure_usage': {'supported': True},
