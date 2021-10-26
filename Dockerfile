@@ -20,4 +20,4 @@ EXPOSE 8420
 # While not overly scientific, the formula is based on the assumption that for a given core, ...
 # ... one worker will be reading or writing from the socket while the other worker is processing a request."
 # https://docs.gunicorn.org/en/latest/design.html#how-many-workers
-CMD ["ddtrace-run", "gunicorn", "--workers", "${GUNICORN_WORKERS}", "--bind", "0.0.0.0:8420", "--worker-class", "aiohttp.GunicornWebWorker", "localstripe.server:app", "--access-logfile", "-", "--error-logfile", "-", "--log-file", "-"]
+CMD ["ddtrace-run", "gunicorn", "--worker-class", "aiohttp.GunicornWebWorker", "localstripe.server:app", "--access-logfile", "-", "--error-logfile", "-", "--log-file", "-"]
