@@ -24,6 +24,8 @@ import re
 import socket
 
 from aiohttp import web
+from ddtrace import tracer, patch
+from ddtrace.contrib.aiohttp import trace_app
 
 from .resources import BalanceTransaction, Charge, Coupon, Customer, Event, \
     Invoice, InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, \
@@ -199,7 +201,7 @@ async def auth_middleware(request, handler):
 #         if request.method in ('PUT', 'POST', 'DELETE'):
 #             store.dump_to_disk()
 
-
+patch(aiohttp=True)
 app = web.Application(middlewares=[error_middleware, auth_middleware])
 app.on_response_prepare.append(add_cors_headers)
 
@@ -377,6 +379,7 @@ def start():
     logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler())
 
+    trace_app(app, tracer)
     web.run_app(app, sock=sock, access_log=logger)
 
 
