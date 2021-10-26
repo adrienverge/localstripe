@@ -2157,6 +2157,8 @@ class PaymentMethod(StripeObject):
     object = 'payment_method'
     _id_prefix = 'pm_'
 
+    payment_method_types = ('card', 'sepa_debit')
+
     def __init__(self, type=None, billing_details=None, card=None,
                  sepa_debit=None, metadata=None, **kwargs):
         if 'billing_details[address[postal_code]]' in kwargs:
@@ -2170,7 +2172,7 @@ class PaymentMethod(StripeObject):
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         try:
-            assert type in ('card', 'sepa_debit')
+            assert type in PaymentMethod.payment_method_types
             assert billing_details is None or _type(billing_details) is dict
             if type == 'card':
                 assert _type(card) is dict and card.keys() == {
@@ -2277,13 +2279,14 @@ class PaymentMethod(StripeObject):
             raise UserError(400, 'Bad request')
 
         obj = cls._api_retrieve(id)
-        Customer._api_retrieve(customer)  # to return 404 if not existant
+        Customer._api_retrieve(customer)  # to return 404 if not existent
 
         if obj._attaching_is_declined():
             raise UserError(402, 'Your card was declined.',
                             {'code': 'card_declined'})
 
         obj.customer = customer
+        redis_master.set(obj._store_key(), pickle.dumps(obj))
         return obj
 
     @classmethod
@@ -2298,6 +2301,7 @@ class PaymentMethod(StripeObject):
 
         obj = cls._api_retrieve(id)
         obj.customer = None
+        redis_master.set(obj._store_key(), pickle.dumps(obj))
         return obj
 
     @classmethod
@@ -2782,6 +2786,7 @@ class SetupIntent(StripeObject):
 
     @classmethod
     def _api_confirm(cls, id, use_stripe_sdk=None, client_secret=None,
+                     expected_payment_method_type=None, payment_method=None,
                      payment_method_data=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
@@ -2790,6 +2795,10 @@ class SetupIntent(StripeObject):
             assert type(id) is str and id.startswith('seti_')
             if client_secret is not None:
                 assert type(client_secret) is str
+            if payment_method is not None:
+                assert type(payment_method) is str and payment_method.startswith(PaymentMethod._id_prefix)
+            if expected_payment_method_type is not None:
+                assert type(expected_payment_method_type) is str and expected_payment_method_type in PaymentMethod.payment_method_types
             if payment_method_data is not None:
                 assert type(payment_method_data) is dict
         except AssertionError:
@@ -2821,12 +2830,19 @@ class SetupIntent(StripeObject):
             else:
                 obj.status = 'succeeded'
                 obj.next_action = None
+        elif payment_method:
+            PaymentMethod._api_retrieve(payment_method)  # Raises a 404 if not found
+            obj.payment_method = payment_method
+
+            obj.status = 'succeeded'
+            obj.next_action = None
         elif obj.payment_method is None:
             obj.status = 'requires_payment_method'
             obj.next_action = None
         else:
             obj.status = 'succeeded'
             obj.next_action = None
+        redis_master.set(obj._store_key(), pickle.dumps(obj))
         return obj
 
     @classmethod
@@ -2849,6 +2865,7 @@ class SetupIntent(StripeObject):
 
         obj.status = 'canceled'
         obj.next_action = None
+        redis_master.set(obj._store_key(), pickle.dumps(obj))
         return obj
 
 
