@@ -23,8 +23,11 @@ import pickle
 import re
 import socket
 
+import ddtrace.profiling.auto
+from ddtrace import tracer, patch_all
+patch_all()
+
 from aiohttp import web
-from ddtrace import tracer, patch
 from ddtrace.contrib.aiohttp import trace_app
 
 from .resources import BalanceTransaction, Charge, Coupon, Customer, Event, \
@@ -201,7 +204,6 @@ async def auth_middleware(request, handler):
 #         if request.method in ('PUT', 'POST', 'DELETE'):
 #             store.dump_to_disk()
 
-patch(aiohttp=True)
 app = web.Application(middlewares=[error_middleware, auth_middleware])
 app.on_response_prepare.append(add_cors_headers)
 
