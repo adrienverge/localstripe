@@ -2831,7 +2831,9 @@ class SetupIntent(StripeObject):
                 obj.status = 'succeeded'
                 obj.next_action = None
         elif payment_method:
-            PaymentMethod._api_retrieve(payment_method)  # Raises a 404 if not found
+            extant_method = PaymentMethod._api_retrieve(payment_method)  # Raises a 404 if not found
+            if expected_payment_method_type is not None and extant_method.type != expected_payment_method_type:
+                raise UserError(400, f'Expected payment method of type: {expected_payment_method_type} but got {extant_method.type}')
             obj.payment_method = payment_method
 
             obj.status = 'succeeded'
