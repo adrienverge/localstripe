@@ -39,6 +39,7 @@ setup(
         'gunicorn >=20.0.4',
         "redis >=3.5.3",
         "structlog",
-        "colorama"
+        "colorama",
+        "ddtrace >=0.50"
     ],
 )
