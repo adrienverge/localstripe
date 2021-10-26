@@ -5,7 +5,7 @@ WORKDIR /app
 
 RUN pip install . && \
   rm -rf ./* && \
-  chmod -R 0777 /tmp &&
+  chmod -R 0777 /tmp
 COPY localstripe/gunicorn.conf.py /app
 RUN chown -R www-data:www-data /app
 
