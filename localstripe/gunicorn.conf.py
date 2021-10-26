@@ -5,7 +5,7 @@ import os
 host = os.getenv("GUNICORN_HOST", "0.0.0.0")
 port = os.getenv("GUNICORN_PORT", "8420")
 bind_str = os.getenv("GUNICORN_BIND", f"{host}:{port}")
-workers_config = os.getenv("GUNICORN_WORKERS", multiprocessing.cpu_count() * 2)
+workers_config = os.getenv("GUNICORN_WORKERS", multiprocessing.cpu_count() * 2 + 1)
 graceful_timeout_str = os.getenv("GUNICORN_GRACEFUL_TIMEOUT", "120")
 timeout_str = os.getenv("GUNICORN_TIMEOUT", "120")
 keepalive_str = os.getenv("GUNICORN_KEEP_ALIVE", "5")
