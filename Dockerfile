@@ -11,6 +11,7 @@ RUN chown -R www-data:www-data /app
 
 USER www-data
 
+ENV DD_TRACE_ENABLED="true"
 ENV DD_PROFILING_ENABLED="true"
 ENV DD_PROFILING_HEAP_ENABLED="true"
 ENV GUNICORN_WORKERS="1"
