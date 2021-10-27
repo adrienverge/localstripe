@@ -1846,7 +1846,7 @@ class PaymentIntent(StripeObject):
                  confirmation_method=None, payment_method=None, metadata=None, description=None,
                  on_behalf_of=None, payment_method_types=None,
                  receipt_email=None, statement_descriptor=None, statement_descriptor_suffix=None,
-                 transfer_data=None, transfer_group=None, **kwargs):
+                 setup_future_usage=None, transfer_data=None, transfer_group=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -1916,6 +1916,9 @@ class PaymentIntent(StripeObject):
             if receipt_email is not None:
                 assert type(receipt_email) is str
                 assert len(receipt_email) <= 254
+            if setup_future_usage is not None:
+                assert type(setup_future_usage) is str
+                assert setup_future_usage in ('on_session', 'off_session')
             if statement_descriptor is not None:
                 assert type(statement_descriptor) is str
                 assert len(statement_descriptor) <= 22
@@ -1965,6 +1968,7 @@ class PaymentIntent(StripeObject):
         self.on_behalf_of = on_behalf_of
         self.payment_method_types = payment_method_types
         self.receipt_email = receipt_email
+        self.setup_future_usage = setup_future_usage
         self.statement_descriptor = statement_descriptor
         self.statement_descriptor_suffix = statement_descriptor_suffix
         self.transfer_data = transfer_data
@@ -2091,6 +2095,7 @@ class PaymentIntent(StripeObject):
         else:
             obj._trigger_payment()
 
+        redis_master.set(obj._store_key(), pickle.dumps(obj))
         return obj
 
     @classmethod
