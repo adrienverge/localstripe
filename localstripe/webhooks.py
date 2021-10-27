@@ -74,6 +74,7 @@ async def _send_webhook(event):
                                     % event.type)
                     else:
                         logger.warning(f'webhook "{event.type}" failed with response code {r.status} and body:\n{await r.text()}')
+                        logger.warning(f'Failed webhook body: {webhook_body}')
             except aiohttp.client_exceptions.ClientError as e:
                 logger.warning('webhook "%s" failed: %s' % (event.type, e))
 
