@@ -1988,16 +1988,19 @@ class PaymentIntent(StripeObject):
             if self.invoice:
                 invoice = Invoice._api_retrieve(self.invoice)
                 invoice._on_payment_success()
+            schedule_webhook(Event('payment_intent.succeeded', self))
 
         def on_failure_now():
             if self.invoice:
                 invoice = Invoice._api_retrieve(self.invoice)
                 invoice._on_payment_failure_now()
+            schedule_webhook(Event('payment_intent.payment_failed', self))
 
         def on_failure_later():
             if self.invoice:
                 invoice = Invoice._api_retrieve(self.invoice)
                 invoice._on_payment_failure_later()
+            schedule_webhook(Event('payment_intent.payment_failed', self))
 
         charge = Charge(amount=self.amount,
                         currency=self.currency,
@@ -2009,6 +2012,7 @@ class PaymentIntent(StripeObject):
         # Update persisted object after adding charge
         redis_master.set(self._store_key(), pickle.dumps(self))
         charge._trigger_payment(on_success, on_failure_now, on_failure_later)
+        schedule_webhook(Event('payment_intent.created', self))
 
     @property
     def status(self):
