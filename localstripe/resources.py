@@ -1988,7 +1988,6 @@ class PaymentIntent(StripeObject):
             if self.invoice:
                 invoice = Invoice._api_retrieve(self.invoice)
                 invoice._on_payment_success()
-            schedule_webhook(Event('payment_intent.succeeded', self))
 
         def on_failure_now():
             if self.invoice:
@@ -2277,6 +2276,12 @@ class PaymentMethod(StripeObject):
         return False
 
     @classmethod
+    def _api_update(cls, id, **data):
+        obj = super()._api_update(id, **data)
+        schedule_webhook(Event('payment_method.updated', obj))
+        return obj
+
+    @classmethod
     def _api_attach(cls, id, customer=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
@@ -2296,6 +2301,7 @@ class PaymentMethod(StripeObject):
 
         obj.customer = customer
         redis_master.set(obj._store_key(), pickle.dumps(obj))
+        schedule_webhook(Event("payment_method.attached", obj))
         return obj
 
     @classmethod
@@ -2311,6 +2317,7 @@ class PaymentMethod(StripeObject):
         obj = cls._api_retrieve(id)
         obj.customer = None
         redis_master.set(obj._store_key(), pickle.dumps(obj))
+        schedule_webhook(Event("payment_method.detached", obj))
         return obj
 
     @classmethod
