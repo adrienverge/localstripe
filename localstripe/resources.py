@@ -2226,6 +2226,12 @@ class PaymentMethod(StripeObject):
                 'fingerprint': fingerprint(self._card_number),
                 'funding': 'credit',
                 'three_d_secure_usage': {'supported': True},
+                'checks': {
+                    'address_line1_check': 'pass',
+                    'address_postal_code_check': 'pass',
+                    'cvc_check': 'pass',
+
+                }
             }
         elif self.type == 'sepa_debit':
             self._sepa_debit_iban = \
