@@ -2061,7 +2061,7 @@ class PaymentIntent(StripeObject):
         if kwargs:
             logger.warning('Unexpected ' + ', '.join(kwargs.keys()))
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
-        if type(transfer_data) is not None:
+        if transfer_data is not None:
             raise UserError(500, "Not implemented")
 
         try:
