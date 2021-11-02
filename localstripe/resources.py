@@ -2004,6 +2004,7 @@ class PaymentIntent(StripeObject):
             schedule_webhook(Event('payment_intent.payment_failed', self))
 
         charge = Charge(amount=self.amount,
+                        capture=self.capture_method == 'automatic',
                         currency=self.currency,
                         customer=self.customer,
                         source=self.payment_method,
@@ -2080,6 +2081,7 @@ class PaymentIntent(StripeObject):
             raise UserError(400, 'Bad request')
 
         obj.amount_capturable = 0
+        obj.charges[-1].captured = True
         if amount_to_capture < obj.amount:
             # https://stripe.com/docs/payments/capture-later#capture-funds
             # We can only capture once; funds greater than the capture are released automatically
