@@ -2088,7 +2088,8 @@ class PaymentIntent(StripeObject):
             obj.amount = obj.amount - amount_to_capture
         redis_master.set(obj._store_key(), pickle.dumps(obj))
         schedule_webhook(Event('payment_intent.succeeded', obj))
-        schedule_webhook(Event('charge.captured', obj))
+        schedule_webhook(Event('charge.captured', obj.charges._list[-1]))
+        return obj
 
     @classmethod
     def _api_create(cls, confirm=None, off_session=None, **data):
