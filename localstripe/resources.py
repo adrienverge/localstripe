@@ -1950,6 +1950,7 @@ class PaymentIntent(StripeObject):
         super().__init__()
 
         self.amount = amount
+        self.amount_capturable = amount
         self.application_fee_amount = application_fee_amount
         self.currency = currency
         self.capture_method = capture_method
@@ -1988,6 +1989,7 @@ class PaymentIntent(StripeObject):
             if self.invoice:
                 invoice = Invoice._api_retrieve(self.invoice)
                 invoice._on_payment_success()
+            schedule_webhook(Event('payment_intent.amount_capturable_updated', self))
 
         def on_failure_now():
             if self.invoice:
@@ -2025,7 +2027,10 @@ class PaymentIntent(StripeObject):
             return 'requires_confirmation'
         charge = self.charges._list[-1]
         if charge.status == 'succeeded':
-            return 'succeeded'
+            if self.capture_method == "manual" and self.amount_capturable > 0:
+                return 'requires_capture'
+            else:
+                return 'succeeded'
         elif charge.status == 'failed':
             return 'requires_payment_method'
         elif charge.status == 'pending':
@@ -2047,6 +2052,41 @@ class PaymentIntent(StripeObject):
                     'code': charge.failure_code,
                     'message': charge.failure_message,
                 }
+
+    @classmethod
+    def _api_capture(cls, id, amount_to_capture=None, application_fee_amount=None, statement_descriptor=None,
+                     statement_descriptor_suffix=None, transfer_data=None, **kwargs):
+        logger = logging.getLogger('localstripe.resources.payment_intent')
+        if kwargs:
+            logger.warning('Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+        if type(transfer_data) is not None:
+            raise UserError(500, "Not implemented")
+
+        try:
+            assert type(id) is str and id.startswith('pi_')
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        obj = cls._api_retrieve(id)
+
+        if amount_to_capture is None:
+            amount_to_capture = obj.amount
+        amount_to_capture = try_convert_to_int(amount_to_capture)
+        try:
+            assert type(amount_to_capture) is int and 0 <= amount_to_capture <= obj.amount_capturable
+            assert obj.status == 'requires_capture'
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        obj.amount_capturable = 0
+        if amount_to_capture < obj.amount:
+            # https://stripe.com/docs/payments/capture-later#capture-funds
+            # We can only capture once; funds greater than the capture are released automatically
+            obj.amount = obj.amount - amount_to_capture
+        redis_master.set(obj._store_key(), pickle.dumps(obj))
+        schedule_webhook(Event('payment_intent.succeeded', obj))
+        schedule_webhook(Event('charge.captured', obj))
 
     @classmethod
     def _api_create(cls, confirm=None, off_session=None, **data):
@@ -2155,6 +2195,7 @@ class PaymentIntent(StripeObject):
 
 
 extra_apis.extend((
+    ('POST', '/v1/payment_intents/{id}/capture', PaymentIntent._api_capture),
     ('POST', '/v1/payment_intents/{id}/confirm', PaymentIntent._api_confirm),
     ('POST', '/v1/payment_intents/{id}/cancel', PaymentIntent._api_cancel),
     ('POST', '/v1/payment_intents/{id}/_authenticate',
