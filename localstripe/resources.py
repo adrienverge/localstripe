@@ -3574,6 +3574,8 @@ class IssuingCardholder(StripeObject):
 
             if status is not None:
                 assert _type(status) is str and status in ("active", "inactive", "blocked")
+            else:
+                status = 'active'
             if metadata is not None:
                 assert _type(metadata) is dict
             if email is not None:
