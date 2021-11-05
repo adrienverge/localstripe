@@ -26,7 +26,7 @@ import time
 from dateutil.relativedelta import relativedelta
 
 from .errors import UserError
-from .redis_store import fetch_all, redis_slave, redis_master
+from .redis_store import fetch, fetch_all, redis_slave, redis_master
 from .utilities import *
 from .webhooks import schedule_webhook
 
@@ -3552,28 +3552,47 @@ class IssuingCardholder(StripeObject):
     _id_prefix = 'ich_'
 
     def __init__(self, name=None, status=None, billing=None, type=None,
-                 metadata=None, email=None, phone_number=None, **kwargs):
+                 metadata=None, email=None, phone_number=None,
+                 individual=None, company=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         try:
-            if name is not None:
-                assert _type(name) is str
+            assert name is not None and _type(name) is str
+
+            assert type is not None and _type(type) is str
+            assert type in ('individual', 'company')
+
+            assert billing is not None and _type(billing) is dict
+            assert _type(billing['address']) is dict
+            assert set(billing['address'].keys()).issubset({
+                'city', 'country', 'line1', 'line2', 'postal_code',
+                'state'})
+            assert all(_type(f) is str for f in billing['address'].values())
+
             if status is not None:
-                assert _type(status) is str and status in ["active", "inactive", "blocked"]
-            if billing is not None:
-                assert _type(billing) is dict
-                assert _type(billing['address']) is dict
-                assert set(billing['address'].keys()).issubset({
-                    'city', 'country', 'line1', 'line2', 'postal_code',
-                    'state'})
-                assert all(_type(f) is str for f in billing['address'].values())
+                assert _type(status) is str and status in ("active", "inactive", "blocked")
             if metadata is not None:
                 assert _type(metadata) is dict
             if email is not None:
                 assert _type(email) is str
             if phone_number is not None:
                 assert _type(phone_number) is str
+            if individual is not None:
+                assert type == 'individual'
+                assert _type(individual) is dict
+                assert company is None
+                assert set(individual.keys()).issubset({
+                    'dob', 'first_name', 'last_name', 'verification'
+                })
+            if company is not None:
+                assert type == 'company'
+                assert _type(company) is dict
+                assert individual is None
+                assert set(company.keys()).issubset({
+                    'tax_id'
+                })
+
         except AssertionError:
             print(json.dumps({
                 'email': email,
@@ -3595,6 +3614,8 @@ class IssuingCardholder(StripeObject):
         self.email = email
         self.phone_number = phone_number
         self.billing = billing
+        self.individual = individual
+        self.company = company
 
         redis_master.set(self._store_key(), pickle.dumps(self))
 
@@ -3632,7 +3653,7 @@ class IssuingCard(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        cardholder_object = pickle.loads(redis_slave.get(f"{IssuingCardholder.object}:{cardholder}"))
+        cardholder_object = fetch(f"{IssuingCardholder.object}:{cardholder}")
         if cardholder is None:
             raise UserError(400, f"No cardholder matching ID: {cardholder}")
 
