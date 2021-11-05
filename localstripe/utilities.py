@@ -3,7 +3,7 @@ import hashlib
 import string
 
 
-def random_id(n):
+def random_id(n: int) -> str:
     return ''.join(random.choice(string.ascii_letters + string.digits)
                    for i in range(n))
 

@@ -45,7 +45,8 @@ class StripeObject(object):
         if not isinstance(self, List):
             if id is None:
                 assert hasattr(self, '_id_prefix')
-                self.id = getattr(self, '_id_prefix') + random_id(14)
+                id_length = getattr(self, '_id_length', 14)
+                self.id = getattr(self, '_id_prefix') + random_id(id_length)
             else:
                 self.id = id
 
@@ -3550,6 +3551,7 @@ class Token(StripeObject):
 class IssuingCardholder(StripeObject):
     object = 'issuing.cardholder'
     _id_prefix = 'ich_'
+    _id_length = 24
 
     def __init__(self, name=None, status=None, billing=None, type=None,
                  metadata=None, email=None, phone_number=None,
@@ -3639,6 +3641,7 @@ class IssuingCardholder(StripeObject):
 class IssuingCard(StripeObject):
     object = 'issuing.card'
     _id_prefix = 'ic_'
+    _id_length = 24
 
     def __init__(self, cardholder=None, currency=None, metadata=None, status=None, type=None):
         try:
