@@ -1,4 +1,3 @@
-import json
 import pickle
 import typing
 
@@ -17,7 +16,7 @@ redis_slave = sentinel.slave_for('mymaster')
 def fetch(redis_key: str) -> typing.Union[typing.Any, None]:
     pickled = redis_slave.get(redis_key)
     if pickled is not None:
-        return json.loads(pickled)
+        return pickle.loads(pickled)
     else:
         return None
 
