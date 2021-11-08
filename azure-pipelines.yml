@@ -7,37 +7,53 @@ pr:
     include:
       - qp-mock-master
 
+parameters:
+  - name: regions
+    displayName: Enabled Regions
+    type: object
+    default:
+      - eastus
+  - name: environments
+    displayName: Enabled Environments
+    type: object
+    default:
+      - development
+
 variables:
-  azureSubscription: 'QuadPay PAYG (4225a42d-cebe-4062-a1a1-7ce5954c40c6)'
+  - template: ../../build/variables.yaml
+  - name: service-name
+    value: localstripe
+  - name: dockerfile
+    value: $(System.DefaultWorkingDirectory)/Dockerfile
 
 pool:
   vmImage: ubuntu-latest
 
 stages:
   - stage: Build
-    displayName: Build & Push
+    displayName: Build, Push and Publish
     jobs:
       - job: Build
-        displayName: Build & Push
+        displayName: Build, Push and Publish
         workspace:
           clean: all
         steps:
-          - task: Docker@2
-            displayName: Build docker image
-            inputs:
-              repository: mocks/localstripe
-              command: build
-              containerRegistry: Azure quadpay container registry
-              tags: |
-                latest
-                $(Build.BuildNumber)
-          - ${{ if or( eq(variables['Build.SourceBranch'], 'refs/heads/qp-mock-master'), eq(variables['Build.Reason'], 'Manual') ) }}:
-              - task: Docker@2
-                displayName: Push docker image
-                inputs:
-                  repository: mocks/localstripe
-                  command: push
-                  containerRegistry: Azure quadpay container registry
-                  tags: |
-                    latest
-                    $(Build.BuildNumber)
+          - template: ./build/templates/setup.yaml
+          - template: ./build/templates/build.yaml
+
+  # Deploy to Development
+  - template: ./build/templates/deploy.yaml
+    parameters:
+      dependsOn:
+        - Build
+      regions: ${{ parameters.regions }}
+      environment: development
+      group: ci
+      condition: >
+        and(
+          succeeded(),
+          or(
+            eq(variables['build.sourceBranch'], 'refs/heads/qp-mock-master'),
+            eq(variables['Build.Reason'], 'Manual')
+          )
+        )

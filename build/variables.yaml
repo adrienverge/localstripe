@@ -1,0 +1,12 @@
+variables:
+  azureSubscription-eastus: 'QuadPay PAYG (4225a42d-cebe-4062-a1a1-7ce5954c40c6)'
+  azureSubscription-canadacentral-dev: 'Canada Dev (a7633c1b-fe57-452a-a1aa-ca153e0ab217)'
+  azureSubscription-canadacentral-sbx: 'Canada Sbx (656a0b2a-4dfb-4162-a601-3662a076ddd9)'
+  azureSubscription-canadacentral-prd: 'Canada Prd (b3e2748e-6df3-4cef-979b-fbdc5c6d69c2)'
+  azureSubscription-uksouth-dev: 'United Kingdom dev (61a2a016-495f-4e0e-844b-9f4889c092a4)'
+  azureSubscription-southcus-dev: 'Mexico dev (67ab1f91-b456-4136-8efb-e4c30762be22)'
+  azureSubscription-southcus-sbx: 'Mexico sbx (0c99a1d3-b3de-4f2c-b6ae-32ff1174467e)'
+  azureSubscription-southcus-prd: 'Mexico prd (f14ae812-fc27-47bf-b62e-4039f264ea19)'
+  gitHubConnection: quadpay-devops-20190722
+  pool-standard: hosted-ubuntu-2004-slow
+  pool-fast: hosted-ubuntu-2004

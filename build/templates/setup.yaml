@@ -1,0 +1,27 @@
+# This template performs setup on the build agent to ensure the tools we need are installed.
+steps:
+  - task: HelmInstaller@1
+    displayName: Helm Installer
+    inputs:
+      helmVersionToInstall: 3.5.3
+
+  # Force Python 3.x
+  - task: UsePythonVersion@0
+    displayName: Set Python to 3.x
+    inputs:
+      versionSpec: '3.x'
+
+  - task: qetza.replacetokens.replacetokens-task.replacetokens@3
+    displayName: Replace tokenized values with pipeline variables
+    inputs:
+      targetFiles: '**/*.Dockerfile,Dockerfile'
+      encoding: auto
+      actionOnMissing: fail
+      tokenPrefix: '#{'
+      tokenSuffix: '}#'
+
+  - task: Docker@2
+    displayName: Login to ACR
+    inputs:
+      command: login
+      containerRegistry: 'Azure quadpay container registry'

@@ -1,0 +1,91 @@
+# This template deploys a Docker containerized service via Helm into an Azure Kubernetes Services (AKS) cluster.
+parameters:
+  dependsOn: []
+  # Environment variable group. Determines what settings to pull from AzureDevops.
+  # ci | ut | prd
+  group: "ci"
+  # Array of regions that will be deployed
+  regions: ["eastus"]
+  # Stage name suffix.
+  name: ""
+  # Condition that affects whether or not the deployment will run.
+  # Default: The previous stage succeeded and the branch is main.
+  condition: >
+    and
+    (
+      succeeded(),
+      eq(variables['Build.SourceBranch'], 'refs/heads/qp-mock-master')
+    )
+  forceHelmUpgrade: false
+  service_name: $(service-name)
+  image_name: $(service-name)
+  chart_version: "2.0.0"
+
+stages:
+  - stage: ${{ coalesce(parameters.name, parameters.group) }}
+    displayName: Deploy ${{ coalesce(parameters.name, parameters.group) }}
+    dependsOn: ${{ parameters.dependsOn }}
+    condition: ${{ parameters.condition }}
+    variables:
+      - group: ${{ parameters.group }}
+
+    jobs:
+      - deployment: ${{ coalesce(parameters.name, parameters.group) }}
+        displayName: Deploy eastus
+        environment: ${{ parameters.group }}
+        pool: $(pool-standard)
+        workspace:
+          clean: all
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - template: ./setup.yaml
+                - powershell: |
+                    $envName = "$(environment)"
+                    $downcased = $envName.ToLower()
+                    Write-Host "##vso[task.setvariable variable=downcased-environment;]$downcased"
+                  displayName: Add downcased environment variable
+
+                - powershell: |
+                    switch ("$(environment)") {
+                      "Development" { Write-Host "##vso[task.setvariable variable=environment_shorthand;]dev" }
+                    }
+                  displayName: Set environment shorthand
+
+                - task: AzureCLI@2
+                  displayName: Fetch quadpay-services chart
+                  inputs:
+                    azureSubscription: $(azureSubscription-eastus)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      kubeconfig="$(Agent.TempDirectory)/kubeconfig"
+                      az aks get-credentials -n $(cluster) -g $(resource_group) --admin -f ${kubeconfig}
+
+                      # Add the quadpay helm repo
+                      acrName='quadpay'
+                      acrPassword=$(az acr credential show -n ${acrName} --query 'passwords[0].value' -o tsv)
+                      export HELM_EXPERIMENTAL_OCI=1
+                      helm registry login ${acrName}.azurecr.io --username ${acrName} --password ${acrPassword}
+                      helm chart pull ${acrName}.azurecr.io/helm/quadpay-services:${{ parameters.chart_version }}
+                      helm chart export ${acrName}.azurecr.io/helm/quadpay-services:${{ parameters.chart_version }} --destination $(Agent.TempDirectory)/chart-install
+
+                - task: HelmDeploy@0
+                  displayName: Deploy ${{ parameters.service_name }}
+                  inputs:
+                    azureSubscription: $(azureSubscription-eastus)
+                    azureResourceGroup: $(resource_group)
+                    kubernetesCluster: $(cluster)
+                    useClusterAdmin: true
+                    namespace: $(namespace)
+                    command: upgrade
+                    chartType: FilePath
+                    chartPath: $(Agent.TempDirectory)/chart-install/quadpay-services
+                    releaseName: ${{ parameters.service_name }}-qp-$(namespace)
+                    overrideValues: image.tag=$(Build.BuildNumber),image.name=$(service-name)-eastus-$(downcased-environment),environment=$(environment),envSlug=$(environment_shorthand),serviceName=${{ parameters.service_name }},keyVault.name=quadpay-$(downcased-environment)-kv,keyVault.resourceGroup=quadpay-$(downcased-environment)-cluster,territory=US,clusterName=$(cluster),region=eastus,gitSha=$(Build.SourceVersion),gitBranch=$(Build.SourceBranchName)
+                    valueFile: $(Pipeline.Workspace)/QuadPayServicesPipeline_${{ parameters.service_name }}/${{ parameters.service_name }}/$(downcased-environment).yaml
+                    force: ${{ parameters.forceHelmUpgrade }}
+                    install: true
+                    arguments: --timeout $(helmTimeout) --create-namespace
