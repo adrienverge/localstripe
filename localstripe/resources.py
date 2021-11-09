@@ -927,8 +927,19 @@ class Customer(StripeObject):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs))
 
-        return Customer._api_retrieve(id).sources
+        try:
+            if object is not None:
+                assert type(object) is str
+                assert object in ('card', 'bank_account')
+        except AssertionError:
+            raise UserError(400, 'Bad request')
 
+        li = cls._api_retrieve(id).sources
+
+        if object is not None:
+            li._list = [i for i in li._list if i.object == object]
+
+        return li
 
 
     @classmethod
