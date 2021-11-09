@@ -3621,7 +3621,14 @@ class IssuingCardholder(StripeObject):
         self.individual = individual
         self.company = company
 
+        schedule_webhook(Event('issuing_cardholder.created', self))
         redis_master.set(self._store_key(), pickle.dumps(self))
+
+    @classmethod
+    def _api_update(cls, id, **data):
+        obj = super()._api_update(id, **data)
+        schedule_webhook(Event('issuing_cardholder.updated', obj))
+        return obj
 
     @classmethod
     def _api_list_all(cls, url, limit=None, email=None, phone_number=None, **kwargs):
