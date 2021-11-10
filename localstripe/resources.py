@@ -3686,11 +3686,11 @@ class IssuingCard(StripeObject):
         self.currency = currency
         self.cardholder = cardholder_object
         self.status = status
-        self.number = '4242424242424242'
+        self.number = f"'400000999000{''.join([str(random.randint(0,9)) for i in range(4)])}'"
         self.last4 = self.number[-4:]
-        self.exp_month = 7
-        self.exp_year = 2024
-        self.cvc = '010'
+        self.exp_month = datetime.now().month
+        self.exp_year = datetime.now().year + 3
+        self.cvc = '123'
 
         schedule_webhook(Event('issuing_card.created', self))
         redis_master.set(self._store_key(), pickle.dumps(self))
