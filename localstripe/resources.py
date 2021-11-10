@@ -941,7 +941,6 @@ class Customer(StripeObject):
 
         return li
 
-
     @classmethod
     def _api_retrieve_source(cls, id, source_id, **kwargs):
         if kwargs:
@@ -3693,4 +3692,11 @@ class IssuingCard(StripeObject):
         self.exp_year = 2024
         self.cvc = '010'
 
+        schedule_webhook(Event('issuing_card.created', self))
         redis_master.set(self._store_key(), pickle.dumps(self))
+
+    @classmethod
+    def _api_update(cls, id, **data):
+        obj = super()._api_update(id, **data)
+        schedule_webhook(Event('issuing_card.updated', obj))
+        return obj
