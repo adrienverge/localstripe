@@ -28,7 +28,7 @@ from dateutil.relativedelta import relativedelta
 from .errors import UserError
 from .redis_store import fetch, fetch_all, redis_slave, redis_master
 from .utilities import *
-from .webhooks import schedule_webhook
+from .webhooks import schedule_webhook, Webhook
 
 
 # Save built-in keyword `type`, because some classes override it by using
@@ -464,6 +464,22 @@ class Charge(StripeObject):
         self.destination = destination
 
         redis_master.set(self._store_key(), pickle.dumps(self))
+        if self.payment_method.starts_with('src'):
+            source = Source._api_retrieve(self.payment_method)
+            if source.type == 'card' and source.card['number'].starts_with('400000999000'):
+                self._trigger_issuing_authorization_request()
+
+    def _trigger_issuing_authorization_request(self, source):
+        logger = logging.getLogger('localstripe.resources.Charge')
+        logger.warning('Starting Issuing Authorization request')
+        issuing_authorization = IssuingAuthorization('online', source, self, source.cardholder.id)
+        # webhooks = fetch_all(f"{Webhook.object}:*")
+        # issuing_auth_request_webhook = next((hook for hook in webhooks
+        #                                      if 'issuing_authorization.request' in hook.events), None)
+        # if issuing_auth_request_webhook is not None:
+        #
+        # else:
+        #     logger.warning('No issuing authorization request webhook configured')
 
     def _trigger_payment(self, on_success=None, on_failure_now=None,
                          on_failure_later=None):
@@ -2285,7 +2301,6 @@ class PaymentMethod(StripeObject):
                     'address_line1_check': 'pass',
                     'address_postal_code_check': 'pass',
                     'cvc_check': 'pass',
-
                 }
             }
         elif self.type == 'sepa_debit':
@@ -3700,3 +3715,62 @@ class IssuingCard(StripeObject):
         obj = super()._api_update(id, **data)
         schedule_webhook(Event('issuing_card.updated', obj))
         return obj
+
+class IssuingAuthorization(StripeObject):
+    object = 'issuing.authorization'
+    _id_prefix = 'iauth'
+    _id_length = 24
+
+    def __init__(self, authorization_method, card: IssuingCard, charge: Charge, cardholder, metadata=None):
+        assert type(authorization_method) is str
+        assert authorization_method in ('keyed_in', 'swipe', 'chip', 'contactless', 'online')
+        assert type(card) is IssuingCard
+        assert type(charge) is Charge
+        assert type(cardholder) is str
+        if metadata is not None:
+            assert type(metadata) is dict
+
+        super().__init__()
+
+        self.amount = 0
+        self.amount_details = {
+            'atm_fee': None
+        }
+        self.approved = False
+        self.authorization_method = authorization_method
+        self.balance_transactions = []
+        self.card = card
+        self.cardholder = cardholder
+        self.currency = 'usd'
+        self.merchant_amount = 0
+        self.merchant_currency = 'usd'
+        self.merchant_data = {
+            "category": "computer_software_stores",
+            "category_code": "5734",
+            "city": "NEW YORK",
+            "country": "US",
+            "name": "QP* TEST GAMESTOP",
+            "network_id": "1234567890",
+            "postal_code": "10003",
+            "state": "NY"
+        } # Note - May be necessary for this to contain actual values
+        self.metadata = metadata
+        self.pending_request = {
+            'amount': charge.amount,
+            'amount_details': {
+                'atm_fee': None
+            },
+            'currency': charge.currency,
+            'merchant_amount': charge.amount,
+            'merchant_currency': 'usd'
+        }
+        self.request_history = []
+        self.status = 'pending'
+        self.transactions = []
+        self.verification_data = {
+            "address_line1_check": "not_provided",
+            "address_postal_code_check": "not_provided",
+            "cvc_check": "match",
+            "expiry_check": "match"
+        }
+        self.wallet = None
