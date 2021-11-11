@@ -894,7 +894,7 @@ class Customer(StripeObject):
         if email is None:
             li._list = fetch_all(cls.object + ':*')
         else:
-            li._list = list(filter(lambda x: x.email == email, fetch_all(cls.object + ':*')))
+            li._list = list(filter(lambda x: getattr(x, 'email', None), fetch_all(cls.object + ':*')))
         return li
 
     @classmethod
@@ -3649,11 +3649,11 @@ class IssuingCardholder(StripeObject):
         if email is None and phone_number is None:
             li._list = fetch_all(cls.object + ':*')
         elif phone_number is not None and email is None:
-            li._list = list(filter(lambda x: x.phone_number == phone_number, fetch_all(cls.object + ':*')))
+            li._list = list(filter(lambda x: getattr(x, 'phone_number', None) == phone_number, fetch_all(cls.object + ':*')))
         elif phone_number is None and email is not None:
-            li._list = list(filter(lambda x: x.email == email, fetch_all(cls.object + ':*')))
+            li._list = list(filter(lambda x: getattr(x, 'email', None) == email, fetch_all(cls.object + ':*')))
         else:
-            li._list = list(filter(lambda x: x.email == email and x.phone_number == phone_number, fetch_all(cls.object + ':*')))
+            li._list = list(filter(lambda x: getattr(x, 'email', None) and x.phone_number == phone_number, fetch_all(cls.object + ':*')))
         return li
 
 
