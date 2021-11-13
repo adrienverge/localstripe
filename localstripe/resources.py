@@ -3714,7 +3714,7 @@ class IssuingCard(StripeObject):
 
 class IssuingAuthorization(StripeObject):
     object = 'issuing.authorization'
-    _id_prefix = 'iauth'
+    _id_prefix = 'iauth_'
     _id_length = 24
 
     def __init__(self, authorization_method: str, card: IssuingCard, charge: Charge, metadata=None):
