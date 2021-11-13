@@ -3694,7 +3694,7 @@ class IssuingCard(StripeObject):
         self.currency = currency
         self.cardholder = cardholder_object
         self.status = status
-        self.number = f"'400000999000{''.join([str(random.randint(0,9)) for i in range(4)])}'"
+        self.number = f"400000999000{''.join([str(random.randint(0,9)) for i in range(4)])}"
         self.last4 = self.number[-4:]
         self.exp_month = datetime.now().month
         self.exp_year = datetime.now().year + 3
