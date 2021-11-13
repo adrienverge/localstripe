@@ -3771,9 +3771,83 @@ class IssuingAuthorization(StripeObject):
         self.wallet = None
 
         redis_master.set(self._store_key(), pickle.dumps(self))
+        schedule_webhook(Event("issuing_authorization.created", self))
         self._request_authorization()
 
     def _request_authorization(self):
         logger = logging.getLogger('localstripe.issuing')
         # TODO - Implement 2s timeout
         schedule_webhook(Event("issuing_authorization.request", self))
+
+    @classmethod
+    def _api_approve(cls, id: str, amount=None, metadata=None, **kwargs):
+        logger = logging.getLogger('localstripe.issuing')
+        if kwargs:
+            logger.warning('Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        amount = try_convert_to_int(amount)
+        try:
+            assert type(id) is str and id.startswith(IssuingAuthorization._id_prefix)
+            if amount is not None:
+                assert type(amount) is int and 0 <= amount
+            if metadata is not None:
+                assert type(metadata) is dict
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        obj = cls._api_retrieve(id)
+        obj.approved = True
+
+        redis_master.set(obj._store_key(), pickle.dumps(obj))
+        schedule_webhook(Event('issuing_authorization.updated', obj))
+
+    @classmethod
+    def _api_decline(cls, id: str, metadata=None, **kwargs):
+        logger = logging.getLogger('localstripe.issuing')
+        if kwargs:
+            logger.warning('Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            assert type(id) is str and id.startswith(IssuingAuthorization._id_prefix)
+            if metadata is not None:
+                assert type(metadata) is dict
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        obj = cls._api_retrieve(id)
+        obj.approved = False
+        obj.status = 'closed'
+
+        redis_master.set(obj._store_key(), pickle.dumps(obj))
+        schedule_webhook(Event('issuing_authorization.updated', obj))
+
+    @classmethod
+    def _api_list_all(cls, url, limit=None, starting_after=None, card=None, cardholder=None, status=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            if card is not None:
+                assert type(card) is str and card.startswith(IssuingCard._id_prefix)
+            if cardholder is not None:
+                assert type(cardholder) is str and cardholder.startswith(IssuingCardholder._id_prefix)
+            if status is not None:
+                assert type(status) is str and status in ('pending', 'closed', 'reversed')
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        li = List(url, limit=limit, starting_after=starting_after)
+        li._list = fetch_all(cls.object + ':*')
+        if card is not None:
+            li._list = filter(lambda x: x.card.id == card, li._list)
+        if cardholder is not None:
+            li._list = filter(lambda x: x.cardholder == cardholder, li._list)
+        if status is not None:
+            li._list = filter(lambda x: x.status == status, li._list)
+        return li
+
+extra_apis.extend((
+    ('POST', '/v1/issuing/authorizations/{id}/approve', IssuingAuthorization._api_approve),
+    ('POST', '/v1/issuing/authorizations/{id}/decline', IssuingAuthorization._api_decline)))
