@@ -467,12 +467,13 @@ class Charge(StripeObject):
         if self.payment_method.startswith('src'):
             source = Source._api_retrieve(self.payment_method)
             if source.type == 'card' and source.card['number'].startswith('400000999000'):
-                self._create_issuing_authorization(source)
+                issuing_card = next(filter(lambda x: x.number == source.card['number'], fetch_all(f'{IssuingCard.object}:*')))
+                self._create_issuing_authorization(issuing_card)
 
-    def _create_issuing_authorization(self, source):
+    def _create_issuing_authorization(self, issuing_card):
         logger = logging.getLogger('localstripe.resources.Charge')
         logger.warning('Starting Issuing Authorization request')
-        IssuingAuthorization('online', source, self, source.cardholder.id)
+        IssuingAuthorization('online', issuing_card, self)
 
     def _trigger_payment(self, on_success=None, on_failure_now=None,
                          on_failure_later=None):
@@ -3715,12 +3716,11 @@ class IssuingAuthorization(StripeObject):
     _id_prefix = 'iauth'
     _id_length = 24
 
-    def __init__(self, authorization_method: str, card: IssuingCard, charge: Charge, cardholder: str, metadata=None):
+    def __init__(self, authorization_method: str, card: IssuingCard, charge: Charge, metadata=None):
         assert type(authorization_method) is str
         assert authorization_method in ('keyed_in', 'swipe', 'chip', 'contactless', 'online')
         assert type(card) is IssuingCard
         assert type(charge) is Charge
-        assert type(cardholder) is str
         if metadata is not None:
             assert type(metadata) is dict
 
@@ -3734,7 +3734,7 @@ class IssuingAuthorization(StripeObject):
         self.authorization_method = authorization_method
         self.balance_transactions = []
         self.card = card
-        self.cardholder = cardholder
+        self.cardholder = card.cardholder.id
         self.currency = 'usd'
         self.merchant_amount = 0
         self.merchant_currency = 'usd'
