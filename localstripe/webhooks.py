@@ -54,7 +54,7 @@ async def _send_webhook(event):
 
     await asyncio.sleep(1)
 
-    logger.info(f'Searching for webhooks matching "{event}"')
+    logger.info(f'Searching for webhooks matching "{event.type}"')
 
     for webhook in fetch_all(f"{Webhook.object}:*"):
         if webhook.events is not None and event.type not in webhook.events:
@@ -73,7 +73,8 @@ async def _send_webhook(event):
                         logger.info('webhook "%s" successfully delivered'
                                     % event.type)
                     else:
-                        logger.warning(f'webhook "{event.type}" failed with response code {r.status} and body:\n{await r.text()}')
+                        logger.warning(
+                            f'webhook "{event.type}" failed with response code {r.status} and body:\n{await r.text()}')
                         logger.warning(f'Failed webhook body: {json.dumps(webhook_body, indent=2, sort_keys=True)}')
             except aiohttp.client_exceptions.ClientError as e:
                 logger.warning('webhook "%s" failed: %s' % (event.type, e))

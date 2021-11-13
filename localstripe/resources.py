@@ -28,7 +28,7 @@ from dateutil.relativedelta import relativedelta
 from .errors import UserError
 from .redis_store import fetch, fetch_all, redis_slave, redis_master
 from .utilities import *
-from .webhooks import schedule_webhook, Webhook
+from .webhooks import schedule_webhook, Webhook, _send_webhook
 
 
 # Save built-in keyword `type`, because some classes override it by using
@@ -59,7 +59,7 @@ class StripeObject(object):
                 raise UserError(409, 'Conflict')
             redis_master.set(key, pickle.dumps(self))
 
-    def _store_key(self):
+    def _store_key(self) -> str:
         return self.object + ':' + self.id
 
     @classmethod
@@ -467,19 +467,12 @@ class Charge(StripeObject):
         if self.payment_method.starts_with('src'):
             source = Source._api_retrieve(self.payment_method)
             if source.type == 'card' and source.card['number'].starts_with('400000999000'):
-                self._trigger_issuing_authorization_request()
+                self._create_issuing_authorization()
 
-    def _trigger_issuing_authorization_request(self, source):
+    def _create_issuing_authorization(self, source):
         logger = logging.getLogger('localstripe.resources.Charge')
         logger.warning('Starting Issuing Authorization request')
-        issuing_authorization = IssuingAuthorization('online', source, self, source.cardholder.id)
-        # webhooks = fetch_all(f"{Webhook.object}:*")
-        # issuing_auth_request_webhook = next((hook for hook in webhooks
-        #                                      if 'issuing_authorization.request' in hook.events), None)
-        # if issuing_auth_request_webhook is not None:
-        #
-        # else:
-        #     logger.warning('No issuing authorization request webhook configured')
+        IssuingAuthorization('online', source, self, source.cardholder.id)
 
     def _trigger_payment(self, on_success=None, on_failure_now=None,
                          on_failure_later=None):
@@ -3716,12 +3709,13 @@ class IssuingCard(StripeObject):
         schedule_webhook(Event('issuing_card.updated', obj))
         return obj
 
+
 class IssuingAuthorization(StripeObject):
     object = 'issuing.authorization'
     _id_prefix = 'iauth'
     _id_length = 24
 
-    def __init__(self, authorization_method, card: IssuingCard, charge: Charge, cardholder, metadata=None):
+    def __init__(self, authorization_method: str, card: IssuingCard, charge: Charge, cardholder: str, metadata=None):
         assert type(authorization_method) is str
         assert authorization_method in ('keyed_in', 'swipe', 'chip', 'contactless', 'online')
         assert type(card) is IssuingCard
@@ -3774,3 +3768,13 @@ class IssuingAuthorization(StripeObject):
             "expiry_check": "match"
         }
         self.wallet = None
+
+        redis_master.set(self._store_key(), pickle.dumps(self))
+        self._request_authorization()
+
+    def _request_authorization(self):
+        try:
+            asyncio.wait_for(_send_webhook(Event('issuing_authorization', self)), timeout=2.0)
+        except asyncio.TimeoutError:
+            # Decline request and send iauth declined webhook
+            pass
