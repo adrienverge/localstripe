@@ -467,7 +467,7 @@ class Charge(StripeObject):
         if self.payment_method.startswith('src'):
             source = Source._api_retrieve(self.payment_method)
             if source.type == 'card' and source.card['number'].startswith('400000999000'):
-                self._create_issuing_authorization()
+                self._create_issuing_authorization(source)
 
     def _create_issuing_authorization(self, source):
         logger = logging.getLogger('localstripe.resources.Charge')
