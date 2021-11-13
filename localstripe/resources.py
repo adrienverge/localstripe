@@ -3798,9 +3798,10 @@ class IssuingAuthorization(StripeObject):
         obj = cls._api_retrieve(id)
         obj.approved = True
         if metadata is not None:
-            updated_metadata = getattr(obj, 'metadata', {})
-            updated_metadata = updated_metadata | metadata
-            obj.metadata = metadata
+            if obj.metadata is not None:
+                obj.metadata = obj.metadata | metadata
+            else:
+                obj.metadata = metadata
 
         redis_master.set(obj._store_key(), pickle.dumps(obj))
         schedule_webhook(Event("issuing_authorization.created", obj))
@@ -3824,10 +3825,12 @@ class IssuingAuthorization(StripeObject):
 
         obj = cls._api_retrieve(id)
         obj.approved = False
+        updated_metadata = {}
         if metadata is not None:
-            updated_metadata = getattr(obj, 'metadata', {})
-            updated_metadata = updated_metadata | metadata
-            obj.metadata = metadata
+            if obj.metadata is not None:
+                obj.metadata = obj.metadata | metadata
+            else:
+                obj.metadata = metadata
         obj.status = 'closed'
 
         redis_master.set(obj._store_key(), pickle.dumps(obj))
