@@ -3802,6 +3802,8 @@ class IssuingAuthorization(StripeObject):
         redis_master.set(obj._store_key(), pickle.dumps(obj))
         schedule_webhook(Event('issuing_authorization.updated', obj))
 
+        return obj
+
     @classmethod
     def _api_decline(cls, id: str, metadata=None, **kwargs):
         logger = logging.getLogger('localstripe.issuing')
@@ -3822,6 +3824,8 @@ class IssuingAuthorization(StripeObject):
 
         redis_master.set(obj._store_key(), pickle.dumps(obj))
         schedule_webhook(Event('issuing_authorization.updated', obj))
+
+        return obj
 
     @classmethod
     def _api_list_all(cls, url, limit=None, starting_after=None, card=None, cardholder=None, status=None, **kwargs):
