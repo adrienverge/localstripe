@@ -464,9 +464,9 @@ class Charge(StripeObject):
         self.destination = destination
 
         redis_master.set(self._store_key(), pickle.dumps(self))
-        if self.payment_method.starts_with('src'):
+        if self.payment_method.startswith('src'):
             source = Source._api_retrieve(self.payment_method)
-            if source.type == 'card' and source.card['number'].starts_with('400000999000'):
+            if source.type == 'card' and source.card['number'].startswith('400000999000'):
                 self._create_issuing_authorization()
 
     def _create_issuing_authorization(self, source):
