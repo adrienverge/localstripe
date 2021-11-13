@@ -3776,7 +3776,7 @@ class IssuingAuthorization(StripeObject):
     def _request_authorization(self):
         logger = logging.getLogger('localstripe.issuing')
         try:
-            asyncio.wait_for(_send_webhook(Event("issuing_authorization.request", self)), timeout=2.0)
+            await asyncio.wait_for(_send_webhook(Event("issuing_authorization.request", self)), timeout=2.0)
         except asyncio.TimeoutError:
             # Decline request and send iauth declined webhook
             pass
