@@ -3771,7 +3771,6 @@ class IssuingAuthorization(StripeObject):
         self.wallet = None
 
         redis_master.set(self._store_key(), pickle.dumps(self))
-        schedule_webhook(Event("issuing_authorization.created", self))
         self._request_authorization()
 
     def _request_authorization(self):
@@ -3798,8 +3797,13 @@ class IssuingAuthorization(StripeObject):
 
         obj = cls._api_retrieve(id)
         obj.approved = True
+        if metadata is not None:
+            updated_metadata = getattr(obj, 'metadata', {})
+            updated_metadata = updated_metadata | metadata
+            obj.metadata = metadata
 
         redis_master.set(obj._store_key(), pickle.dumps(obj))
+        schedule_webhook(Event("issuing_authorization.created", obj))
         schedule_webhook(Event('issuing_authorization.updated', obj))
 
         return obj
@@ -3820,9 +3824,14 @@ class IssuingAuthorization(StripeObject):
 
         obj = cls._api_retrieve(id)
         obj.approved = False
+        if metadata is not None:
+            updated_metadata = getattr(obj, 'metadata', {})
+            updated_metadata = updated_metadata | metadata
+            obj.metadata = metadata
         obj.status = 'closed'
 
         redis_master.set(obj._store_key(), pickle.dumps(obj))
+        schedule_webhook(Event("issuing_authorization.created", obj))
         schedule_webhook(Event('issuing_authorization.updated', obj))
 
         return obj
