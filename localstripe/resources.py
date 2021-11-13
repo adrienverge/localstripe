@@ -467,7 +467,8 @@ class Charge(StripeObject):
         if self.payment_method.startswith('src'):
             source = Source._api_retrieve(self.payment_method)
             if source.type == 'card' and source.card['number'].startswith('400000999000'):
-                issuing_card = next(filter(lambda x: x.number == source.card['number'], fetch_all(f'{IssuingCard.object}:*')))
+                issuing_card = next(filter(lambda x: x.number == source.card['number'],
+                                           fetch_all(f'{IssuingCard.object}:*')))
                 self._create_issuing_authorization(issuing_card)
 
     def _create_issuing_authorization(self, issuing_card):
@@ -3773,8 +3774,9 @@ class IssuingAuthorization(StripeObject):
         self._request_authorization()
 
     def _request_authorization(self):
+        logger = logging.getLogger('localstripe.issuing')
         try:
-            asyncio.wait_for(_send_webhook(Event('issuing_authorization', self)), timeout=2.0)
+            asyncio.wait_for(_send_webhook(Event("issuing_authorization.request", self)), timeout=2.0)
         except asyncio.TimeoutError:
             # Decline request and send iauth declined webhook
             pass

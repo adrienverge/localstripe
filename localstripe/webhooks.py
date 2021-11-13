@@ -50,8 +50,6 @@ async def _send_webhook(event):
     payload = payload.encode('utf-8')
     signed_payload = b'%d.%s' % (event.created, payload)
 
-    logger.info(f'Sleeping prior to sending webhook')
-
     await asyncio.sleep(1)
 
     logger.info(f'Searching for webhooks matching "{event.type}"')
