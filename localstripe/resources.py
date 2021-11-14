@@ -248,9 +248,9 @@ class BalanceTransaction(StripeObject):
             assert _type(currency) is str and currency
             assert description is None or _type(description) is str
             assert exchange_rate is None or _type(exchange_rate) is float
-            assert reporting_category in ('charge', 'refund')
+            assert reporting_category in ('charge', 'refund', 'issuing_authorization_hold')
             assert _type(source) is str
-            assert type in ('charge', 'refund')
+            assert type in ('charge', 'refund', 'issuing_authorization_hold')
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -258,6 +258,8 @@ class BalanceTransaction(StripeObject):
             Charge._api_retrieve(source)  # to return 404 if not existent
         elif source.startswith('re_'):
             Refund._api_retrieve(source)  # to return 404 if not existent
+        elif source.startswith('iauth_'):
+            IssuingAuthorization._api_retrieve(source)
         else:
             raise UserError(400, 'Bad request')
 
@@ -3797,29 +3799,36 @@ class IssuingAuthorization(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        obj = cls._api_retrieve(id)
+        obj: IssuingAuthorization = cls._api_retrieve(id)
+
         obj.approved = True
         if amount is not None:
             try:
                 assert obj.pending_request.get('is_amount_controllable', False) is True
             except AssertionError:
                 raise UserError(400, 'Bad request')
-            obj.amount = amount
-            obj.merchant_amount = amount
         else:
-            obj.amount = obj.pending_request['amount']
-            obj.merchant_amount = obj.pending_request['amount']
+            amount = obj.pending_request['amount']
+        obj.amount = amount
+        obj.merchant_amount = amount
+
         if metadata is not None:
             if obj.metadata is not None:
                 obj.metadata = obj.metadata | metadata
             else:
                 obj.metadata = metadata
+
         request_record = copy.deepcopy(obj.pending_request)
         request_record['reason'] = 'webhook_approved'
         request_record['approved'] = True
         request_record['created'] = int(time.time())
         obj.request_history.append(request_record)
+
         obj.pending_request = None
+
+        txn = BalanceTransaction(amount * -1, obj.currency, "Hold for authorization", None,
+                                 "issuing_authorization_hold", obj.id, "issuing_authorization_hold")
+        obj.balance_transactions.append(txn)
 
         redis_master.set(obj._store_key(), pickle.dumps(obj))
         schedule_webhook(Event("issuing_authorization.created", obj))
