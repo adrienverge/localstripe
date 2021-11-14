@@ -15,6 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
+import copy
 import logging
 import uuid
 from datetime import datetime, timedelta
@@ -190,14 +191,14 @@ class Balance(object):
         self.livemode = False
         self.available = {
             'amount': 2000,
-            'currency': 'eur',
+            'currency': 'usd',
             'source_types': {
                 'card': 2000
             }
         }
         self.pending = {
             'amount': 0,
-            'currency': 'eur',
+            'currency': 'usd',
             'source_types': {
                 'card': 0
             }
@@ -889,7 +890,7 @@ class Customer(StripeObject):
         source = self._get_default_payment_method_or_source()
         if isinstance(source, Source):  # not Card
             return source.currency
-        return 'eur'  # arbitrary default
+        return 'usd'  # arbitrary default
 
     @property
     def subscriptions(self):
@@ -1245,7 +1246,7 @@ class Invoice(StripeObject):
         if len(self.lines._list):
             self.currency = self.lines._list[0].currency
         else:
-            self.currency = 'eur'  # arbitrary default
+            self.currency = 'usd'  # arbitrary default
 
         self._draft = True
         self._voided = False
@@ -2530,7 +2531,7 @@ class Payout(StripeObject):
         amount = try_convert_to_int(amount)
         try:
             assert type(amount) is int and amount > 0
-            assert currency in ('eur',)
+            assert currency in ('usd',)
             if description is not None:
                 assert type(description) is str
             if metadata is not None:
@@ -3756,6 +3757,7 @@ class IssuingAuthorization(StripeObject):
                 'atm_fee': None
             },
             'currency': charge.currency,
+            'is_amount_controllable': False,
             'merchant_amount': charge.amount,
             'merchant_currency': 'usd'
         }
@@ -3797,15 +3799,31 @@ class IssuingAuthorization(StripeObject):
 
         obj = cls._api_retrieve(id)
         obj.approved = True
+        if amount is not None:
+            try:
+                assert obj.pending_request.get('is_amount_controllable', False) is True
+            except AssertionError:
+                raise UserError(400, 'Bad request')
+            obj.amount = amount
+            obj.merchant_amount = amount
+        else:
+            obj.amount = obj.pending_request['amount']
+            obj.merchant_amount = obj.pending_request['amount']
         if metadata is not None:
             if obj.metadata is not None:
                 obj.metadata = obj.metadata | metadata
             else:
                 obj.metadata = metadata
+        request_record = copy.deepcopy(obj.pending_request)
+        request_record['reason'] = 'webhook_approved'
+        request_record['approved'] = True
+        request_record['created'] = int(time.time())
+        obj.request_history.append(request_record)
+        obj.pending_request = None
 
         redis_master.set(obj._store_key(), pickle.dumps(obj))
         schedule_webhook(Event("issuing_authorization.created", obj))
-        schedule_webhook(Event('issuing_authorization.updated', obj))
+        # schedule_webhook(Event('issuing_authorization.updated', obj))
 
         return obj
 
