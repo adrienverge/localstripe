@@ -43,6 +43,7 @@ def register_webhook(id, url, secret, events):
 async def _send_webhook(event):
     logger = logging.getLogger('localstripe.webhooks')
 
+    print(f"Preparing event {event.type}", flush=True)
     webhook_body = event._export()
     webhook_body['pending_webhooks'] = 0
 
@@ -51,8 +52,6 @@ async def _send_webhook(event):
     signed_payload = b'%d.%s' % (event.created, payload)
 
     await asyncio.sleep(1)
-
-    logger.warning(f'Searching for webhooks matching "{event.type}"')
 
     for webhook in fetch_all(f"{Webhook.object}:*"):
         if webhook.events is not None and event.type not in webhook.events:
