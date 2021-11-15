@@ -67,12 +67,11 @@ async def _send_webhook(event):
                 async with session.post(webhook.url,
                                         data=payload, headers=headers) as r:
                     if 200 <= r.status < 300:
-                        logger.info('webhook "%s" successfully delivered'
-                                    % event.type)
+                        logger.warning(f'webhook "{event.type}" successfully delivered')
+                        logger.warning(f'"{event.type}" webhook body: {json.dumps(webhook_body, indent=2, sort_keys=True)}')
                     else:
                         logger.warning(
                             f'webhook "{event.type}" failed with response code {r.status} and body:\n{await r.text()}')
-                        logger.warning(f'Failed webhook body: {json.dumps(webhook_body, indent=2, sort_keys=True)}')
             except aiohttp.client_exceptions.ClientError as e:
                 logger.warning('webhook "%s" failed: %s' % (event.type, e))
 
