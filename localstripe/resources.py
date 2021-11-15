@@ -470,12 +470,11 @@ class Charge(StripeObject):
         # Private property for tracking which IssuingAuthorization the charge belongs to
         self._issuing_authorization = None
 
-        if self.payment_method.startswith('src'):
-            if self._src_is_issuing_card():
-                issuing_card = next(filter(lambda x: x.number == source.card['number'],
-                                           fetch_all(f'{IssuingCard.object}:*')))
-                iauth = self._create_issuing_authorization(issuing_card)
-                self._issuing_authorization = iauth.id
+        if self._src_is_issuing_card():
+            issuing_card = next(filter(lambda x: x.number == source.card['number'],
+                                       fetch_all(f'{IssuingCard.object}:*')))
+            iauth = self._create_issuing_authorization(issuing_card)
+            self._issuing_authorization = iauth.id
         redis_master.set(self._store_key(), pickle.dumps(self))
 
     def _create_issuing_authorization(self, issuing_card):
@@ -484,9 +483,12 @@ class Charge(StripeObject):
         return IssuingAuthorization('online', issuing_card, self)
 
     def _src_is_issuing_card(self) -> bool:
-        source = Source._api_retrieve(self.payment_method)
-        if source.type == 'card' and source.card['number'].startswith('400000999000'):
-            return True
+        if self.payment_method.startswith('src'):
+            source = Source._api_retrieve(self.payment_method)
+            if source.type == 'card' and source.card['number'].startswith('400000999000'):
+                return True
+            else:
+                return False
         else:
             return False
 
