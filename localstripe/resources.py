@@ -3805,7 +3805,7 @@ class IssuingAuthorization(StripeObject):
                                  None, "issuing_authorization_release", self.id, "issuing_authorization_release")
         self.balance_transactions.append(txn)
 
-        ipi = IssuingPaymentTransaction(self.amount * -1, self.id, self.balance_transactions[-1].id, self.card.id,
+        ipi = IssuingPaymentTransaction(self.amount * -1, self.id, txn.id, self.card.id,
                                         self.cardholder, self.merchant_amount, self.merchant_currency,
                                         self.merchant_data, 'capture', wallet=self.wallet)
         self.transactions.append(ipi)
@@ -3921,9 +3921,11 @@ class IssuingAuthorization(StripeObject):
             li._list = filter(lambda x: x.status == status, li._list)
         return li
 
+
 extra_apis.extend((
     ('POST', '/v1/issuing/authorizations/{id}/approve', IssuingAuthorization._api_approve),
     ('POST', '/v1/issuing/authorizations/{id}/decline', IssuingAuthorization._api_decline)))
+
 
 class IssuingPaymentTransaction(StripeObject):
     object = 'issuing.transaction'
@@ -3931,8 +3933,8 @@ class IssuingPaymentTransaction(StripeObject):
     _id_length = 24
 
     def __init__(self, amount: int, authorization: str, balance_transaction: str, card: str, cardholder: str,
-                 merchant_amount: int, merchant_currency: str, merchant_data: dict, type: str, currency: str='usd',
-                 dispute: str=None, metadata: dict=None, wallet: str=None):
+                 merchant_amount: int, merchant_currency: str, merchant_data: dict, type: str, currency: str = 'usd',
+                 dispute: str = None, metadata: dict = None, wallet: str = None):
 
         try:
             assert _type(amount) is int
