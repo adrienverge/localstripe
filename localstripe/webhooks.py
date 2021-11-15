@@ -52,7 +52,7 @@ async def _send_webhook(event):
 
     await asyncio.sleep(1)
 
-    logger.info(f'Searching for webhooks matching "{event.type}"')
+    logger.warning(f'Searching for webhooks matching "{event.type}"')
 
     for webhook in fetch_all(f"{Webhook.object}:*"):
         if webhook.events is not None and event.type not in webhook.events:
