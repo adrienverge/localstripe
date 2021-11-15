@@ -41,21 +41,16 @@ def register_webhook(id, url, secret, events):
     redis_master.set(f"{Webhook.object}:{id}", pickle.dumps(webhook))
 
 
-def _construct_webhook_payload(event) -> tuple[bytes, bytes]:
+async def _send_webhook(event, delay: int = 1):
+    logger = logging.getLogger('localstripe.webhooks')
+
+    logger.warning(f"Preparing event {event.type}")
     webhook_body = event._export()
     webhook_body['pending_webhooks'] = 0
 
     payload = json.dumps(webhook_body, indent=2, sort_keys=True)
     payload = payload.encode('utf-8')
     signed_payload = b'%d.%s' % (event.created, payload)
-    return payload, signed_payload
-
-
-async def _send_webhook(event, delay: int = 1):
-    logger = logging.getLogger('localstripe.webhooks')
-
-    logger.warning(f"Preparing event {event.type}")
-    payload, signed_payload = _construct_webhook_payload(event)
 
     await asyncio.sleep(delay)
 
@@ -74,7 +69,7 @@ async def _send_webhook(event, delay: int = 1):
                                         data=payload, headers=headers) as r:
                     if 200 <= r.status < 300:
                         logger.warning(f'webhook "{event.type}" successfully delivered')
-                        logger.warning(f'"{event.type}" webhook body: {json.dumps(payload, indent=2, sort_keys=True)}')
+                        logger.warning(f'"{event.type}" webhook body: {json.dumps(webhook_body, indent=2, sort_keys=True)}')
                     else:
                         logger.warning(
                             f'webhook "{event.type}" failed with response code {r.status} and body:\n{await r.text()}')
