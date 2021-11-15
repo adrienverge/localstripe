@@ -20,6 +20,7 @@ import hmac
 import json
 import logging
 import pickle
+import requests
 
 from .redis_store import redis_master, fetch_all
 
@@ -40,16 +41,21 @@ def register_webhook(id, url, secret, events):
     redis_master.set(f"{Webhook.object}:{id}", pickle.dumps(webhook))
 
 
-async def _send_webhook(event):
-    logger = logging.getLogger('localstripe.webhooks')
-
-    print(f"Preparing event {event.type}", flush=True)
+def _construct_webhook_payload(event) -> tuple[bytes, bytes]:
     webhook_body = event._export()
     webhook_body['pending_webhooks'] = 0
 
     payload = json.dumps(webhook_body, indent=2, sort_keys=True)
     payload = payload.encode('utf-8')
     signed_payload = b'%d.%s' % (event.created, payload)
+    return payload, signed_payload
+
+
+async def _send_webhook(event):
+    logger = logging.getLogger('localstripe.webhooks')
+
+    print(f"Preparing event {event.type}", flush=True)
+    payload, signed_payload = _construct_webhook_payload(event)
 
     await asyncio.sleep(1)
 
@@ -68,12 +74,40 @@ async def _send_webhook(event):
                                         data=payload, headers=headers) as r:
                     if 200 <= r.status < 300:
                         logger.warning(f'webhook "{event.type}" successfully delivered')
-                        logger.warning(f'"{event.type}" webhook body: {json.dumps(webhook_body, indent=2, sort_keys=True)}')
+                        logger.warning(f'"{event.type}" webhook body: {json.dumps(payload, indent=2, sort_keys=True)}')
                     else:
                         logger.warning(
                             f'webhook "{event.type}" failed with response code {r.status} and body:\n{await r.text()}')
             except aiohttp.client_exceptions.ClientError as e:
                 logger.warning('webhook "%s" failed: %s' % (event.type, e))
+
+
+def send_synchronous_webhook(event):
+    logger = logging.getLogger('localstripe.webhooks')
+
+    print(f"Preparing event {event.type}", flush=True)
+    payload, signed_payload = _construct_webhook_payload(event)
+
+    for webhook in fetch_all(f"{Webhook.object}:*"):
+        if webhook.events is not None and event.type not in webhook.events:
+            continue
+
+        signature = hmac.new(webhook.secret.encode('utf-8'),
+                             signed_payload, hashlib.sha256).hexdigest()
+        headers = {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Stripe-Signature': 't=%d,v1=%s' % (event.created, signature)}
+        try:
+            response = requests.post(webhook.url, data=payload, headers=headers)
+        except requests.exceptions.RequestException as e:
+            logger.warning(f'webhook "{event.type}" failed: {e}')
+            return
+        if 200 <= response.status_code <= 300:
+            logger.warning(f'webhook "{event.type}" successfully delivered')
+            logger.warning(f'"{event.type}" webhook body: {json.dumps(payload, indent=2, sort_keys=True)}')
+        else:
+            logger.warning(
+                f'webhook "{event.type}" failed with response code {response.status_code} and body:\n{response.text}')
 
 
 def schedule_webhook(event):

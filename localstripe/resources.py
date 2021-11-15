@@ -30,8 +30,7 @@ from dateutil.relativedelta import relativedelta
 from .errors import UserError
 from .redis_store import fetch, fetch_all, redis_slave, redis_master
 from .utilities import *
-from .webhooks import schedule_webhook, Webhook, _send_webhook
-
+from .webhooks import schedule_webhook, Webhook, _send_webhook, send_synchronous_webhook
 
 # Save built-in keyword `type`, because some classes override it by using
 # `type` as a method argument:
@@ -3800,7 +3799,7 @@ class IssuingAuthorization(StripeObject):
     def _request_authorization(self):
         logger = logging.getLogger('localstripe.issuing')
         # TODO - Implement 2s timeout
-        asyncio.run(_send_webhook(Event("issuing_authorization.request", self)))
+        send_synchronous_webhook(Event("issuing_authorization.request", self))
         # schedule_webhook(Event("issuing_authorization.request", self))
 
     def _capture(self):

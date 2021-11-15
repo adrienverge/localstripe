@@ -40,6 +40,7 @@ setup(
         "redis >=3.5.3, <4.0.0",
         "structlog",
         "colorama",
-        "ddtrace >=0.50"
+        "ddtrace >=0.50",
+        'requests >=2.26.0, <3.0.0'
     ],
 )
