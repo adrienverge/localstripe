@@ -2739,9 +2739,10 @@ class Refund(StripeObject):
                                      reporting_category='refund',
                                      source=self.id, type='refund')
             self.balance_transaction = txn.id
+            redis_master.set(self._store_key(), pickle.dumps(self))
             schedule_webhook(Event('charge.refunded', charge_obj))
-
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        else:
+            redis_master.set(self._store_key(), pickle.dumps(self))
 
     @classmethod
     def _api_list_all(cls, url, charge=None, limit=None, starting_after=None):
