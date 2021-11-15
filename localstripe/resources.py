@@ -2708,7 +2708,7 @@ class Refund(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        charge_obj = Charge._api_retrieve(charge)
+        charge_obj: Charge = Charge._api_retrieve(charge)
 
         # All exceptions must be raised before this point.
         super().__init__()
@@ -2739,7 +2739,7 @@ class Refund(StripeObject):
                                      reporting_category='refund',
                                      source=self.id, type='refund')
             self.balance_transaction = txn.id
-            schedule_webhook(Event('charge.refunded', self))
+            schedule_webhook(Event('charge.refunded', charge_obj))
 
         redis_master.set(self._store_key(), pickle.dumps(self))
 
