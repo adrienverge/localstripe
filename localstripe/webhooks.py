@@ -54,7 +54,7 @@ def _construct_webhook_payload(event) -> tuple[bytes, bytes]:
 async def _send_webhook(event, delay: int = 1):
     logger = logging.getLogger('localstripe.webhooks')
 
-    logger.warning(f"Preparing event {event.type}", flush=True)
+    logger.warning(f"Preparing event {event.type}")
     payload, signed_payload = _construct_webhook_payload(event)
 
     await asyncio.sleep(delay)
