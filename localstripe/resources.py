@@ -3895,7 +3895,6 @@ class IssuingAuthorization(StripeObject):
 
         redis_master.set(obj._store_key(), pickle.dumps(obj))
         schedule_webhook(Event("issuing_authorization.created", obj))
-        schedule_webhook(Event('issuing_authorization.updated', obj))
 
         return obj
 
