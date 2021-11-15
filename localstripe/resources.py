@@ -3936,26 +3936,26 @@ class IssuingPaymentTransaction(StripeObject):
                  merchant_amount: int, merchant_currency: str, merchant_data: dict, type: str, currency: str = 'usd',
                  dispute: str = None, metadata: dict = None, wallet: str = None):
 
-        try:
-            assert _type(amount) is int
-            assert _type(authorization) is str
-            assert _type(balance_transaction) is str
-            assert _type(card) is str
-            assert _type(cardholder) is str
-            assert _type(merchant_amount) is int
-            assert _type(merchant_currency) is str and merchant_currency in ('usd', 'eur', 'cad')
-            assert _type(merchant_data) is dict
-            assert _type(currency) is str and currency in ('usd', 'eur', 'cad')
-            assert _type(type) is str and type in ('capture', 'refund')
-            if dispute is not None:
-                assert _type(dispute) is str
-            if metadata is not None:
-                assert _type(metadata) is dict
-            if wallet is not None:
-                assert _type(wallet) is str and wallet in ('apple_pay', 'samsung_pay', 'google_pay')
-
-        except AssertionError:
-            raise UserError(400, 'Bad request')
+        # try:
+        #     assert _type(amount) is int
+        #     assert _type(authorization) is str
+        #     assert _type(balance_transaction) is str
+        #     assert _type(card) is str
+        #     assert _type(cardholder) is str
+        #     assert _type(merchant_amount) is int
+        #     assert _type(merchant_currency) is str and merchant_currency in ('usd', 'eur', 'cad')
+        #     assert _type(merchant_data) is dict
+        #     assert _type(currency) is str and currency in ('usd', 'eur', 'cad')
+        #     assert _type(type) is str and type in ('capture', 'refund')
+        #     if dispute is not None:
+        #         assert _type(dispute) is str
+        #     if metadata is not None:
+        #         assert _type(metadata) is dict
+        #     if wallet is not None:
+        #         assert _type(wallet) is str and wallet in ('apple_pay', 'samsung_pay', 'google_pay')
+        #
+        # except AssertionError:
+        #     raise UserError(400, 'Bad request')
 
         super().__init__()
 
