@@ -3800,8 +3800,7 @@ class IssuingAuthorization(StripeObject):
     def _request_authorization(self):
         logger = logging.getLogger('localstripe.issuing')
         # TODO - Implement 2s timeout
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(_send_webhook(Event("issuing_authorization.request", self)))
+        asyncio.run(_send_webhook(Event("issuing_authorization.request", self)))
         # schedule_webhook(Event("issuing_authorization.request", self))
 
     def _capture(self):
