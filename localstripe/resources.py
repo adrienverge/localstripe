@@ -546,11 +546,12 @@ class Charge(StripeObject):
 
     @classmethod
     def _api_create(cls, **data):
-        obj = super()._api_create(**data)
+        logger = logging.getLogger('localstripe.resources.charge')
+        obj: Charge = super()._api_create(**data)
 
         # for successful pre-auth, return unpaid charge
         if not obj.captured and obj._authorized:
-            print("Skipping payment trigger as capture was false on charge creation")
+            logger.warning("Skipping payment trigger as capture was false on charge creation")
             return obj
 
         def on_failure():
@@ -3799,7 +3800,9 @@ class IssuingAuthorization(StripeObject):
     def _request_authorization(self):
         logger = logging.getLogger('localstripe.issuing')
         # TODO - Implement 2s timeout
-        schedule_webhook(Event("issuing_authorization.request", self))
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(_send_webhook(Event("issuing_authorization.request", self)))
+        # schedule_webhook(Event("issuing_authorization.request", self))
 
     def _capture(self):
         self.status = 'closed'
@@ -3883,7 +3886,7 @@ class IssuingAuthorization(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        obj = cls._api_retrieve(id)
+        obj: IssuingAuthorization = cls._api_retrieve(id)
         obj.approved = False
         updated_metadata = {}
         if metadata is not None:
