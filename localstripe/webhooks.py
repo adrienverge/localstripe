@@ -51,13 +51,13 @@ def _construct_webhook_payload(event) -> tuple[bytes, bytes]:
     return payload, signed_payload
 
 
-async def _send_webhook(event):
+async def _send_webhook(event, delay: int = 1):
     logger = logging.getLogger('localstripe.webhooks')
 
-    print(f"Preparing event {event.type}", flush=True)
+    logger.warning(f"Preparing event {event.type}", flush=True)
     payload, signed_payload = _construct_webhook_payload(event)
 
-    await asyncio.sleep(1)
+    await asyncio.sleep(delay)
 
     for webhook in fetch_all(f"{Webhook.object}:*"):
         if webhook.events is not None and event.type not in webhook.events:
@@ -82,32 +82,9 @@ async def _send_webhook(event):
                 logger.warning('webhook "%s" failed: %s' % (event.type, e))
 
 
+# TODO - Actually make this synchronous/awaitable
 def send_synchronous_webhook(event):
-    logger = logging.getLogger('localstripe.webhooks')
-
-    print(f"Preparing event {event.type}", flush=True)
-    payload, signed_payload = _construct_webhook_payload(event)
-
-    for webhook in fetch_all(f"{Webhook.object}:*"):
-        if webhook.events is not None and event.type not in webhook.events:
-            continue
-
-        signature = hmac.new(webhook.secret.encode('utf-8'),
-                             signed_payload, hashlib.sha256).hexdigest()
-        headers = {
-            'Content-Type': 'application/json; charset=utf-8',
-            'Stripe-Signature': 't=%d,v1=%s' % (event.created, signature)}
-        try:
-            response = requests.post(webhook.url, data=payload, headers=headers)
-        except requests.exceptions.RequestException as e:
-            logger.warning(f'webhook "{event.type}" failed: {e}')
-            return
-        if 200 <= response.status_code <= 300:
-            logger.warning(f'webhook "{event.type}" successfully delivered')
-            logger.warning(f'"{event.type}" webhook body: {json.dumps(payload, indent=2, sort_keys=True)}')
-        else:
-            logger.warning(
-                f'webhook "{event.type}" failed with response code {response.status_code} and body:\n{response.text}')
+    asyncio.ensure_future(_send_webhook(event, 0))
 
 
 def schedule_webhook(event):
