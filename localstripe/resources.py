@@ -2741,6 +2741,8 @@ class Refund(StripeObject):
             self.balance_transaction = txn.id
             schedule_webhook(Event('charge.refunded', self))
 
+        redis_master.set(self._store_key(), pickle.dumps(self))
+
     @classmethod
     def _api_list_all(cls, url, charge=None, limit=None, starting_after=None):
         try:
