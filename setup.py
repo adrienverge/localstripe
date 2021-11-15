@@ -37,7 +37,7 @@ setup(
         'aiohttp >=2.3.2',
         'python-dateutil >=2.6.1',
         'gunicorn >=20.0.4',
-        "redis >=3.5.3",
+        "redis >=3.5.3, <4.0.0",
         "structlog",
         "colorama",
         "ddtrace >=0.50"
