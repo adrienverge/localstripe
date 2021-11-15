@@ -17,6 +17,7 @@
 import asyncio
 import copy
 import logging
+import typing
 import uuid
 from datetime import datetime, timedelta
 import json
@@ -466,19 +467,28 @@ class Charge(StripeObject):
         self.disputed = False
         self.balance_transaction = None
         self.destination = destination
+        # Private property for tracking which IssuingAuthorization the charge belongs to
+        self._issuing_authorization = None
 
-        redis_master.set(self._store_key(), pickle.dumps(self))
         if self.payment_method.startswith('src'):
-            source = Source._api_retrieve(self.payment_method)
-            if source.type == 'card' and source.card['number'].startswith('400000999000'):
+            if self._src_is_issuing_card():
                 issuing_card = next(filter(lambda x: x.number == source.card['number'],
                                            fetch_all(f'{IssuingCard.object}:*')))
-                self._create_issuing_authorization(issuing_card)
+                iauth = self._create_issuing_authorization(issuing_card)
+                self._issuing_authorization = iauth.id
+        redis_master.set(self._store_key(), pickle.dumps(self))
 
     def _create_issuing_authorization(self, issuing_card):
         logger = logging.getLogger('localstripe.resources.Charge')
         logger.warning('Starting Issuing Authorization request')
-        IssuingAuthorization('online', issuing_card, self)
+        return IssuingAuthorization('online', issuing_card, self)
+
+    def _src_is_issuing_card(self) -> bool:
+        source = Source._api_retrieve(self.payment_method)
+        if source.type == 'card' and source.card['number'].startswith('400000999000'):
+            return True
+        else:
+            return False
 
     def _trigger_payment(self, on_success=None, on_failure_now=None,
                          on_failure_later=None):
@@ -562,7 +572,7 @@ class Charge(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        obj = cls._api_retrieve(id)
+        obj: Charge = cls._api_retrieve(id)
 
         if amount is None:
             amount = obj.amount
@@ -580,6 +590,9 @@ class Charge(StripeObject):
             if amount < obj.amount:
                 refunded = obj.amount - amount
                 Refund(obj.id, refunded)
+            if obj._src_is_issuing_card():
+                iauth: IssuingAuthorization = IssuingAuthorization._api_retrieve(obj._issuing_authorization)
+                iauth.capture()
 
         logger.info("Charge succeeded, triggering payment")
 
@@ -3783,6 +3796,21 @@ class IssuingAuthorization(StripeObject):
         # TODO - Implement 2s timeout
         schedule_webhook(Event("issuing_authorization.request", self))
 
+    def capture(self):
+        self.status = 'closed'
+
+        txn = BalanceTransaction(self.amount, self.currency, "Released hold for authorization due to capture",
+                                 None, "issuing_authorization_release", self.id, "issuing_authorization_release")
+        self.balance_transactions.append(txn)
+
+        ipi = IssuingPaymentTransaction(self.amount * -1, self.id, self.balance_transactions[-1].id, self.card.id,
+                                        self.cardholder, self.merchant_amount, self.merchant_currency,
+                                        self.merchant_data, 'capture', wallet=self.wallet)
+        self.transactions.append(ipi)
+
+        redis_master.set(self._store_key(), pickle.dumps(self))
+        schedule_webhook(Event('issuing_authorization.updated', self))
+
     @classmethod
     def _api_approve(cls, id: str, amount=None, metadata=None, **kwargs):
         logger = logging.getLogger('localstripe.issuing')
@@ -3833,7 +3861,6 @@ class IssuingAuthorization(StripeObject):
 
         redis_master.set(obj._store_key(), pickle.dumps(obj))
         schedule_webhook(Event("issuing_authorization.created", obj))
-        # schedule_webhook(Event('issuing_authorization.updated', obj))
 
         return obj
 
@@ -3895,3 +3922,51 @@ class IssuingAuthorization(StripeObject):
 extra_apis.extend((
     ('POST', '/v1/issuing/authorizations/{id}/approve', IssuingAuthorization._api_approve),
     ('POST', '/v1/issuing/authorizations/{id}/decline', IssuingAuthorization._api_decline)))
+
+class IssuingPaymentTransaction(StripeObject):
+    object = 'issuing.transaction'
+    _id_prefix = 'ipi_'
+    _id_length = 24
+
+    def __init__(self, amount: int, authorization: str, balance_transaction: str, card: str, cardholder: str,
+                 merchant_amount: int, merchant_currency: str, merchant_data: dict, type: str, currency: str='usd',
+                 dispute: str=None, metadata: dict=None, wallet: str=None):
+
+        try:
+            assert _type(amount) is int
+            assert _type(authorization) is str
+            assert _type(balance_transaction) is str
+            assert _type(card) is str
+            assert _type(cardholder) is str
+            assert _type(merchant_amount) is int
+            assert _type(merchant_currency) is str and merchant_currency in ('usd', 'eur', 'cad')
+            assert _type(merchant_data) is dict
+            assert _type(currency) is str and currency in ('usd', 'eur', 'cad')
+            assert _type(type) is str and type in ('capture', 'refund')
+            if dispute is not None:
+                assert _type(dispute) is str
+            if metadata is not None:
+                assert _type(metadata) is dict
+            if wallet is not None:
+                assert _type(wallet) is str and wallet in ('apple_pay', 'samsung_pay', 'google_pay')
+
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        super().__init__()
+
+        self.amount = amount
+        self.authorization = authorization
+        self.balance_transacton = balance_transaction
+        self.card = card
+        self.cardholder = cardholder
+        self.merchant_amount = merchant_amount
+        self.merchant_currency = merchant_currency
+        self.merchant_data = merchant_data
+        self.type = type
+        self.currency = currency
+        self.dispute = dispute
+        self.metadata = metadata
+        self.wallet = wallet
+
+        redis_master.set(self._store_key(), pickle.dumps(self))
