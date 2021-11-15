@@ -234,6 +234,7 @@ extra_apis.append(('GET', '/v1/balance', Balance._api_retrieve))
 class BalanceTransaction(StripeObject):
     object = 'balance_transaction'
     _id_prefix = 'txn_'
+    _id_length = 24
 
     def __init__(self, amount=None, currency=None, description=None,
                  exchange_rate=None, reporting_category=None, source=None,
