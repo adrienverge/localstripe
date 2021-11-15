@@ -592,7 +592,7 @@ class Charge(StripeObject):
                 Refund(obj.id, refunded)
             if obj._src_is_issuing_card():
                 iauth: IssuingAuthorization = IssuingAuthorization._api_retrieve(obj._issuing_authorization)
-                iauth.capture()
+                iauth._capture()
 
         logger.info("Charge succeeded, triggering payment")
 
@@ -3796,7 +3796,7 @@ class IssuingAuthorization(StripeObject):
         # TODO - Implement 2s timeout
         schedule_webhook(Event("issuing_authorization.request", self))
 
-    def capture(self):
+    def _capture(self):
         self.status = 'closed'
 
         txn = BalanceTransaction(self.amount, self.currency, "Released hold for authorization due to capture",
