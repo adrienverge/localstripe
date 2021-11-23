@@ -33,7 +33,8 @@ from ddtrace.contrib.aiohttp import trace_app
 from .resources import BalanceTransaction, Charge, Coupon, Customer, Event, \
     Invoice, InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, \
     Product, Refund, SetupIntent, Source, Subscription, SubscriptionItem, \
-    TaxRate, Token, extra_apis, redis_master, redis_slave, IssuingCard, IssuingCardholder, fetch_all
+    TaxRate, Token, extra_apis, redis_master, redis_slave, IssuingCard, IssuingCardholder, fetch_all, \
+    IssuingAuthorization
 
 from .errors import UserError
 from .webhooks import register_webhook, Webhook
@@ -309,6 +310,13 @@ for cls in (IssuingCardholder, IssuingCard):
             ('GET', '/v1/' + cls.object.replace('.', '/') + 's/{id}', api_retrieve),
             ('POST', '/v1/' + cls.object.replace('.', '/') + 's/{id}', api_update),
             ('DELETE', '/v1/' + cls.object.replace('.', '/') + 's/{id}', api_delete),
+            ('GET', '/v1/' + cls.object.replace('.', '/') + 's', api_list_all)):
+        app.router.add_route(method, url, func(cls, url))
+
+for cls in (IssuingAuthorization,):
+    for method, url, func in (
+            ('GET', '/v1/' + cls.object.replace('.', '/') + 's/{id}', api_retrieve),
+            ('POST', '/v1/' + cls.object.replace('.', '/') + 's/{id}', api_update),
             ('GET', '/v1/' + cls.object.replace('.', '/') + 's', api_list_all)):
         app.router.add_route(method, url, func(cls, url))
 

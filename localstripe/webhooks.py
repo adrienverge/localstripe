@@ -20,6 +20,7 @@ import hmac
 import json
 import logging
 import pickle
+import requests
 
 from .redis_store import redis_master, fetch_all
 
@@ -40,9 +41,10 @@ def register_webhook(id, url, secret, events):
     redis_master.set(f"{Webhook.object}:{id}", pickle.dumps(webhook))
 
 
-async def _send_webhook(event):
+async def _send_webhook(event, delay: int = 1):
     logger = logging.getLogger('localstripe.webhooks')
 
+    logger.warning(f"Preparing event {event.type}")
     webhook_body = event._export()
     webhook_body['pending_webhooks'] = 0
 
@@ -50,11 +52,7 @@ async def _send_webhook(event):
     payload = payload.encode('utf-8')
     signed_payload = b'%d.%s' % (event.created, payload)
 
-    logger.info(f'Sleeping prior to sending webhook')
-
-    await asyncio.sleep(1)
-
-    logger.info(f'Searching for webhooks matching "{event}"')
+    await asyncio.sleep(delay)
 
     for webhook in fetch_all(f"{Webhook.object}:*"):
         if webhook.events is not None and event.type not in webhook.events:
@@ -70,13 +68,18 @@ async def _send_webhook(event):
                 async with session.post(webhook.url,
                                         data=payload, headers=headers) as r:
                     if 200 <= r.status < 300:
-                        logger.info('webhook "%s" successfully delivered'
-                                    % event.type)
+                        logger.warning(f'webhook "{event.type}" successfully delivered')
+                        logger.warning(f'"{event.type}" webhook body: {json.dumps(webhook_body, indent=2, sort_keys=True)}')
                     else:
-                        logger.warning(f'webhook "{event.type}" failed with response code {r.status} and body:\n{await r.text()}')
-                        logger.warning(f'Failed webhook body: {json.dumps(webhook_body, indent=2, sort_keys=True)}')
+                        logger.warning(
+                            f'webhook "{event.type}" failed with response code {r.status} and body:\n{await r.text()}')
             except aiohttp.client_exceptions.ClientError as e:
                 logger.warning('webhook "%s" failed: %s' % (event.type, e))
+
+
+# TODO - Actually make this synchronous/awaitable
+def send_synchronous_webhook(event):
+    asyncio.ensure_future(_send_webhook(event, 0))
 
 
 def schedule_webhook(event):

@@ -15,7 +15,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
+import copy
 import logging
+import typing
 import uuid
 from datetime import datetime, timedelta
 import json
@@ -28,8 +30,7 @@ from dateutil.relativedelta import relativedelta
 from .errors import UserError
 from .redis_store import fetch, fetch_all, redis_slave, redis_master
 from .utilities import *
-from .webhooks import schedule_webhook
-
+from .webhooks import schedule_webhook, Webhook, _send_webhook, send_synchronous_webhook
 
 # Save built-in keyword `type`, because some classes override it by using
 # `type` as a method argument:
@@ -59,7 +60,7 @@ class StripeObject(object):
                 raise UserError(409, 'Conflict')
             redis_master.set(key, pickle.dumps(self))
 
-    def _store_key(self):
+    def _store_key(self) -> str:
         return self.object + ':' + self.id
 
     @classmethod
@@ -190,14 +191,14 @@ class Balance(object):
         self.livemode = False
         self.available = {
             'amount': 2000,
-            'currency': 'eur',
+            'currency': 'usd',
             'source_types': {
                 'card': 2000
             }
         }
         self.pending = {
             'amount': 0,
-            'currency': 'eur',
+            'currency': 'usd',
             'source_types': {
                 'card': 0
             }
@@ -233,6 +234,7 @@ extra_apis.append(('GET', '/v1/balance', Balance._api_retrieve))
 class BalanceTransaction(StripeObject):
     object = 'balance_transaction'
     _id_prefix = 'txn_'
+    _id_length = 24
 
     def __init__(self, amount=None, currency=None, description=None,
                  exchange_rate=None, reporting_category=None, source=None,
@@ -247,9 +249,11 @@ class BalanceTransaction(StripeObject):
             assert _type(currency) is str and currency
             assert description is None or _type(description) is str
             assert exchange_rate is None or _type(exchange_rate) is float
-            assert reporting_category in ('charge', 'refund')
+            assert reporting_category in ('charge', 'refund', 'issuing_authorization_hold',
+                                          'issuing_authorization_release')
             assert _type(source) is str
-            assert type in ('charge', 'refund')
+            assert type in ('charge', 'refund', 'issuing_authorization_hold',
+                            'issuing_authorization_release')
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -257,6 +261,8 @@ class BalanceTransaction(StripeObject):
             Charge._api_retrieve(source)  # to return 404 if not existent
         elif source.startswith('re_'):
             Refund._api_retrieve(source)  # to return 404 if not existent
+        elif source.startswith('iauth_'):
+            IssuingAuthorization._api_retrieve(source)
         else:
             raise UserError(400, 'Bad request')
 
@@ -462,8 +468,30 @@ class Charge(StripeObject):
         self.disputed = False
         self.balance_transaction = None
         self.destination = destination
+        # Private property for tracking which IssuingAuthorization the charge belongs to
+        self._issuing_authorization = None
 
+        if self._src_is_issuing_card():
+            issuing_card = next(filter(lambda x: x.number == source.card['number'],
+                                       fetch_all(f'{IssuingCard.object}:*')))
+            iauth = self._create_issuing_authorization(issuing_card)
+            self._issuing_authorization = iauth.id
         redis_master.set(self._store_key(), pickle.dumps(self))
+
+    def _create_issuing_authorization(self, issuing_card):
+        logger = logging.getLogger('localstripe.resources.Charge')
+        logger.warning('Starting Issuing Authorization request')
+        return IssuingAuthorization('online', issuing_card, self)
+
+    def _src_is_issuing_card(self) -> bool:
+        if self.payment_method.startswith('src'):
+            source = Source._api_retrieve(self.payment_method)
+            if source.type == 'card' and source.card['number'].startswith('400000999000'):
+                return True
+            else:
+                return False
+        else:
+            return False
 
     def _trigger_payment(self, on_success=None, on_failure_now=None,
                          on_failure_later=None):
@@ -517,11 +545,12 @@ class Charge(StripeObject):
 
     @classmethod
     def _api_create(cls, **data):
-        obj = super()._api_create(**data)
+        logger = logging.getLogger('localstripe.resources.charge')
+        obj: Charge = super()._api_create(**data)
 
         # for successful pre-auth, return unpaid charge
         if not obj.captured and obj._authorized:
-            print("Skipping payment trigger as capture was false on charge creation")
+            logger.warning("Skipping payment trigger as capture was false on charge creation")
             return obj
 
         def on_failure():
@@ -547,7 +576,7 @@ class Charge(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        obj = cls._api_retrieve(id)
+        obj: Charge = cls._api_retrieve(id)
 
         if amount is None:
             amount = obj.amount
@@ -565,6 +594,10 @@ class Charge(StripeObject):
             if amount < obj.amount:
                 refunded = obj.amount - amount
                 Refund(obj.id, refunded)
+            if obj._src_is_issuing_card():
+                print("Attempting capture of issuing authorization")
+                iauth: IssuingAuthorization = IssuingAuthorization._api_retrieve(obj._issuing_authorization)
+                iauth._capture()
 
         logger.info("Charge succeeded, triggering payment")
 
@@ -878,7 +911,7 @@ class Customer(StripeObject):
         source = self._get_default_payment_method_or_source()
         if isinstance(source, Source):  # not Card
             return source.currency
-        return 'eur'  # arbitrary default
+        return 'usd'  # arbitrary default
 
     @property
     def subscriptions(self):
@@ -1234,7 +1267,7 @@ class Invoice(StripeObject):
         if len(self.lines._list):
             self.currency = self.lines._list[0].currency
         else:
-            self.currency = 'eur'  # arbitrary default
+            self.currency = 'usd'  # arbitrary default
 
         self._draft = True
         self._voided = False
@@ -2285,7 +2318,6 @@ class PaymentMethod(StripeObject):
                     'address_line1_check': 'pass',
                     'address_postal_code_check': 'pass',
                     'cvc_check': 'pass',
-
                 }
             }
         elif self.type == 'sepa_debit':
@@ -2520,7 +2552,7 @@ class Payout(StripeObject):
         amount = try_convert_to_int(amount)
         try:
             assert type(amount) is int and amount > 0
-            assert currency in ('eur',)
+            assert currency in ('usd',)
             if description is not None:
                 assert type(description) is str
             if metadata is not None:
@@ -2676,7 +2708,7 @@ class Refund(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        charge_obj = Charge._api_retrieve(charge)
+        charge_obj: Charge = Charge._api_retrieve(charge)
 
         # All exceptions must be raised before this point.
         super().__init__()
@@ -2707,7 +2739,10 @@ class Refund(StripeObject):
                                      reporting_category='refund',
                                      source=self.id, type='refund')
             self.balance_transaction = txn.id
-            schedule_webhook(Event('charge.refunded', self))
+            redis_master.set(self._store_key(), pickle.dumps(self))
+            schedule_webhook(Event('charge.refunded', charge_obj))
+        else:
+            redis_master.set(self._store_key(), pickle.dumps(self))
 
     @classmethod
     def _api_list_all(cls, url, charge=None, limit=None, starting_after=None):
@@ -3686,7 +3721,7 @@ class IssuingCard(StripeObject):
         self.currency = currency
         self.cardholder = cardholder_object
         self.status = status
-        self.number = f"'400000999000{''.join([str(random.randint(0,9)) for i in range(4)])}'"
+        self.number = f"400000999000{''.join([str(random.randint(0,9)) for i in range(4)])}"
         self.last4 = self.number[-4:]
         self.exp_month = datetime.now().month
         self.exp_year = datetime.now().year + 3
@@ -3700,3 +3735,248 @@ class IssuingCard(StripeObject):
         obj = super()._api_update(id, **data)
         schedule_webhook(Event('issuing_card.updated', obj))
         return obj
+
+
+class IssuingAuthorization(StripeObject):
+    object = 'issuing.authorization'
+    _id_prefix = 'iauth_'
+    _id_length = 24
+
+    def __init__(self, authorization_method: str, card: IssuingCard, charge: Charge, metadata=None):
+        assert type(authorization_method) is str
+        assert authorization_method in ('keyed_in', 'swipe', 'chip', 'contactless', 'online')
+        assert type(card) is IssuingCard
+        assert type(charge) is Charge
+        if metadata is not None:
+            assert type(metadata) is dict
+
+        super().__init__()
+
+        self.amount = 0
+        self.amount_details = {
+            'atm_fee': None
+        }
+        self.approved = False
+        self.authorization_method = authorization_method
+        self.balance_transactions = []
+        self.card = card
+        self.cardholder = card.cardholder.id
+        self.currency = 'usd'
+        self.merchant_amount = 0
+        self.merchant_currency = 'usd'
+        self.merchant_data = {
+            "category": "computer_software_stores",
+            "category_code": "5734",
+            "city": "NEW YORK",
+            "country": "US",
+            "name": "QP* TEST GAMESTOP",
+            "network_id": "1234567890",
+            "postal_code": "10003",
+            "state": "NY"
+        } # Note - May be necessary for this to contain actual values
+        self.metadata = metadata
+        self.pending_request = {
+            'amount': charge.amount,
+            'amount_details': {
+                'atm_fee': None
+            },
+            'currency': charge.currency,
+            'is_amount_controllable': False,
+            'merchant_amount': charge.amount,
+            'merchant_currency': 'usd'
+        }
+        self.request_history = []
+        self.status = 'pending'
+        self.transactions = []
+        self.verification_data = {
+            "address_line1_check": "not_provided",
+            "address_postal_code_check": "not_provided",
+            "cvc_check": "match",
+            "expiry_check": "match"
+        }
+        self.wallet = None
+
+        redis_master.set(self._store_key(), pickle.dumps(self))
+        self._request_authorization()
+
+    def _request_authorization(self):
+        logger = logging.getLogger('localstripe.issuing')
+        # TODO - Implement 2s timeout
+        send_synchronous_webhook(Event("issuing_authorization.request", self))
+        # schedule_webhook(Event("issuing_authorization.request", self))
+
+    def _capture(self):
+        self.status = 'closed'
+
+        txn = BalanceTransaction(self.amount, self.currency, "Released hold for authorization due to capture",
+                                 None, "issuing_authorization_release", self.id, "issuing_authorization_release")
+        self.balance_transactions.append(txn)
+
+        ipi = IssuingPaymentTransaction(self.amount * -1, self.id, txn.id, self.card.id,
+                                        self.cardholder, self.merchant_amount, self.merchant_currency,
+                                        self.merchant_data, 'capture', wallet=self.wallet)
+        self.transactions.append(ipi)
+
+        redis_master.set(self._store_key(), pickle.dumps(self))
+        schedule_webhook(Event('issuing_authorization.updated', self))
+
+    @classmethod
+    def _api_approve(cls, id: str, amount=None, metadata=None, **kwargs):
+        logger = logging.getLogger('localstripe.issuing')
+        if kwargs:
+            logger.warning('Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        amount = try_convert_to_int(amount)
+        try:
+            assert type(id) is str and id.startswith(IssuingAuthorization._id_prefix)
+            if amount is not None:
+                assert type(amount) is int and 0 <= amount
+            if metadata is not None:
+                assert type(metadata) is dict
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        obj: IssuingAuthorization = cls._api_retrieve(id)
+
+        obj.approved = True
+        if amount is not None:
+            try:
+                assert obj.pending_request.get('is_amount_controllable', False) is True
+            except AssertionError:
+                raise UserError(400, 'Bad request')
+        else:
+            amount = obj.pending_request['amount']
+        obj.amount = amount
+        obj.merchant_amount = amount
+
+        if metadata is not None:
+            if obj.metadata is not None:
+                obj.metadata = obj.metadata | metadata
+            else:
+                obj.metadata = metadata
+
+        request_record = copy.deepcopy(obj.pending_request)
+        request_record['reason'] = 'webhook_approved'
+        request_record['approved'] = True
+        request_record['created'] = int(time.time())
+        obj.request_history.append(request_record)
+
+        obj.pending_request = None
+
+        txn = BalanceTransaction(amount * -1, obj.currency, "Hold for authorization", None,
+                                 "issuing_authorization_hold", obj.id, "issuing_authorization_hold")
+        obj.balance_transactions.append(txn)
+
+        redis_master.set(obj._store_key(), pickle.dumps(obj))
+        schedule_webhook(Event("issuing_authorization.created", obj))
+
+        return obj
+
+    @classmethod
+    def _api_decline(cls, id: str, metadata=None, **kwargs):
+        logger = logging.getLogger('localstripe.issuing')
+        if kwargs:
+            logger.warning('Unexpected ' + ', '.join(kwargs.keys()))
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            assert type(id) is str and id.startswith(IssuingAuthorization._id_prefix)
+            if metadata is not None:
+                assert type(metadata) is dict
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        obj: IssuingAuthorization = cls._api_retrieve(id)
+        obj.approved = False
+        updated_metadata = {}
+        if metadata is not None:
+            if obj.metadata is not None:
+                obj.metadata = obj.metadata | metadata
+            else:
+                obj.metadata = metadata
+        obj.status = 'closed'
+
+        redis_master.set(obj._store_key(), pickle.dumps(obj))
+        schedule_webhook(Event("issuing_authorization.created", obj))
+
+        return obj
+
+    @classmethod
+    def _api_list_all(cls, url, limit=None, starting_after=None, card=None, cardholder=None, status=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            if card is not None:
+                assert type(card) is str and card.startswith(IssuingCard._id_prefix)
+            if cardholder is not None:
+                assert type(cardholder) is str and cardholder.startswith(IssuingCardholder._id_prefix)
+            if status is not None:
+                assert type(status) is str and status in ('pending', 'closed', 'reversed')
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        li = List(url, limit=limit, starting_after=starting_after)
+        li._list = fetch_all(cls.object + ':*')
+        if card is not None:
+            li._list = filter(lambda x: x.card.id == card, li._list)
+        if cardholder is not None:
+            li._list = filter(lambda x: x.cardholder == cardholder, li._list)
+        if status is not None:
+            li._list = filter(lambda x: x.status == status, li._list)
+        return li
+
+
+extra_apis.extend((
+    ('POST', '/v1/issuing/authorizations/{id}/approve', IssuingAuthorization._api_approve),
+    ('POST', '/v1/issuing/authorizations/{id}/decline', IssuingAuthorization._api_decline)))
+
+
+class IssuingPaymentTransaction(StripeObject):
+    object = 'issuing.transaction'
+    _id_prefix = 'ipi_'
+    _id_length = 24
+
+    def __init__(self, amount: int, authorization: str, balance_transaction: str, card: str, cardholder: str,
+                 merchant_amount: int, merchant_currency: str, merchant_data: dict, type: str, currency: str = 'usd',
+                 dispute: str = None, metadata: dict = None, wallet: str = None):
+
+        try:
+            assert _type(amount) is int
+            assert _type(authorization) is str
+            assert _type(balance_transaction) is str
+            assert _type(card) is str
+            assert _type(cardholder) is str
+            assert _type(merchant_amount) is int
+            assert _type(merchant_currency) is str and merchant_currency in ('usd', 'eur', 'cad')
+            assert _type(merchant_data) is dict
+            assert _type(currency) is str and currency in ('usd', 'eur', 'cad')
+            assert _type(type) is str and type in ('capture', 'refund')
+            if dispute is not None:
+                assert _type(dispute) is str
+            if metadata is not None:
+                assert _type(metadata) is dict
+            if wallet is not None:
+                assert _type(wallet) is str and wallet in ('apple_pay', 'samsung_pay', 'google_pay')
+
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        super().__init__()
+
+        self.amount = amount
+        self.authorization = authorization
+        self.balance_transacton = balance_transaction
+        self.card = card
+        self.cardholder = cardholder
+        self.merchant_amount = merchant_amount
+        self.merchant_currency = merchant_currency
+        self.merchant_data = merchant_data
+        self.type = type
+        self.currency = currency
+        self.dispute = dispute
+        self.metadata = metadata
+        self.wallet = wallet
+
+        redis_master.set(self._store_key(), pickle.dumps(self))
