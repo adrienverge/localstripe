@@ -17,20 +17,18 @@
 import asyncio
 import copy
 import logging
-import typing
 import uuid
 from datetime import datetime, timedelta
 import json
-import pickle
 import re
 import time
 
 from dateutil.relativedelta import relativedelta
 
 from .errors import UserError
-from .redis_store import fetch, fetch_all, redis_slave, redis_master
 from .utilities import *
 from .webhooks import schedule_webhook, Webhook, _send_webhook, send_synchronous_webhook
+from .store import *
 
 # Save built-in keyword `type`, because some classes override it by using
 # `type` as a method argument:
@@ -43,6 +41,7 @@ class StripeObject(object):
     object = None
 
     def __init__(self, id=None):
+        self.partitionKey = self.object  # stripe objects will be partitioned by type
         if not isinstance(self, List):
             if id is None:
                 assert hasattr(self, '_id_prefix')
@@ -54,11 +53,10 @@ class StripeObject(object):
             self.created = int(time.time())
 
             self.livemode = False
-
-            key = self.object + ':' + self.id
-            if redis_master.exists(key) > 0:
+            record_from_store = fetch_by_id(self.id)
+            if record_from_store is not None:
                 raise UserError(409, 'Conflict')
-            redis_master.set(key, pickle.dumps(self))
+            upsert_record(self)
 
     def _store_key(self) -> str:
         return self.object + ':' + self.id
@@ -75,8 +73,8 @@ class StripeObject(object):
         return cls(**data)
 
     @classmethod
-    def _api_retrieve(cls, id):
-        obj = pickle.loads(redis_slave.get(cls.object + ':' + id))
+    def _api_retrieve(cls, record_id):
+        obj = fetch_by_id(record_id)
 
         if obj is None:
             raise UserError(404, 'Not Found')
@@ -87,16 +85,15 @@ class StripeObject(object):
     def _api_update(cls, id, **data):
         obj = cls._api_retrieve(id)
         obj._update(**data)
-        redis_master.set(obj._store_key(), pickle.dumps(obj))
+        upsert_record(obj)
         return obj
 
     @classmethod
-    def _api_delete(cls, id):
-        key = cls.object + ':' + id
-        if redis_master.exists(key) == 0:
+    def _api_delete(cls, record_id):
+        if fetch_by_id(record_id) is None:
             raise UserError(404, 'Not Found')
-        redis_master.delete(key)
-        return {"deleted": True, "id": id}
+        delete_by_id(record_id)
+        return {"deleted": True, "id": record_id}
 
     @classmethod
     def _api_list_all(cls, url, limit=None, starting_after=None, **kwargs):
@@ -204,13 +201,13 @@ class Balance(object):
             }
         }
 
-        redis_master.set(self.object, pickle.dumps(self))
+        upsert_record(self)
 
         schedule_webhook(Event('balance.available', self))
 
     @classmethod
     def _api_retrieve(self):
-        obj = pickle.loads(redis_slave.get(f"{self.object}"))
+        obj = fetch_by_id(self)
         if obj is None:
             return self()
         return obj
@@ -294,7 +291,7 @@ class BalanceTransaction(StripeObject):
         raise UserError(405, 'Method Not Allowed')
 
     @classmethod
-    def _api_delete(cls, id):
+    def _api_delete(cls, record_id):
         raise UserError(405, 'Method Not Allowed')
 
     @classmethod
@@ -373,7 +370,7 @@ class Card(StripeObject):
 
         self.customer = None
 
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
 
     @property
     def last4(self):
@@ -472,11 +469,11 @@ class Charge(StripeObject):
         self._issuing_authorization = None
 
         if self._src_is_issuing_card():
-            issuing_card = next(filter(lambda x: x.number == source.card['number'],
+            issuing_card = next(filter(lambda x: x.number == source.card['number'],  # TODO replace with fetch_by_query
                                        fetch_all(f'{IssuingCard.object}:*')))
             iauth = self._create_issuing_authorization(issuing_card)
             self._issuing_authorization = iauth.id
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
 
     def _create_issuing_authorization(self, issuing_card):
         logger = logging.getLogger('localstripe.resources.Charge')
@@ -782,7 +779,7 @@ class Coupon(StripeObject):
         self.times_redeemed = 0
         self.valid = True
 
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
 
 
 class Customer(StripeObject):
@@ -894,7 +891,7 @@ class Customer(StripeObject):
         self.tax_ids._list = [TaxId(customer=self.id, **data)
                               for data in tax_id_data]
 
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
 
         schedule_webhook(Event('customer.created', self))
 
@@ -950,10 +947,10 @@ class Customer(StripeObject):
         return obj
 
     @classmethod
-    def _api_delete(cls, id):
-        obj = super()._api_retrieve(id)
+    def _api_delete(cls, record_id):
+        obj = super()._api_retrieve(record_id)
         schedule_webhook(Event('customer.deleted', obj))
-        return super()._api_delete(id)
+        return super()._api_delete(record_id)
 
     @classmethod
     def _api_list_sources(cls, id, object=None, **kwargs):
@@ -1156,7 +1153,7 @@ class Event(StripeObject):
             'idempotency_key': str(uuid.uuid4())
         }
 
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
 
     @classmethod
     def _api_create(cls, **data):
@@ -1167,7 +1164,7 @@ class Event(StripeObject):
         raise UserError(405, 'Method Not Allowed')
 
     @classmethod
-    def _api_delete(cls, id):
+    def _api_delete(cls, record_id):
         raise UserError(405, 'Method Not Allowed')
 
 
@@ -1554,12 +1551,12 @@ class Invoice(StripeObject):
             description=description, metadata=metadata)
 
     @classmethod
-    def _api_delete(cls, id):
-        obj = cls._api_retrieve(id)
+    def _api_delete(cls, record_id):
+        obj = cls._api_retrieve(record_id)
         if obj.status != 'draft':
             raise UserError(400, 'Bad request')
 
-        return super()._api_delete(id)
+        return super()._api_delete(record_id)
 
     @classmethod
     def _api_list_all(cls, url, customer=None, subscription=None, limit=None,
@@ -1604,7 +1601,7 @@ class Invoice(StripeObject):
             subscription_trial_end=subscription_trial_end)
 
         # Do not store this invoice
-        redis_master.delete(cls.object + ':' + invoice.id)
+        delete_record(invoice)
         invoice.id = None
 
         return invoice
@@ -1744,7 +1741,7 @@ class InvoiceItem(StripeObject):
         self.tax_rates = tax_rates or []
         self.metadata = metadata or {}
 
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
 
     @classmethod
     def _api_list_all(cls, url, customer=None, limit=None,
@@ -1808,7 +1805,7 @@ class InvoiceLineItem(StripeObject):
         self.metadata = item.metadata
         self.quantity = item.quantity
 
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
 
     @property
     def tax_amounts(self):
@@ -1823,7 +1820,7 @@ class InvoiceLineItem(StripeObject):
         raise UserError(405, 'Method Not Allowed')
 
     @classmethod
-    def _api_delete(cls, id):
+    def _api_delete(cls, record_id):
         raise UserError(405, 'Method Not Allowed')
 
 
@@ -2023,7 +2020,7 @@ class PaymentIntent(StripeObject):
         self._canceled = False
         self._authentication_failed = False
 
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
 
     def _trigger_payment(self):
         if self.status != 'requires_confirmation':
@@ -2056,7 +2053,7 @@ class PaymentIntent(StripeObject):
         self.charges._list.append(charge)
 
         # Update persisted object after adding charge
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
         charge._trigger_payment(on_success, on_failure_now, on_failure_later)
         schedule_webhook(Event('payment_intent.created', self))
 
@@ -2130,7 +2127,7 @@ class PaymentIntent(StripeObject):
             # https://stripe.com/docs/payments/capture-later#capture-funds
             # We can only capture once; funds greater than the capture are released automatically
             obj.amount = obj.amount - amount_to_capture
-        redis_master.set(obj._store_key(), pickle.dumps(obj))
+        upsert_record(obj)
         schedule_webhook(Event('payment_intent.succeeded', obj))
         schedule_webhook(Event('charge.captured', obj.charges._list[-1]))
         return obj
@@ -2185,7 +2182,7 @@ class PaymentIntent(StripeObject):
         else:
             obj._trigger_payment()
 
-        redis_master.set(obj._store_key(), pickle.dumps(obj))
+        upsert_record(obj)
         return obj
 
     @classmethod
@@ -2335,7 +2332,7 @@ class PaymentMethod(StripeObject):
         self.customer = None
         self.metadata = metadata or {}
 
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
 
     def _requires_authentication(self):
         if self.type == 'card':
@@ -2393,7 +2390,7 @@ class PaymentMethod(StripeObject):
                             {'code': 'card_declined'})
 
         obj.customer = customer
-        redis_master.set(obj._store_key(), pickle.dumps(obj))
+        upsert_record(obj)
         schedule_webhook(Event("payment_method.attached", obj))
         return obj
 
@@ -2409,7 +2406,7 @@ class PaymentMethod(StripeObject):
 
         obj = cls._api_retrieve(id)
         obj.customer = None
-        redis_master.set(obj._store_key(), pickle.dumps(obj))
+        upsert_record(obj)
         schedule_webhook(Event("payment_method.detached", obj))
         return obj
 
@@ -2526,7 +2523,7 @@ class Plan(StripeObject):
         self.tiers = tiers
         self.tiers_mode = tiers_mode
 
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
 
         schedule_webhook(Event('plan.created', self))
 
@@ -2629,7 +2626,7 @@ class Payout(StripeObject):
         return payout
 
     @classmethod
-    def _api_delete(cls, id):
+    def _api_delete(cls, record_id):
         raise UserError(405, 'Method Not Allowed')
 
 
@@ -2682,7 +2679,7 @@ class Product(StripeObject):
         self.statement_descriptor = statement_descriptor
         self.metadata = metadata or {}
 
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
 
         schedule_webhook(Event('product.created', self))
 
@@ -2739,10 +2736,10 @@ class Refund(StripeObject):
                                      reporting_category='refund',
                                      source=self.id, type='refund')
             self.balance_transaction = txn.id
-            redis_master.set(self._store_key(), pickle.dumps(self))
+            upsert_record(self)
             schedule_webhook(Event('charge.refunded', charge_obj))
         else:
-            redis_master.set(self._store_key(), pickle.dumps(self))
+            upsert_record(self)
 
     @classmethod
     def _api_list_all(cls, url, charge=None, limit=None, starting_after=None):
@@ -2783,7 +2780,7 @@ class Source(StripeObject):
             if token is not None:
                 assert _type(token) is str
                 # Copy the source from the token properties
-                token_object = pickle.loads(redis_slave.get(f"{Token.object}:{token}"))
+                token_object = fetch_by_id(token)
                 assert token_object is not None and token_object.type == type
                 self.card = token_object.card
             if owner is not None:
@@ -2841,7 +2838,7 @@ class Source(StripeObject):
                 'mandate_url': 'https://fake/NXDSYREGC9PSMKWY',
             }
 
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
 
     def _requires_authentication(self):
         if self.type == 'sepa_debit':
@@ -2894,7 +2891,7 @@ class SetupIntent(StripeObject):
         self.status = 'requires_payment_method'
         self.next_action = None
 
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
 
     @classmethod
     def _api_confirm(cls, id, use_stripe_sdk=None, client_secret=None,
@@ -2956,7 +2953,7 @@ class SetupIntent(StripeObject):
         else:
             obj.status = 'succeeded'
             obj.next_action = None
-        redis_master.set(obj._store_key(), pickle.dumps(obj))
+        upsert_record(obj)
         return obj
 
     @classmethod
@@ -2979,7 +2976,7 @@ class SetupIntent(StripeObject):
 
         obj.status = 'canceled'
         obj.next_action = None
-        redis_master.set(obj._store_key(), pickle.dumps(obj))
+        upsert_record(obj)
         return obj
 
 
@@ -3118,7 +3115,7 @@ class Subscription(StripeObject):
         if create_an_invoice:
             self._create_invoice()
 
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
 
         schedule_webhook(Event('customer.subscription.created', self))
 
@@ -3346,8 +3343,8 @@ class Subscription(StripeObject):
             self._create_invoice()
 
     @classmethod
-    def _api_delete(cls, id):
-        obj = Subscription._api_retrieve(id)
+    def _api_delete(cls, record_id):
+        obj = Subscription._api_retrieve(record_id)
         obj.ended_at = int(time.time())
         obj.status = 'canceled'
         schedule_webhook(Event('customer.subscription.deleted', obj))
@@ -3517,7 +3514,7 @@ class TaxId(StripeObject):
         elif '222222222' in value:
             self.verification['status'] = 'pending'
 
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
 
 
 class TaxRate(StripeObject):
@@ -3555,7 +3552,7 @@ class TaxRate(StripeObject):
         self.jurisdiction = jurisdiction
         self.metadata = metadata or {}
 
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
 
     def _tax_amount(self, amount):
         return {'amount': int(amount * self.percentage / 100.0),
@@ -3590,7 +3587,7 @@ class Token(StripeObject):
         self.type = 'card'
         self.card = card_obj
 
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
 
 
 class IssuingCardholder(StripeObject):
@@ -3667,7 +3664,7 @@ class IssuingCardholder(StripeObject):
         self.company = company
 
         schedule_webhook(Event('issuing_cardholder.created', self))
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
 
     @classmethod
     def _api_update(cls, id, **data):
@@ -3710,7 +3707,7 @@ class IssuingCard(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        cardholder_object = fetch(f"{IssuingCardholder.object}:{cardholder}")
+        cardholder_object = fetch_by_id(f"{IssuingCardholder.object}:{cardholder}")
         if cardholder is None:
             raise UserError(400, f"No cardholder matching ID: {cardholder}")
 
@@ -3728,7 +3725,7 @@ class IssuingCard(StripeObject):
         self.cvc = '123'
 
         schedule_webhook(Event('issuing_card.created', self))
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
 
     @classmethod
     def _api_update(cls, id, **data):
@@ -3796,7 +3793,7 @@ class IssuingAuthorization(StripeObject):
         }
         self.wallet = None
 
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
         self._request_authorization()
 
     def _request_authorization(self):
@@ -3817,7 +3814,7 @@ class IssuingAuthorization(StripeObject):
                                         self.merchant_data, 'capture', wallet=self.wallet)
         self.transactions.append(ipi)
 
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)
         schedule_webhook(Event('issuing_authorization.updated', self))
 
     @classmethod
@@ -3868,7 +3865,7 @@ class IssuingAuthorization(StripeObject):
                                  "issuing_authorization_hold", obj.id, "issuing_authorization_hold")
         obj.balance_transactions.append(txn)
 
-        redis_master.set(obj._store_key(), pickle.dumps(obj))
+        upsert_record(obj)
         schedule_webhook(Event("issuing_authorization.created", obj))
 
         return obj
@@ -3897,7 +3894,7 @@ class IssuingAuthorization(StripeObject):
                 obj.metadata = metadata
         obj.status = 'closed'
 
-        redis_master.set(obj._store_key(), pickle.dumps(obj))
+        upsert_record(obj)
         schedule_webhook(Event("issuing_authorization.created", obj))
 
         return obj
@@ -3979,4 +3976,4 @@ class IssuingPaymentTransaction(StripeObject):
         self.metadata = metadata
         self.wallet = wallet
 
-        redis_master.set(self._store_key(), pickle.dumps(self))
+        upsert_record(self)

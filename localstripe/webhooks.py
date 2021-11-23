@@ -20,11 +20,9 @@ import hmac
 import json
 import logging
 import pickle
-import requests
-
-from .redis_store import redis_master, fetch_all
-
 import aiohttp
+
+from localstripe.store import upsert_record, fetch_by_query
 
 
 class Webhook(object):
@@ -38,7 +36,7 @@ class Webhook(object):
 
 def register_webhook(id, url, secret, events):
     webhook = Webhook(url, secret, events)
-    redis_master.set(f"{Webhook.object}:{id}", pickle.dumps(webhook))
+    upsert_record(webhook)
 
 
 async def _send_webhook(event, delay: int = 1):
@@ -54,9 +52,11 @@ async def _send_webhook(event, delay: int = 1):
 
     await asyncio.sleep(delay)
 
-    for webhook in fetch_all(f"{Webhook.object}:*"):
-        if webhook.events is not None and event.type not in webhook.events:
-            continue
+    container_name = 'localstripe'
+    query = f'SELECT * FROM {container_name} r WHERE r.events IS NOT NULL AND {event.type} IN r.events'
+    results = list(fetch_by_query(query))
+
+    for webhook in results:
 
         signature = hmac.new(webhook.secret.encode('utf-8'),
                              signed_payload, hashlib.sha256).hexdigest()

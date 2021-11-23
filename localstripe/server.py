@@ -19,11 +19,10 @@ import base64
 import json
 import logging
 import os.path
-import pickle
 import re
 import socket
 
-import ddtrace.profiling.auto
+import ddtrace.profiling.auto  # not accessed?
 from ddtrace import tracer, patch_all
 patch_all()
 
@@ -33,12 +32,12 @@ from ddtrace.contrib.aiohttp import trace_app
 from .resources import BalanceTransaction, Charge, Coupon, Customer, Event, \
     Invoice, InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, \
     Product, Refund, SetupIntent, Source, Subscription, SubscriptionItem, \
-    TaxRate, Token, extra_apis, redis_master, redis_slave, IssuingCard, IssuingCardholder, fetch_all, \
-    IssuingAuthorization
+    TaxRate, Token, extra_apis, IssuingCard, IssuingCardholder, \
+    IssuingAuthorization, StripeObject
 
 from .errors import UserError
 from .webhooks import register_webhook, Webhook
-
+from .store import *
 
 def json_response(*args, **kwargs):
     return web.json_response(
@@ -170,14 +169,14 @@ async def auth_middleware(request, handler):
         # where authentication can be done using the public key (passed as
         # `key` in POST data) instead of the private key.
         accept_key_in_post_data = (
-            request.method == 'POST' and
-            any(re.match(pattern, request.path) for pattern in (
-                r'^/v1/tokens$',
-                r'^/v1/sources$',
-                r'^/v1/payment_intents/\w+/_authenticate\b',
-                r'^/v1/setup_intents/\w+/confirm$',
-                r'^/v1/setup_intents/\w+/cancel$',
-            )))
+                request.method == 'POST' and
+                any(re.match(pattern, request.path) for pattern in (
+                    r'^/v1/tokens$',
+                    r'^/v1/sources$',
+                    r'^/v1/payment_intents/\w+/_authenticate\b',
+                    r'^/v1/setup_intents/\w+/confirm$',
+                    r'^/v1/setup_intents/\w+/cancel$',
+                )))
 
         is_auth = get_api_key(request) is not None
 
@@ -220,6 +219,7 @@ def api_create(cls, url):
         except UserError as e:
             raise e
         return response
+
     return f
 
 
@@ -229,6 +229,7 @@ def api_retrieve(cls, url):
         data = unflatten_data(request.query)
         expand = data.pop('expand', None)
         return json_response(cls._api_retrieve(id)._export(expand=expand))
+
     return f
 
 
@@ -242,6 +243,7 @@ def api_update(cls, url):
         expand = data.pop('expand', None)
         return json_response(cls._api_update(id, **data)._export(
             expand=expand))
+
     return f
 
 
@@ -250,6 +252,7 @@ def api_delete(cls, url):
         id = request.match_info['id']
         ret = cls._api_delete(id)
         return json_response(ret if isinstance(ret, dict) else ret._export())
+
     return f
 
 
@@ -258,6 +261,7 @@ def api_list_all(cls, url):
         data = unflatten_data(request.query)
         expand = data.pop('expand', None)
         return json_response(cls._api_list_all(url, **data)._export(expand=expand))
+
     return f
 
 
@@ -274,12 +278,14 @@ def api_extra(func, url):
             data['subscription_id'] = request.match_info['subscription_id']
         expand = data.pop('expand', None)
         return json_response(func(**data)._export(expand=expand))
+
     return f
 
 
 def health_check():
     async def f(request):
         return web.Response()
+
     return f
 
 
@@ -289,7 +295,6 @@ app.router.add_route('GET', '/healthz', health_check())
 # `/invoices/upcoming` would fall into `/invoices/{id}`.
 for method, url, func in extra_apis:
     app.router.add_route(method, url, api_extra(func, url))
-
 
 for cls in (BalanceTransaction, Charge, Coupon, Customer, Event, Invoice,
             InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, Product,
@@ -319,7 +324,6 @@ for cls in (IssuingAuthorization,):
             ('POST', '/v1/' + cls.object.replace('.', '/') + 's/{id}', api_update),
             ('GET', '/v1/' + cls.object.replace('.', '/') + 's', api_list_all)):
         app.router.add_route(method, url, func(cls, url))
-
 
 
 def localstripe_js(request):
@@ -352,7 +356,7 @@ async def get_webhooks(request):
 
 async def get_webhook(request):
     hook_id = request.match_info['id']
-    hook = pickle.loads(redis_slave.get(f"{Webhook.object}:{hook_id}"))
+    hook = fetch_by_id(hook_id)
     if hook is not None:
         return json_response(hook)
     else:
@@ -360,9 +364,7 @@ async def get_webhook(request):
 
 
 async def flush_store(request):
-    # store.clear()
-    redis_master.flushall()
-    return web.Response()
+    delete_all_data()
 
 
 app.router.add_post('/_config/webhooks/{id}', config_webhook)
@@ -378,7 +380,7 @@ def start():
     args = parser.parse_args()
 
     if args.from_scratch:
-        redis_master.flushall(asynchronous=False)
+        delete_all_data()
 
     # Listen on both IPv4 and IPv6
     sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
