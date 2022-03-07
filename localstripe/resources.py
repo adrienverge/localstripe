@@ -1103,6 +1103,7 @@ class Invoice(StripeObject):
         self.attempt_count = 1
         self.attempted = True
         self.billing_reason = None
+        self.collection_method = 'charge_automatically'
         self.description = description
         self.discount = None
         self.ending_balance = 0
