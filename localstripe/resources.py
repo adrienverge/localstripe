@@ -3659,7 +3659,7 @@ class IssuingCardholder(StripeObject):
         self.name = name
         self.status = status
         self.type = type
-        self.metadata = metadata
+        self.metadata = metadata or {}
         self.email = email
         self.phone_number = phone_number
         self.billing = billing
@@ -3717,7 +3717,7 @@ class IssuingCard(StripeObject):
         super().__init__()
 
         self.type = type
-        self.metadata = metadata
+        self.metadata = metadata or {}
         self.currency = currency
         self.cardholder = cardholder_object
         self.status = status
@@ -3725,7 +3725,8 @@ class IssuingCard(StripeObject):
         self.last4 = self.number[-4:]
         self.exp_month = datetime.now().month
         self.exp_year = datetime.now().year + 3
-        self.cvc = '123'
+        self.cvc = '123',
+        self.brand = 'Visa'
 
         schedule_webhook(Event('issuing_card.created', self))
         redis_master.set(self._store_key(), pickle.dumps(self))
