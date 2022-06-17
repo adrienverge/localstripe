@@ -964,6 +964,25 @@ class Customer(StripeObject):
         return li
 
     @classmethod
+    def _api_list_all(cls, url, email=None, limit=None, starting_after=None,
+                      **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            if email is not None:
+                assert type(email) is str
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        li = super(Customer, cls)._api_list_all(url, limit=limit,
+                                                starting_after=starting_after)
+        if email is not None:
+            li._list = [i for i in li._list if i.email == email]
+
+        return li
+
+    @classmethod
     def _api_add_subscription(cls, id, **data):
         return Subscription._api_create(customer=id, **data)
 
