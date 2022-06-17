@@ -16,7 +16,16 @@ curl -sSfg -u $SK: $HOST/v1/customers/$cus \
 curl -sSfg -u $SK: $HOST/v1/customers/$cus \
      -d preferred_locales[]='fr-FR' -d preferred_locales[]='es-ES'
 
+cusB=$(curl -sSfg -u $SK: $HOST/v1/customers \
+            -d email=george.carlin@example.com \
+       | grep -oE 'cus_\w+' | head -n 1)
+
+email=$(curl -sSfg -u $SK: $HOST/v1/customers?email=james.robinson@example.com \
+        | grep -oE '"email": "james.robinson@example.com",')
+[ -n "$email" ]
+
 curl -sSfg -u $SK: -X DELETE $HOST/v1/customers/$cus
+curl -sSfg -u $SK: -X DELETE $HOST/v1/customers/$cusB
 
 cus=$(curl -sSfg -u $SK: $HOST/v1/customers \
            -d description='This customer is a company' \
