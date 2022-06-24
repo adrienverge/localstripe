@@ -3725,7 +3725,7 @@ class IssuingCard(StripeObject):
         self.last4 = self.number[-4:]
         self.exp_month = datetime.now().month
         self.exp_year = datetime.now().year + 3
-        self.cvc = '123',
+        self.cvc = '123'
         self.brand = 'Visa'
 
         schedule_webhook(Event('issuing_card.created', self))
