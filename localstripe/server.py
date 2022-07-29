@@ -34,7 +34,7 @@ from .resources import BalanceTransaction, Charge, Coupon, Customer, Event, \
     Invoice, InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, \
     Product, Refund, SetupIntent, Source, Subscription, SubscriptionItem, \
     TaxRate, Token, extra_apis, redis_master, redis_slave, IssuingCard, IssuingCardholder, fetch_all, \
-    IssuingAuthorization
+    IssuingAuthorization, EphemeralKey
 
 from .errors import UserError
 from .webhooks import register_webhook, Webhook
@@ -320,14 +320,18 @@ for cls in (IssuingAuthorization,):
             ('GET', '/v1/' + cls.object.replace('.', '/') + 's', api_list_all)):
         app.router.add_route(method, url, func(cls, url))
 
-
-
 def localstripe_js(request):
     path = os.path.dirname(os.path.realpath(__file__)) + '/localstripe-v3.js'
     with open(path) as f:
         return web.Response(text=f.read(),
                             content_type='application/javascript')
 
+# Ephemeral Key Support
+for cls in (EphemeralKey,):
+    for method, url, func in (
+            ('POST', '/v1/' + cls.object + 's', api_create),
+            ('DELETE', '/v1/' + cls.object + 's/{id}', api_delete)):
+        app.router.add_route(method, url, func(cls, url))
 
 app.router.add_get('/js.stripe.com/v3/', localstripe_js)
 

@@ -1,0 +1,37 @@
+version: "3.9"
+networks:
+  app-tier:
+    driver: bridge
+services:
+  localstripe:
+    build: .
+    ports: 
+      - 8420:8420
+    environment:
+      - DD_TRACE_ENABLED=false
+      - DD_PROFILING_ENABLED=false
+      - DD_PROFILING_HEAP_ENABLED=false
+    depends_on:
+      - localstripe-redis
+    networks:
+      - app-tier
+    volumes:
+      - ./localstripe/:/app
+  localstripe-redis:
+    image: "bitnami/redis-sentinel"
+    environment:
+      - REDIS_SENTINEL_TLS_AUTH_CLIENTS='no'
+    ports:
+      - '26379:26379'
+    networks:
+      - app-tier
+    depends_on:
+      - redis
+  redis:
+    image: 'bitnami/redis:latest'
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+    networks:
+      - app-tier
+    ports:
+      - '6379'

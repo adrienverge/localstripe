@@ -3981,3 +3981,23 @@ class IssuingPaymentTransaction(StripeObject):
         self.wallet = wallet
 
         redis_master.set(self._store_key(), pickle.dumps(self))
+
+class EphemeralKey(StripeObject):
+    object = 'ephemeral_key'
+    _id_prefix = 'ephkey_'
+    _id_length = 24
+
+    def __init__(self, issuing_card: str = None):
+
+        try:
+            assert _type(issuing_card) is str
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        super().__init__()
+
+        self.associated_objects = [{"id": issuing_card, "type": "issuing.card"}]
+        self.secret = f'req_{random_id(24)}'
+        self.expires = int(time.time()) + 3600 
+
+        redis_master.set(self._store_key(), pickle.dumps(self))
