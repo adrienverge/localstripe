@@ -3775,7 +3775,7 @@ class IssuingAuthorization(StripeObject):
             "postal_code": "10003",
             "state": "NY"
         } # Note - May be necessary for this to contain actual values
-        self.metadata = metadata
+        self.metadata = metadata or {}
         self.pending_request = {
             'amount': charge.amount,
             'amount_details': {
