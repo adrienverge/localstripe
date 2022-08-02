@@ -3890,6 +3890,12 @@ class IssuingAuthorization(StripeObject):
 
         obj: IssuingAuthorization = cls._api_retrieve(id)
         obj.approved = False
+        request_record = copy.deepcopy(obj.pending_request)
+        request_record['reason'] = 'webhook_declined'
+        request_record['approved'] = False
+        request_record['created'] = int(time.time())
+        obj.request_history.append(request_record)
+
         updated_metadata = {}
         if metadata is not None:
             if obj.metadata is not None:
