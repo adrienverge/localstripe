@@ -3672,6 +3672,10 @@ class IssuingCardholder(StripeObject):
     @classmethod
     def _api_update(cls, id, **data):
         obj = super()._api_update(id, **data)
+        for card in filter(lambda x: x.cardholder.id == id,
+                                       fetch_all(f'{IssuingCard.object}:*')):
+            card.cardholder = obj
+            redis_master.set(card._store_key(), pickle.dumps(card)) 
         schedule_webhook(Event('issuing_cardholder.updated', obj))
         return obj
 
