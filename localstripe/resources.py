@@ -2734,7 +2734,7 @@ class Subscription(StripeObject):
                 assert type(billing_cycle_anchor) is int
                 assert billing_cycle_anchor > int(time.time())
             if proration_behavior is not None:
-                assert proration_behavior in ['create_prorations', 'none']
+                assert proration_behavior in ['create_prorations', 'always_invoice', 'none']
             assert type(items) is list
             for item in items:
                 assert type(item.get('plan')) is str
@@ -2890,7 +2890,7 @@ class Subscription(StripeObject):
                 default_tax_rates=None, tax_percent=None,
                 plan=None, quantity=None,  # legacy support
                 prorate=None, proration_date=None, cancel_at_period_end=None,
-                cancel_at=None,
+                cancel_at=None, proration_behavior=None,
                 # Currently unimplemented, only False works as expected:
                 enable_incomplete_payments=False):
 
@@ -2931,6 +2931,8 @@ class Subscription(StripeObject):
             if cancel_at is not None:
                 assert type(cancel_at) is int
                 assert cancel_at > 1500000000
+            if proration_behavior is not None:
+                assert proration_behavior in ['create_prorations', 'always_invoice', 'none']
             if items is not None:
                 assert type(items) is list
                 for item in items:
@@ -3028,9 +3030,10 @@ class Subscription(StripeObject):
         # If the subscription is updated to a more expensive plan, an invoice
         # is not automatically generated. To achieve that, an invoice has to
         # be manually created using the POST /invoices route.
-        create_an_invoice = self.plan.billing_scheme == 'per_unit' and (
+        create_an_invoice = proration_behavior == 'always_invoice' or (
+            self.plan.billing_scheme == 'per_unit' and (
             self.plan.interval != old_plan.interval or
-            self.plan.interval_count != old_plan.interval_count)
+            self.plan.interval_count != old_plan.interval_count))
         if create_an_invoice:
             self._create_invoice()
 
