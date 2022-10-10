@@ -30,10 +30,7 @@ squash them.
 The Linux kernel is the biggest open-source project of all time, so you can
 basically `refer to it`_ on how to commit.
 
-We also follow the `Karma commit guideline`_.
-
 .. _refer to it: https://www.kernel.org/doc/html/v5.14/process/submitting-patches.html#describe-your-changes
-.. _Karma commit guideline: http://karma-runner.github.io/6.3/dev/git-commit-msg.html
 
 Cosmetic code changes
 ---------------------
