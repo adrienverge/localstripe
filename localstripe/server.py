@@ -30,6 +30,7 @@ from .resources import BalanceTransaction, Charge, Coupon, Customer, Event, \
     TaxRate, Token, extra_apis, store
 from .errors import UserError
 from .webhooks import register_webhook
+from .checkout import checkout_apis
 
 
 def json_response(*args, **kwargs):
@@ -269,7 +270,7 @@ def api_extra(func, url):
 
 # Extra routes must be added *before* regular routes, because otherwise
 # `/invoices/upcoming` would fall into `/invoices/{id}`.
-for method, url, func in extra_apis:
+for method, url, func in extra_apis + checkout_apis:
     app.router.add_route(method, url, api_extra(func, url))
 
 
