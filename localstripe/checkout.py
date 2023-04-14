@@ -15,15 +15,12 @@ CHECKOUT_HTML = """
   <br>
   <input type="submit" value="Pay">
 </form>
-
-</form>
-</body>
-</html>
+</body></html>
 """
 
 checkout_apis = []
 
-def checkout_page(request, session_id):
+def checkout_page(request):
     return CHECKOUT_HTML
 
 checkout_apis.append(('GET', '/c/pay/', checkout_page))

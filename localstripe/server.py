@@ -160,6 +160,9 @@ async def auth_middleware(request, handler):
     elif request.path.startswith('/_config/'):
         is_auth = True
 
+    elif request.path.startswith('/c/pay/'):
+        is_auth = True
+
     else:
         # There are exceptions (for example POST /v1/tokens, POST /v1/sources)
         # where authentication can be done using the public key (passed as
@@ -267,10 +270,18 @@ def api_extra(func, url):
         return json_response(func(**data)._export(expand=expand))
     return f
 
+def html_response(func, url):
+    async def f(request):
+        return func(request)
+    return f
+
+for method, url, func in checkout_apis:
+    app.router.add_route(method, url, html_response(func, url))
+
 
 # Extra routes must be added *before* regular routes, because otherwise
 # `/invoices/upcoming` would fall into `/invoices/{id}`.
-for method, url, func in extra_apis + checkout_apis:
+for method, url, func in extra_apis:
     app.router.add_route(method, url, api_extra(func, url))
 
 
