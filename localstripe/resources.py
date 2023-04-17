@@ -3273,3 +3273,51 @@ class Token(StripeObject):
 
         self.type = 'card'
         self.card = card_obj
+
+class Session(StripeObject):
+    object = 'checkout.session'
+    _id_prefix = 'cs_'
+
+    def __init__(self, line_items=None, mode=None, success_url=None,
+                payment_method_types=None, metadata=None, cancel_url=None,
+                idempotency_key=None, customer=None, customer_email=None,
+                subscription_data=None, payment_intent_data=None,
+                **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            assert isinstance(line_items, list)
+            assert mode in ('payment', 'subscription', 'setup')
+            assert type(success_url) is str and success_url
+            if payment_method_types is not None:
+                assert isinstance(payment_method_types, list)
+            if cancel_url is not None:
+                assert type(cancel_url) is str
+            if idempotency_key is not None:
+                assert type(idempotency_key) is str
+            if customer is not None:
+                assert type(customer) is str and customer.startswith('cus_')
+            if customer_email is not None :
+                assert type(customer_email) is str
+            if subscription_data is not None:
+                assert type(subscription_data) is dict
+            if payment_intent_data is not None:
+                assert type(payment_intent_data) is dict
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        if customer:
+            Customer._api_retrieve(customer) # to return 404 if not existent
+
+        self.line_items = line_items
+        self.mode = mode
+        self.success_url = success_url
+        self.cancel_url = cancel_url
+        self.idempotency_key = idempotency_key
+        self.customer = customer
+        self.customer_email = customer_email
+        self.payment_method_types = payment_method_types
+        self.metadata = metadata or {}
+        self.subscription_data = subscription_data
+        self.payment_intent_data = payment_intent_data

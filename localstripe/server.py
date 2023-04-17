@@ -272,7 +272,7 @@ def api_extra(func, url):
 
 def html_response(func, url):
     async def f(request):
-        return func(request)
+        return web.Response(text=func(request), content_type='text/html')
     return f
 
 for method, url, func in checkout_apis:

@@ -5,8 +5,8 @@ CHECKOUT_HTML = """
   <br>
   <input type="text" maxlength="16" minlength="16" id="cardNumber" name="cardNumber" placeholder="1234123412341234">
   <br>
-  <input type="number" id="cardExpiry" minlength="4" maxlength="4" placeholder="MMYY" name="cardExpiry">
-  <input type="number" id="cardCvc" minlength="3" maxlength="3" placeholder="CVC" name="cardCvc">
+  <input type="text" id="cardExpiry" minlength="4" maxlength="4" placeholder="MMYY" name="cardExpiry">
+  <input type="text" id="cardCvc" minlength="3" maxlength="3" placeholder="CVC" name="cardCvc">
   <br>
   <label for="billingName">Name on card:</label>
   <br>
