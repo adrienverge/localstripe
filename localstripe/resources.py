@@ -3310,6 +3310,9 @@ class Session(StripeObject):
         if customer:
             Customer._api_retrieve(customer) # to return 404 if not existent
 
+        # All exceptions must be raised before this point.
+        super().__init__()
+
         self.line_items = line_items
         self.mode = mode
         self.success_url = success_url
