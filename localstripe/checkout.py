@@ -1,3 +1,5 @@
+from .resources import Session
+
 CHECKOUT_HTML = """
 <html><body>
 <form>
@@ -21,6 +23,8 @@ CHECKOUT_HTML = """
 checkout_apis = []
 
 def checkout_page(request):
+    session_id = request.match_info.get('session_id', None)
+    session = Session._api_retrieve(session_id)
     return CHECKOUT_HTML
 
-checkout_apis.append(('GET', '/c/pay/', checkout_page))
+checkout_apis.append(('GET', '/c/pay/{session_id}', checkout_page))

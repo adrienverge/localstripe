@@ -21,6 +21,7 @@ import logging
 import os.path
 import re
 import socket
+from urllib import parse as urlparse
 
 from aiohttp import web
 
