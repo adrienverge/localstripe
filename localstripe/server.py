@@ -31,7 +31,7 @@ from .resources import BalanceTransaction, Charge, Coupon, Customer, Event, \
     TaxRate, Token, Session, extra_apis, store
 from .errors import UserError
 from .webhooks import register_webhook
-from .checkout import checkout_apis
+from .checkout import checkout_html_apis, checkout_extra_apis
 
 
 def json_response(*args, **kwargs):
@@ -271,20 +271,30 @@ def api_extra(func, url):
         return json_response(func(**data)._export(expand=expand))
     return f
 
-def html_response(func, url):
-    async def f(request):
-        return web.Response(text=func(request), content_type='text/html')
-    return f
-
-for method, url, func in checkout_apis:
-    app.router.add_route(method, url, html_response(func, url))
-
-
 # Extra routes must be added *before* regular routes, because otherwise
 # `/invoices/upcoming` would fall into `/invoices/{id}`.
 for method, url, func in extra_apis:
     app.router.add_route(method, url, api_extra(func, url))
 
+def html_response(func, url):
+    async def f(request):
+        return web.Response(text=func(request), content_type='text/html')
+    return f
+
+for method, url, func in checkout_html_apis:
+    app.router.add_route(method, url, html_response(func, url))
+
+def redirect_response(func, url):
+    async def f(request):
+        data = await get_post_data(request) or {}
+        data.update(unflatten_data(request.query) or {})
+        if 'session_id' in request.match_info:
+            data['session_id'] = request.match_info['session_id']
+        return web.HTTPFound(func(**data))
+    return f
+
+for method, url, func in checkout_extra_apis:
+    app.router.add_route(method, url, redirect_response(func, url))
 
 for cls in (BalanceTransaction, Charge, Coupon, Customer, Event, Invoice,
             InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, Product,

@@ -3309,6 +3309,8 @@ class Session(StripeObject):
 
         if customer:
             Customer._api_retrieve(customer) # to return 404 if not existent
+        elif customer_email is None:
+            raise UserError(400, 'Bad request')
 
         # All exceptions must be raised before this point.
         super().__init__()
