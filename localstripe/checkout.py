@@ -30,11 +30,15 @@ def checkout_page(request):
     return CHECKOUT_HTML
 
 def checkout_pay(session_id, cardNumber=None, cardExpiry=None, cardCvc=None, billingName=None):
+  # Get session info
   session = Session._api_retrieve(session_id)
+
+  # Get customer if it already exists
   customer = None
   if session.customer:
     customer = Customer._api_retrieve(session.customer)
 
+  # Payment method data
   billing_details = {
     "name": billingName,
     "email": customer.email if customer else session.customer_email
@@ -45,11 +49,16 @@ def checkout_pay(session_id, cardNumber=None, cardExpiry=None, cardCvc=None, bil
     "exp_month": cardExpiry[0:2],
     "exp_year": cardExpiry[2:4],
   }
+  # Created payment method
   pm = PaymentMethod(type=session.payment_method_types[0], billing_details=billing_details, card=card)
+
+  # If customer doesn't exist create a new customer and attach payment method
   if customer is None:
     customer = Customer(name=billingName, email=session.customer_email, payment_method=pm.id, invoice_settings={'default_payment_method': pm.id})
 
+  # Recurring payments
   if session.mode == 'subscription':
+    # Subscriptions require items to be plans so we first create plans before creating the subscription
     plans = []
     for item in session.line_items:
         product = item.get('price_data')
@@ -66,9 +75,10 @@ def checkout_pay(session_id, cardNumber=None, cardExpiry=None, cardCvc=None, bil
             'quantity': item['quantity'],
         })
 
-    # this should auto create an invoice
+    # this should auto create an invoice and attempt to pay it
     Subscription(customer=customer.id, items=plans)
 
+  # One time payments
   elif session.mode == 'payment':
     item = session.line_items[0]['price_data']
     PaymentIntent._api_create(amount=item['unit_amount_decimal'],

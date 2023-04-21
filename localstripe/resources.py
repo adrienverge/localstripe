@@ -3287,29 +3287,31 @@ class Session(StripeObject):
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         try:
-            assert isinstance(line_items, list)
-            assert mode in ('payment', 'subscription', 'setup')
-            assert type(success_url) is str and success_url
+            assert isinstance(line_items, list), 'Invalid line_items'
+            assert mode in ('payment', 'subscription', 'setup'), 'mode is {mode} and not one of [payment, subscription, setup]'.format(mode=mode)
+            assert type(success_url) is str and success_url, 'Invalid success_url'
             if payment_method_types is not None:
-                assert isinstance(payment_method_types, list)
+                assert isinstance(payment_method_types, list), 'payment_method_types is not a list'
             if cancel_url is not None:
-                assert type(cancel_url) is str
+                assert type(cancel_url) is str, 'Invalid cancel_url'
             if idempotency_key is not None:
-                assert type(idempotency_key) is str
+                assert type(idempotency_key) is str, 'Invalid idempotency_key'
             if customer is not None:
-                assert type(customer) is str and customer.startswith('cus_')
+                assert type(customer) is str and customer.startswith('cus_'), 'Invalid customer'
             if customer_email is not None :
-                assert type(customer_email) is str
+                assert type(customer_email) is str, 'Invalid customer_email'
             if subscription_data is not None:
-                assert type(subscription_data) is dict
+                assert type(subscription_data) is dict, 'Invalid subscription_data'
             if payment_intent_data is not None:
-                assert type(payment_intent_data) is dict
-        except AssertionError:
+                assert type(payment_intent_data) is dict, 'Invalid payment_intent_data'
+        except AssertionError as e:
+            print(e)
             raise UserError(400, 'Bad request')
 
         if customer:
             Customer._api_retrieve(customer) # to return 404 if not existent
         elif customer_email is None:
+            print('Missing customer information')
             raise UserError(400, 'Bad request')
 
         # All exceptions must be raised before this point.
