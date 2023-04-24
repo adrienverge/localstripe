@@ -1,9 +1,8 @@
 from .resources import Session, PaymentMethod, Customer, Subscription, PaymentIntent, Plan
-from .errors import UserError
 
 CHECKOUT_HTML = """
 <html><body>
-<form method="post">
+<form id="paymentForm" method="post">
   <label for="cardNumber">Card Number:</label>
   <br>
   <input type="text" maxlength="16" minlength="16" id="cardNumber" name="cardNumber" placeholder="1234123412341234">
@@ -16,8 +15,8 @@ CHECKOUT_HTML = """
   <input type="text" id="billingName" name="billingName">
   <br>
   <br>
-  <input type="submit" value="Pay">
 </form>
+<button type="submit" form="paymentForm" value="Pay">Pay</button>
 </body></html>
 """
 
