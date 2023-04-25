@@ -1819,6 +1819,7 @@ class PaymentIntent(StripeObject):
             if self.invoice:
                 invoice = Invoice._api_retrieve(self.invoice)
                 invoice._on_payment_success()
+            schedule_webhook(Event('payment_intent.succeeded', self))
 
         def on_failure_now():
             if self.invoice:
@@ -2224,6 +2225,8 @@ class Plan(StripeObject):
         self.product = product
         self.active = active
         self.amount = amount
+        # Temp fix
+        self.unit_amount_decimal = amount
         self.currency = currency
         self.interval = interval
         self.interval_count = interval_count
@@ -2790,6 +2793,7 @@ class Subscription(StripeObject):
         self.trial_period_days = trial_period_days
         self.trial_from_plan = trial_from_plan
         self.latest_invoice = None
+        self.pause_collection = None
         self.start_date = backdate_start_date or int(time.time())
         self.billing_cycle_anchor = billing_cycle_anchor
         self._enable_incomplete_payments = (
@@ -2858,9 +2862,11 @@ class Subscription(StripeObject):
                     PaymentMethod._api_retrieve(
                         invoice.charge.payment_method).type == 'sepa_debit'):
                 self.status = 'active'
+        schedule_webhook(Event('customer.subscription.updated', self))
 
     def _on_initial_payment_success(self, invoice):
         self.status = 'active'
+        schedule_webhook(Event('customer.subscription.updated', self))
 
     def _on_initial_payment_failure_now(self, invoice):
         if not self._enable_incomplete_payments:
@@ -2874,8 +2880,10 @@ class Subscription(StripeObject):
     def _on_initial_payment_voided(self, invoice):
         if self._enable_incomplete_payments:
             self.status = 'incomplete_expired'
+            schedule_webhook(Event('customer.subscription.updated', self))
         else:
             self.status = 'canceled'
+            schedule_webhook(Event('customer.subscription.updated', self))
 
     def _on_recurring_payment_failure(self, invoice):
         # If source is SEPA, any payment failure at creation or upgrade cancels
@@ -2885,6 +2893,7 @@ class Subscription(StripeObject):
             return Subscription._api_delete(self.id)
 
         self.status = 'past_due'
+        schedule_webhook(Event('customer.subscription.updated', self))
 
     def _update(self, metadata=None, items=None, trial_end=None,
                 default_tax_rates=None, tax_percent=None,
@@ -3033,6 +3042,7 @@ class Subscription(StripeObject):
             self.plan.interval_count != old_plan.interval_count)
         if create_an_invoice:
             self._create_invoice()
+        schedule_webhook(Event('customer.subscription.updated', self))
 
     @classmethod
     def _api_delete(cls, id):
@@ -3099,6 +3109,8 @@ class SubscriptionItem(StripeObject):
         super().__init__()
 
         self.plan = plan
+        # TODO: Implement Prices and replace this
+        self.price = plan
         self.quantity = quantity
         self.tax_rates = tax_rates
         self.metadata = metadata or {}
@@ -3328,3 +3340,6 @@ class Session(StripeObject):
         self.metadata = metadata or {}
         self.subscription_data = subscription_data
         self.payment_intent_data = payment_intent_data
+
+    def _complete_session(self):
+        schedule_webhook(Event('checkout.session.completed', self))
