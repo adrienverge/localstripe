@@ -21,15 +21,17 @@ import logging
 import os.path
 import re
 import socket
+from urllib import parse as urlparse
 
 from aiohttp import web
 
 from .resources import BalanceTransaction, Charge, Coupon, Customer, Event, \
     Invoice, InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, \
     Product, Refund, SetupIntent, Source, Subscription, SubscriptionItem, \
-    TaxRate, Token, extra_apis, store
+    TaxRate, Token, Session, extra_apis, store
 from .errors import UserError
 from .webhooks import register_webhook
+from .checkout import checkout_html_apis, checkout_extra_apis
 
 
 def json_response(*args, **kwargs):
@@ -159,6 +161,9 @@ async def auth_middleware(request, handler):
     elif request.path.startswith('/_config/'):
         is_auth = True
 
+    elif request.path.startswith('/c/pay/'):
+        is_auth = True
+
     else:
         # There are exceptions (for example POST /v1/tokens, POST /v1/sources)
         # where authentication can be done using the public key (passed as
@@ -266,23 +271,42 @@ def api_extra(func, url):
         return json_response(func(**data)._export(expand=expand))
     return f
 
-
 # Extra routes must be added *before* regular routes, because otherwise
 # `/invoices/upcoming` would fall into `/invoices/{id}`.
 for method, url, func in extra_apis:
     app.router.add_route(method, url, api_extra(func, url))
 
+def html_response(func, url):
+    async def f(request):
+        return web.Response(text=func(request), content_type='text/html')
+    return f
+
+for method, url, func in checkout_html_apis:
+    app.router.add_route(method, url, html_response(func, url))
+
+def redirect_response(func, url):
+    async def f(request):
+        data = await get_post_data(request) or {}
+        data.update(unflatten_data(request.query) or {})
+        if 'session_id' in request.match_info:
+            data['session_id'] = request.match_info['session_id']
+        return web.HTTPFound(func(**data))
+    return f
+
+for method, url, func in checkout_extra_apis:
+    app.router.add_route(method, url, redirect_response(func, url))
 
 for cls in (BalanceTransaction, Charge, Coupon, Customer, Event, Invoice,
             InvoiceItem, PaymentIntent, PaymentMethod, Payout, Plan, Product,
             Refund, SetupIntent, Source, Subscription, SubscriptionItem,
-            TaxRate, Token):
+            TaxRate, Token, Session):
+    base = cls.object.replace(".", "/")
     for method, url, func in (
-            ('POST', '/v1/' + cls.object + 's', api_create),
-            ('GET', '/v1/' + cls.object + 's/{id}', api_retrieve),
-            ('POST', '/v1/' + cls.object + 's/{id}', api_update),
-            ('DELETE', '/v1/' + cls.object + 's/{id}', api_delete),
-            ('GET', '/v1/' + cls.object + 's', api_list_all)):
+            ('POST', '/v1/' + base + 's', api_create),
+            ('GET', '/v1/' + base + 's/{id}', api_retrieve),
+            ('POST', '/v1/' + base + 's/{id}', api_update),
+            ('DELETE', '/v1/' + base + 's/{id}', api_delete),
+            ('GET', '/v1/' + base + 's', api_list_all)):
         app.router.add_route(method, url, func(cls, url))
 
 

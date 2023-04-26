@@ -402,6 +402,10 @@ Stripe = (apiKey) => {
     },
 
     createPaymentMethod: async () => {},
+
+    redirectToCheckout: ({sessionId}) => {
+      return window.location.replace(`${LOCALSTRIPE_SOURCE}/c/pay/${sessionId}`)
+    }
   };
 };
 

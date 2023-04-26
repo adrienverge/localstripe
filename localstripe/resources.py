@@ -1819,6 +1819,7 @@ class PaymentIntent(StripeObject):
             if self.invoice:
                 invoice = Invoice._api_retrieve(self.invoice)
                 invoice._on_payment_success()
+            schedule_webhook(Event('payment_intent.succeeded', self))
 
         def on_failure_now():
             if self.invoice:
@@ -2224,6 +2225,8 @@ class Plan(StripeObject):
         self.product = product
         self.active = active
         self.amount = amount
+        # Temp fix
+        self.unit_amount_decimal = amount
         self.currency = currency
         self.interval = interval
         self.interval_count = interval_count
@@ -2790,6 +2793,7 @@ class Subscription(StripeObject):
         self.trial_period_days = trial_period_days
         self.trial_from_plan = trial_from_plan
         self.latest_invoice = None
+        self.pause_collection = None
         self.start_date = backdate_start_date or int(time.time())
         self.billing_cycle_anchor = billing_cycle_anchor
         self._enable_incomplete_payments = (
@@ -2858,9 +2862,11 @@ class Subscription(StripeObject):
                     PaymentMethod._api_retrieve(
                         invoice.charge.payment_method).type == 'sepa_debit'):
                 self.status = 'active'
+        schedule_webhook(Event('customer.subscription.updated', self))
 
     def _on_initial_payment_success(self, invoice):
         self.status = 'active'
+        schedule_webhook(Event('customer.subscription.updated', self))
 
     def _on_initial_payment_failure_now(self, invoice):
         if not self._enable_incomplete_payments:
@@ -2874,8 +2880,10 @@ class Subscription(StripeObject):
     def _on_initial_payment_voided(self, invoice):
         if self._enable_incomplete_payments:
             self.status = 'incomplete_expired'
+            schedule_webhook(Event('customer.subscription.updated', self))
         else:
             self.status = 'canceled'
+            schedule_webhook(Event('customer.subscription.updated', self))
 
     def _on_recurring_payment_failure(self, invoice):
         # If source is SEPA, any payment failure at creation or upgrade cancels
@@ -2885,6 +2893,7 @@ class Subscription(StripeObject):
             return Subscription._api_delete(self.id)
 
         self.status = 'past_due'
+        schedule_webhook(Event('customer.subscription.updated', self))
 
     def _update(self, metadata=None, items=None, trial_end=None,
                 default_tax_rates=None, tax_percent=None,
@@ -3033,6 +3042,7 @@ class Subscription(StripeObject):
             self.plan.interval_count != old_plan.interval_count)
         if create_an_invoice:
             self._create_invoice()
+        schedule_webhook(Event('customer.subscription.updated', self))
 
     @classmethod
     def _api_delete(cls, id):
@@ -3099,6 +3109,8 @@ class SubscriptionItem(StripeObject):
         super().__init__()
 
         self.plan = plan
+        # TODO: Implement Prices and replace this
+        self.price = plan
         self.quantity = quantity
         self.tax_rates = tax_rates
         self.metadata = metadata or {}
@@ -3273,3 +3285,61 @@ class Token(StripeObject):
 
         self.type = 'card'
         self.card = card_obj
+
+class Session(StripeObject):
+    object = 'checkout.session'
+    _id_prefix = 'cs_'
+
+    def __init__(self, line_items=None, mode=None, success_url=None,
+                payment_method_types=None, metadata=None, cancel_url=None,
+                idempotency_key=None, customer=None, customer_email=None,
+                subscription_data=None, payment_intent_data=None,
+                **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            assert isinstance(line_items, list), 'Invalid line_items'
+            assert mode in ('payment', 'subscription', 'setup'), 'mode is {mode} and not one of [payment, subscription, setup]'.format(mode=mode)
+            assert type(success_url) is str and success_url, 'Invalid success_url'
+            if payment_method_types is not None:
+                assert isinstance(payment_method_types, list), 'payment_method_types is not a list'
+            if cancel_url is not None:
+                assert type(cancel_url) is str, 'Invalid cancel_url'
+            if idempotency_key is not None:
+                assert type(idempotency_key) is str, 'Invalid idempotency_key'
+            if customer is not None:
+                assert type(customer) is str and customer.startswith('cus_'), 'Invalid customer'
+            if customer_email is not None :
+                assert type(customer_email) is str, 'Invalid customer_email'
+            if subscription_data is not None:
+                assert type(subscription_data) is dict, 'Invalid subscription_data'
+            if payment_intent_data is not None:
+                assert type(payment_intent_data) is dict, 'Invalid payment_intent_data'
+        except AssertionError as e:
+            print(e)
+            raise UserError(400, 'Bad request')
+
+        if customer:
+            Customer._api_retrieve(customer) # to return 404 if not existent
+        elif customer_email is None:
+            print('Missing customer information')
+            raise UserError(400, 'Bad request')
+
+        # All exceptions must be raised before this point.
+        super().__init__()
+
+        self.line_items = line_items
+        self.mode = mode
+        self.success_url = success_url
+        self.cancel_url = cancel_url
+        self.idempotency_key = idempotency_key
+        self.customer = customer
+        self.customer_email = customer_email
+        self.payment_method_types = payment_method_types
+        self.metadata = metadata or {}
+        self.subscription_data = subscription_data
+        self.payment_intent_data = payment_intent_data
+
+    def _complete_session(self):
+        schedule_webhook(Event('checkout.session.completed', self))
