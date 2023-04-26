@@ -80,14 +80,12 @@ def checkout_pay(session_id, cardNumber=None, cardExpiry=None, cardCvc=None, bil
 
 	# One time payments
 	elif session.mode == 'payment':
-		item = session.line_items[0]['price_data']
-		pi = PaymentIntent._api_create(amount=item['unit_amount_decimal'],
-								metadata=session.payment_intent_data['metadata'],
-								currency=item['currency'],
-								customer=customer.id,
-								payment_method=pm.id,
-								confirm=True)
-		session.payment_intent = pi.id
+		pi_data = {
+			"customer": customer.id,
+			"payment_method": pm.id
+		}
+		PaymentIntent._api_update(session.payment_intent, **pi_data)
+		PaymentIntent._api_confirm(session.payment_intent)
 
 	session._complete_session()
 

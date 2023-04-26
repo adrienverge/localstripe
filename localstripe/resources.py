@@ -3327,6 +3327,15 @@ class Session(StripeObject):
             raise UserError(400, 'Bad request')
 
         # All exceptions must be raised before this point.
+
+        # Create payment intent for single payments
+        pi = None
+        if mode == "payment":
+            item = line_items[0]['price_data']
+            pi = PaymentIntent(amount=item['unit_amount_decimal'],
+                                metadata=payment_intent_data['metadata'],
+								currency=item['currency'],
+								customer=customer)
         super().__init__()
 
         self.line_items = line_items
@@ -3340,6 +3349,7 @@ class Session(StripeObject):
         self.metadata = metadata or {}
         self.subscription_data = subscription_data
         self.payment_intent_data = payment_intent_data
+        self.payment_intent = pi.id if pi else None
 
     def _complete_session(self):
         schedule_webhook(Event('checkout.session.completed', self))
