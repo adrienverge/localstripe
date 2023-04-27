@@ -3326,8 +3326,6 @@ class Session(StripeObject):
             print('Missing customer information')
             raise UserError(400, 'Bad request')
 
-        # All exceptions must be raised before this point.
-
         # Create payment intent for single payments
         pi = None
         if mode == "payment":
@@ -3336,6 +3334,8 @@ class Session(StripeObject):
                                 metadata=payment_intent_data['metadata'],
 								currency=item['currency'],
 								customer=customer)
+
+        # All exceptions must be raised before this point.
         super().__init__()
 
         self.line_items = line_items
