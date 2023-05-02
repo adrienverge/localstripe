@@ -27,7 +27,6 @@ CHECKOUT_HTML = """
 """
 
 checkout_html_apis = []
-checkout_extra_apis = []
 
 def checkout_page(request, session_id, cardNumber=None, cardExpiry=None, cardCvc=None, billingName=None):
     session_id = request.match_info.get('session_id', None)
