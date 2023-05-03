@@ -1,0 +1,21 @@
+#
+# Cloudbuild config for main branch
+#
+
+# [START cloudbuild]
+steps:
+
+  - id: "build localstripe image"
+    name: "gcr.io/kaniko-project/executor:v1.6.0"
+    args: [
+        "--destination", "asia.gcr.io/${PROJECT_ID}/${_BACKEND_SERVICE_NAME}:${COMMIT_SHA}",
+        "--destination", "asia.gcr.io/${PROJECT_ID}/${_BACKEND_SERVICE_NAME}:latest",
+        "--cache=true",
+        "--cache-ttl=336h0m0s", # 2 weeks (default)
+    ]
+
+
+substitutions:
+  _BACKEND_SERVICE_NAME: localstripe
+
+# [END cloudbuild]]
