@@ -777,6 +777,8 @@ class Customer(StripeObject):
         self.discount = None
         self.shipping = None
         self.default_source = None
+        # Prefix that's used for invoice numbers
+        self.invoice_prefix = random_id(12)
 
         if payment_method is not None:
             PaymentMethod._api_attach(payment_method, customer=self.id)
@@ -1099,7 +1101,7 @@ class Invoice(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        Customer._api_retrieve(customer)  # to return 404 if not existant
+        customer_obj = Customer._api_retrieve(customer)  # to return 404 if not existant
 
         if subscription is not None:
             subscription_obj = Subscription._api_retrieve(subscription)
@@ -1141,6 +1143,12 @@ class Invoice(StripeObject):
         if subscription is not None:
             self.period_start = subscription_obj.current_period_start
             self.period_end = subscription_obj.current_period_end
+
+        # Partial implementation of invoice number, as the actual implementation initiates the value as DRAFT
+        # then replaces it with the invoice count
+        if subscription:
+            count = Invoice._api_list_all(None, customer=self.customer).total_count
+            self.number = customer_obj.invoice_prefix + '-%04d' % count
 
         self.lines = List('/v1/invoices/' + self.id + '/lines')
         for item in items:
@@ -1227,10 +1235,6 @@ class Invoice(StripeObject):
                 return 'void'
         return 'open'
 
-    # TEMP FIX
-    @property
-    def number(self):
-        return random_id(14)
 
     @property
     def charge(self):
@@ -2231,7 +2235,9 @@ class Plan(StripeObject):
         self.product = product
         self.active = active
         self.amount = amount
-        # Temp fix
+
+        # Unit amount decimal and amount are usually the same, so this is a partial implementation
+        #  of accepting unit_amount_decimal
         self.unit_amount_decimal = amount
         self.currency = currency
         self.interval = interval
@@ -3238,7 +3244,7 @@ class SubscriptionItem(StripeObject):
             print(e)
             raise UserError(400, 'Bad Request')
 
-        # Temp fix
+        # Partial implementation of prices, it will take price data and it will create a plan instead
         if price_data:
             plan_data = {
                 "amount": price_data['unit_amount_decimal'],
