@@ -777,6 +777,8 @@ class Customer(StripeObject):
         self.discount = None
         self.shipping = None
         self.default_source = None
+        # Prefix that's used for invoice numbers
+        self.invoice_prefix = random_id(8).upper()
 
         if payment_method is not None:
             PaymentMethod._api_attach(payment_method, customer=self.id)
@@ -1099,7 +1101,7 @@ class Invoice(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        Customer._api_retrieve(customer)  # to return 404 if not existant
+        customer_obj = Customer._api_retrieve(customer)  # to return 404 if not existant
 
         if subscription is not None:
             subscription_obj = Subscription._api_retrieve(subscription)
@@ -1141,6 +1143,12 @@ class Invoice(StripeObject):
         if subscription is not None:
             self.period_start = subscription_obj.current_period_start
             self.period_end = subscription_obj.current_period_end
+
+        # Partial implementation of invoice number, as the actual implementation initiates the value as DRAFT
+        # then replaces it with the invoice count
+        if subscription:
+            count = Invoice._api_list_all(None, customer=self.customer).total_count
+            self.number = customer_obj.invoice_prefix + '-%04d' % count
 
         self.lines = List('/v1/invoices/' + self.id + '/lines')
         for item in items:
@@ -1227,12 +1235,13 @@ class Invoice(StripeObject):
                 return 'void'
         return 'open'
 
+
     @property
     def charge(self):
         if self.payment_intent:
             pi = PaymentIntent._api_retrieve(self.payment_intent)
             if len(pi.charges._list):
-                return pi.charges._list[-1]
+                return pi.charges._list[-1].id
 
     def _finalize(self):
         assert self.status == 'draft'
@@ -1243,6 +1252,7 @@ class Invoice(StripeObject):
         assert self.status == 'paid'
         self.status_transitions['paid_at'] = int(time.time())
         schedule_webhook(Event('invoice.payment_succeeded', self))
+        schedule_webhook(Event('invoice.paid', self))
         if self.subscription:
             sub = Subscription._api_retrieve(self.subscription)
             sub._on_initial_payment_success(self)
@@ -2225,7 +2235,9 @@ class Plan(StripeObject):
         self.product = product
         self.active = active
         self.amount = amount
-        # Temp fix
+
+        # Unit amount decimal and amount are usually the same, so this is a partial implementation
+        #  of accepting unit_amount_decimal
         self.unit_amount_decimal = amount
         self.currency = currency
         self.interval = interval
@@ -2898,7 +2910,8 @@ class Subscription(StripeObject):
                 default_tax_rates=None, tax_percent=None,
                 plan=None, quantity=None,  # legacy support
                 prorate=None, proration_date=None, cancel_at_period_end=None,
-                cancel_at=None,
+                cancel_at=None, proration_behavior=None, pause_collection=None,
+                billing_cycle_anchor=None,
                 # Currently unimplemented, only False works as expected:
                 enable_incomplete_payments=False):
 
@@ -2929,6 +2942,16 @@ class Subscription(StripeObject):
                 assert type(default_tax_rates) is list
                 assert all(type(txr) is str and txr.startswith('txr_')
                            for txr in default_tax_rates)
+            if pause_collection:
+                assert isinstance(pause_collection, dict)
+                assert pause_collection['behavior'] in ['keep_as_draft', 'mark_uncollectible', 'void'], \
+                    'pause behavior is {behavior} and not one of [keep_as_draft, mark_uncollectible, void]'.format(behavior=pause_collection['behavior'])
+            if proration_behavior is not None:
+                assert proration_behavior in ['create_prorations', 'none'], \
+                    'proration behavior is {behavior} and not one of [create_prorations, none]'.format(behavior=proration_behavior)
+            if billing_cycle_anchor is not None:
+                assert billing_cycle_anchor in ['now', 'unchanged'], \
+                    'billing cycle anchor is {behavior} and not one of [now, unchanged]'.format(behavior=proration_behavior)
             if prorate is not None:
                 assert type(prorate) is bool
             if proration_date is not None:
@@ -2957,7 +2980,8 @@ class Subscription(StripeObject):
                     item['metadata'] = item.get('metadata')
                     if item['metadata'] is not None:
                         assert type(item['metadata']) is dict
-        except AssertionError:
+        except AssertionError as e:
+            print(e)
             raise UserError(400, 'Bad request')
 
         old_plan = self.plan
@@ -3033,12 +3057,21 @@ class Subscription(StripeObject):
         if cancel_at is not None:
             self.cancel_at = cancel_at
 
+        # We update start_date here, because we want to call create_invoice
+        # and update current_period_start so that the new invoice gets applied
+        # immediately. And currently current_period_start is attached to start_date.
+        if billing_cycle_anchor == 'now':
+            self.start_date = int(time.time())
+
+        self.pause_collection = pause_collection or None
+
         # If the subscription is updated to a more expensive plan, an invoice
         # is not automatically generated. To achieve that, an invoice has to
         # be manually created using the POST /invoices route.
-        create_an_invoice = self.plan.billing_scheme == 'per_unit' and (
+        create_an_invoice = billing_cycle_anchor == 'now' or (
+            self.plan.billing_scheme == 'per_unit' and (
             self.plan.interval != old_plan.interval or
-            self.plan.interval_count != old_plan.interval_count)
+            self.plan.interval_count != old_plan.interval_count))
         if create_an_invoice:
             self._create_invoice()
         schedule_webhook(Event('customer.subscription.updated', self))
@@ -3174,6 +3207,56 @@ class SubscriptionItem(StripeObject):
     def _calculate_amount_in_tier(self, quantity, index):
         t = self.plan.tiers[index]
         return int(t['unit_amount']) * quantity + int(t['flat_amount'])
+
+    # Partial implementation, we would like to have a ending_before implementation as well
+    @classmethod
+    def _api_list_all(cls, url, subscription=None, limit=None,
+                      starting_after=None):
+        try:
+            if subscription is not None:
+                assert type(subscription) is str and subscription.startswith('sub_')
+
+        except AssertionError:
+            print('Invalid subscription provided')
+            raise UserError(400, 'Bad request')
+
+        li = super(SubscriptionItem,
+                   cls)._api_list_all(url, limit=limit,
+                                      starting_after=starting_after)
+
+        if subscription is not None:
+            li._list = [subitem for subitem in li._list if subitem._subscription == subscription]
+
+        return li
+
+    # Partial support as we don't include all possible params such as metadata and payment_behavior
+    def _update(self, price_data=None, quantity=1, proration_behavior=None):
+
+        quantity = try_convert_to_int(quantity)
+
+        try:
+            if price_data is not None:
+                assert isinstance(price_data, dict), 'invalid price_data'
+            assert type(quantity) is int and quantity > 0, 'invalid quantity {quantity}'.format(quantity=quantity)
+            if proration_behavior is not None:
+                assert proration_behavior in ['create_prorations', 'none'], \
+                    'unexpected proration_behavior {behavior}'.format(behavior=proration_behavior)
+        except AssertionError as e:
+            print(e)
+            raise UserError(400, 'Bad Request')
+
+        # Partial implementation of prices, it will take price data and it will create a plan instead
+        if price_data:
+            plan_data = {
+                "amount": price_data['unit_amount_decimal'],
+                "currency": price_data['currency'],
+                "product": price_data['product'],
+                "interval": "month"
+            }
+
+            plan = Plan(**plan_data)
+            self.plan = plan
+            self.price = plan
 
 
 class TaxId(StripeObject):

@@ -82,10 +82,9 @@ def checkout_pay(session, customer, payment_method):
             plan_data = {
 				"amount": product['unit_amount_decimal'],
 				"currency": product['currency'],
-				"product": product['product']
+				"product": product['product'],
+                "interval": 'month'
 			}
-            if session.mode == 'subscription':
-                plan_data['interval'] = 'month'
             plan = Plan(**plan_data)
             plans.append({
 				'plan': plan.id,
