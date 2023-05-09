@@ -2862,7 +2862,6 @@ class Subscription(StripeObject):
                     PaymentMethod._api_retrieve(
                         invoice.charge.payment_method).type == 'sepa_debit'):
                 self.status = 'active'
-        schedule_webhook(Event('customer.subscription.updated', self))
 
     def _on_initial_payment_success(self, invoice):
         self.status = 'active'
