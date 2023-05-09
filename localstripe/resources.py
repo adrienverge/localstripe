@@ -778,7 +778,7 @@ class Customer(StripeObject):
         self.shipping = None
         self.default_source = None
         # Prefix that's used for invoice numbers
-        self.invoice_prefix = random_id(12)
+        self.invoice_prefix = random_id(8).upper()
 
         if payment_method is not None:
             PaymentMethod._api_attach(payment_method, customer=self.id)
@@ -3058,6 +3058,9 @@ class Subscription(StripeObject):
         if cancel_at is not None:
             self.cancel_at = cancel_at
 
+        # We update start_date here, because we want to call create_invoice
+        # and update current_period_start so that the new invoice gets applied
+        # immediately. And currently current_period_start is attached to start_date.
         if billing_cycle_anchor == 'now':
             self.start_date = int(time.time())
 
@@ -3206,6 +3209,7 @@ class SubscriptionItem(StripeObject):
         t = self.plan.tiers[index]
         return int(t['unit_amount']) * quantity + int(t['flat_amount'])
 
+    # Partial implementation, we would like to have a ending_before implementation as well
     @classmethod
     def _api_list_all(cls, url, subscription=None, limit=None,
                       starting_after=None):
@@ -3226,10 +3230,8 @@ class SubscriptionItem(StripeObject):
 
         return li
 
-    def _update(self, price_data=None, quantity=1, proration_behavior=None,
-                **kwargs):
-        if kwargs:
-            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+    # Partial support as we don't include all possible params such as metadata and payment_behavior
+    def _update(self, price_data=None, quantity=1, proration_behavior=None):
 
         quantity = try_convert_to_int(quantity)
 
