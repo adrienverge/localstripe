@@ -2864,15 +2864,16 @@ class Subscription(StripeObject):
         if invoice.status == 'paid':
             self.status = 'active'
         elif invoice.charge:
-            if invoice.charge.status == 'failed':
+            charge = Charge._api_retrieve(invoice.charge)
+            if charge.status == 'failed':
                 if self.status != 'incomplete':
                     self._on_recurring_payment_failure(invoice)
             # If source is SEPA, subscription starts `active` (even with
             # `enable_incomplete_payments`), then is canceled later if the
             # payment fails:
-            if (invoice.charge.status == 'pending' and
+            if (charge.status == 'pending' and
                     PaymentMethod._api_retrieve(
-                        invoice.charge.payment_method).type == 'sepa_debit'):
+                        charge.payment_method).type == 'sepa_debit'):
                 self.status = 'active'
 
     def _on_initial_payment_success(self, invoice):
@@ -2882,8 +2883,9 @@ class Subscription(StripeObject):
     def _on_initial_payment_failure_now(self, invoice):
         if not self._enable_incomplete_payments:
             super()._api_delete(self.id)
-            raise UserError(402, invoice.charge.failure_message,
-                            {'code': invoice.charge.failure_code})
+            charge = Charge._api_retrieve(invoice.charge)
+            raise UserError(402, charge.failure_message,
+                            {'code': charge.failure_code})
 
     def _on_initial_payment_failure_later(self, invoice):
         Subscription._api_delete(self.id)
@@ -2899,9 +2901,11 @@ class Subscription(StripeObject):
     def _on_recurring_payment_failure(self, invoice):
         # If source is SEPA, any payment failure at creation or upgrade cancels
         # the subscription:
-        if (invoice.charge and PaymentMethod._api_retrieve(
-                invoice.charge.payment_method).type == 'sepa_debit'):
-            return Subscription._api_delete(self.id)
+        if invoice.charge:
+            charge = Charge._api_retrieve(invoice.charge)
+            if (PaymentMethod._api_retrieve(
+                charge.payment_method).type == 'sepa_debit'):
+                return Subscription._api_delete(self.id)
 
         self.status = 'past_due'
         schedule_webhook(Event('customer.subscription.updated', self))
