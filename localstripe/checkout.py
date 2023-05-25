@@ -63,6 +63,7 @@ def checkout_page(request, session_id, cardNumber=None, cardExpiry=None, cardCvc
         else:
             try:
                 pm._api_attach(pm.id, customer.id)
+                customer._api_update(customer.id, invoice_settings={'default_payment_method': pm.id})
             except UserError as e:
                 if e.code == 402:
                     html_vars["CARD_ERROR"] = "Your credit card was declined. Try paying with a debit card instead."
@@ -92,7 +93,7 @@ def checkout_pay(session, customer, payment_method):
 			})
 
 		# this should auto create an invoice and attempt to pay it
-        sub = Subscription(customer=customer, items=plans, metadata=session.subscription_data['metadata'])
+        sub = Subscription(customer=customer, items=plans, **session.subscription_data)
         session.subscription = sub.id
 
 	# One time payments
