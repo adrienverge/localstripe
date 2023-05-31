@@ -63,6 +63,8 @@ def checkout_page(request, session_id, cardNumber=None, cardExpiry=None, cardCvc
         else:
             try:
                 pm._api_attach(pm.id, customer.id)
+                # note that Stripe doesn't update the customer's default payment method after user completes the checkout page
+                # we do this here since localstripe only pays with default payment method
                 customer._api_update(customer.id, invoice_settings={'default_payment_method': pm.id})
             except UserError as e:
                 if e.code == 402:
