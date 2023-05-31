@@ -22,6 +22,7 @@ import random
 import re
 import string
 import time
+import os
 
 from dateutil.relativedelta import relativedelta
 
@@ -1121,7 +1122,10 @@ class Invoice(StripeObject):
         self.metadata = metadata or {}
         self.payment_intent = None
         self.application_fee = None
-        self.attempt_count = 1
+        # attempt_count is incremented on payment success/failure instead
+        self.attempt_count = 0
+        self.auto_advance = True
+        self.closed = False
         self.attempted = True
         self.billing_reason = None
         self.collection_method = 'charge_automatically'
@@ -1216,8 +1220,16 @@ class Invoice(StripeObject):
 
     @property
     def next_payment_attempt(self):
+        # configurable envvar MAX_PAYMENT_FAILURE_RETRIES
+        # simulating the customizable retry schedule on Stripe Dashboard
+        max_retries = os.getenv("MAX_PAYMENT_FAILURE_RETRIES", 3)
         if self.status in ('draft', 'open'):
-            return self.date
+            # we need to + 1 to include the first payment failure too
+            # same as Stripe, next_payment_attempt would become null when there are no more retries
+            if self.attempt_count < max_retries + 1:
+                return self.date
+            else:
+                return None
 
     @property
     def status(self):
@@ -1250,6 +1262,7 @@ class Invoice(StripeObject):
 
     def _on_payment_success(self):
         assert self.status == 'paid'
+        self.attempt_count += 1
         self.status_transitions['paid_at'] = int(time.time())
         schedule_webhook(Event('invoice.payment_succeeded', self))
         schedule_webhook(Event('invoice.paid', self))
@@ -1259,6 +1272,12 @@ class Invoice(StripeObject):
 
     def _on_payment_failure_now(self):
         assert self.status in ('open', 'void')
+        # updating attributes here for simplicity
+        # TODO: implement invoice.updated handling and emit webhook event
+        self.attempt_count += 1
+        if self.attempt_count >= os.getenv("MAX_PAYMENT_FAILURE_RETRIES", 3) + 1:
+            self.auto_advance = False
+            self.closed = True
         if self.status == 'void':
             self.status_transitions['voided_at'] = int(time.time())
         schedule_webhook(Event('invoice.payment_failed', self))
@@ -1271,6 +1290,12 @@ class Invoice(StripeObject):
 
     def _on_payment_failure_later(self):
         assert self.status in ('open', 'void')
+        # updating attributes here for simplicity
+        # TODO: implement invoice.updated handling and emit webhook event
+        self.attempt_count += 1
+        if self.attempt_count >= os.getenv("MAX_PAYMENT_FAILURE_RETRIES", 3) + 1:
+            self.auto_advance = False
+            self.closed = True
         if self.status == 'void':
             self.status_transitions['voided_at'] = int(time.time())
         schedule_webhook(Event('invoice.payment_failed', self))
@@ -1538,6 +1563,20 @@ class Invoice(StripeObject):
         return obj
 
     @classmethod
+    def _api_retry_invoice(cls, id):
+        """ api method specifically for retrying a failed invoice
+        """
+        obj = Invoice._api_retrieve(id)
+        if obj.status == 'paid':
+            raise UserError(400, 'Invoice is already paid')
+        elif obj.status != 'open':
+            raise UserError(400, 'Bad request')
+
+        PaymentIntent._api_retry(obj.payment_intent)
+
+        return obj
+
+    @classmethod
     def _api_void_invoice(cls, id):
         obj = Invoice._api_retrieve(id)
 
@@ -1572,6 +1611,7 @@ class Invoice(StripeObject):
 extra_apis.extend((
     ('GET', '/v1/invoices/upcoming', Invoice._api_upcoming_invoice),
     ('POST', '/v1/invoices/{id}/pay', Invoice._api_pay_invoice),
+    ('POST', '/v1/invoices/{id}/retry', Invoice._api_retry_invoice),
     ('POST', '/v1/invoices/{id}/void', Invoice._api_void_invoice),
     ('GET', '/v1/invoices/{id}/lines', Invoice._api_list_lines)))
 
@@ -1822,7 +1862,10 @@ class PaymentIntent(StripeObject):
         self._authentication_failed = False
 
     def _trigger_payment(self):
-        if self.status != 'requires_confirmation':
+        # we call _trigger_payment here from 2 scenarios:
+        # 1. from _api_confirm when the status is requires_confirmation
+        # 2. from _api_retry when the status is requires_payment_method
+        if self.status not in ['requires_confirmation', 'requires_payment_method']:
             raise UserError(400, 'Bad request')
 
         def on_success():
@@ -1835,11 +1878,13 @@ class PaymentIntent(StripeObject):
             if self.invoice:
                 invoice = Invoice._api_retrieve(self.invoice)
                 invoice._on_payment_failure_now()
+            schedule_webhook(Event('payment_intent.payment_failed', self))
 
         def on_failure_later():
             if self.invoice:
                 invoice = Invoice._api_retrieve(self.invoice)
                 invoice._on_payment_failure_later()
+            schedule_webhook(Event('payment_intent.payment_failed', self))
 
         charge = Charge(amount=self.amount,
                         currency=self.currency,
@@ -1919,6 +1964,39 @@ class PaymentIntent(StripeObject):
         obj = cls._api_retrieve(id)
 
         if obj.status != 'requires_confirmation':
+            raise UserError(400, 'Bad request')
+
+        obj._authentication_failed = False
+        payment_method = PaymentMethod._api_retrieve(obj.payment_method)
+        if payment_method._requires_authentication():
+            obj.next_action = {
+                'type': 'use_stripe_sdk',
+                'use_stripe_sdk': {'type': 'three_d_secure_redirect',
+                                   'stripe_js': ''},
+            }
+        else:
+            obj._trigger_payment()
+
+        return obj
+
+    @classmethod
+    def _api_retry(cls, id, payment_method=None, **kwargs):
+        """ api method specifically for retrying the payment intent
+        """
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        if payment_method is not None:
+            raise UserError(500, 'Not implemented')
+
+        try:
+            assert type(id) is str and id.startswith('pi_')
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        obj = cls._api_retrieve(id)
+
+        if obj.status != 'requires_payment_method':
             raise UserError(400, 'Bad request')
 
         obj._authentication_failed = False
@@ -2907,8 +2985,15 @@ class Subscription(StripeObject):
                 charge.payment_method).type == 'sepa_debit'):
                 return Subscription._api_delete(self.id)
 
-        self.status = 'past_due'
-        schedule_webhook(Event('customer.subscription.updated', self))
+        max_retries = os.getenv("MAX_PAYMENT_FAILURE_RETRIES", 3)
+        # delete the subscription when max_retries is reached
+        if invoice.attempt_count >= max_retries + 1:
+            return Subscription._api_delete(self.id)
+
+        # no need to emit the updated event when the status remains past_due
+        if self.status == 'active':
+            self.status = 'past_due'
+            schedule_webhook(Event('customer.subscription.updated', self))
 
     def _update(self, metadata=None, items=None, trial_end=None,
                 default_tax_rates=None, tax_percent=None,
