@@ -3517,6 +3517,22 @@ class Session(StripeObject):
         self.subscription_data = subscription_data
         self.payment_intent_data = payment_intent_data
         self.payment_intent = pi.id if pi else None
+        self.status = "open"
 
     def _complete_session(self):
+        self.status = "complete"
         schedule_webhook(Event('checkout.session.completed', self))
+
+    def _expire_session(self):
+        self.status = "expired"
+        schedule_webhook(Event('checkout.session.expired', self))
+
+    @classmethod
+    def _api_expire(cls, id):
+        obj = Session._api_retrieve(id)
+        obj._expire_session()
+        # also cancels payment intent
+        PaymentIntent._api_cancel(obj.payment_intent)
+        return obj
+
+extra_apis.append(('POST', '/v1/checkout/sessions/{id}/expire', Session._api_expire))
