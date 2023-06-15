@@ -934,3 +934,14 @@ code=$(curl -sg -o /dev/null -w '%{http_code}' -u $SK: $HOST/v1/customers \
 total_count=$( curl -sSfg -u $SK: $HOST/v1/customers \
              | grep -oE '"total_count": 9,')
 [ -n "$total_count" ]
+
+cus=$(curl -sSfg -u $SK: $HOST/v1/customers \
+           -d balance='-20000000' \
+      | grep -oE 'cus_\w+' | head -n 1)
+
+amount=$(curl -sSfg -u $SK: $HOST/v1/subscriptions \
+              -d customer=$cus \
+              -d items[0][plan]=basique-mensuel \
+              -d expand[]=latest_invoice \
+         | grep -oP 'amount_due": \K([0-9]+)')
+[ "$amount" -eq 0 ]
