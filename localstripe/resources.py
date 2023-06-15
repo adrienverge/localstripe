@@ -710,10 +710,11 @@ class Customer(StripeObject):
                  phone=None, address=None,
                  invoice_settings=None, business_vat_id=None,
                  preferred_locales=None, tax_id_data=None,
-                 metadata=None, payment_method=None, **kwargs):
+                 metadata=None, payment_method=None, balance=0, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
+        balance = try_convert_to_int(balance)
         try:
             if name is not None:
                 assert type(name) is str
@@ -753,6 +754,7 @@ class Customer(StripeObject):
                 assert type(data['value']) is str and len(data['value']) > 10
             if payment_method is not None:
                 assert type(payment_method) is str
+            assert type(balance) is int
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -772,7 +774,7 @@ class Customer(StripeObject):
         self.business_vat_id = business_vat_id
         self.preferred_locales = preferred_locales
         self.metadata = metadata or {}
-        self.account_balance = 0
+        self.account_balance = - balance
         self.delinquent = False
         self.discount = None
         self.shipping = None
@@ -1099,7 +1101,7 @@ class Invoice(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        Customer._api_retrieve(customer)  # to return 404 if not existant
+        cus = Customer._api_retrieve(customer)
 
         if subscription is not None:
             subscription_obj = Subscription._api_retrieve(subscription)
@@ -1125,9 +1127,8 @@ class Invoice(StripeObject):
         self.collection_method = 'charge_automatically'
         self.description = description
         self.discount = None
-        self.ending_balance = 0
         self.receipt_number = None
-        self.starting_balance = 0
+        self.starting_balance = cus.account_balance
         self.statement_descriptor = None
         self.webhooks_delivered_at = self.date
         self.status_transitions = {
@@ -1163,6 +1164,9 @@ class Invoice(StripeObject):
         self._draft = True
         self._voided = False
 
+        self.ending_balance = \
+            max(0, cus.account_balance - self.subtotal - self.tax)
+
         if not simulation and not upcoming:
             if subscription is not None:
                 subscription_obj.latest_invoice = self.id
@@ -1196,7 +1200,7 @@ class Invoice(StripeObject):
 
     @property
     def total(self):
-        return self.subtotal + self.tax
+        return max(0, self.subtotal + self.tax - self.starting_balance)
 
     @property
     def amount_due(self):
