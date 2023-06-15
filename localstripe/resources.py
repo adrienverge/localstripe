@@ -233,7 +233,7 @@ class StripeObject(object):
                     id = obj[k]
                     cls = StripeObject._get_class_for_id(id)
                     obj[k] = cls._api_retrieve(id)._export()
-                if path is not None:
+                if path is not None and obj[k] is not None:
                     do_expand(path, obj[k])
         try:
             for path in expand:

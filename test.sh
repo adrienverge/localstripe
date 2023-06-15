@@ -945,3 +945,9 @@ amount=$(curl -sSfg -u $SK: $HOST/v1/subscriptions \
               -d expand[]=latest_invoice \
          | grep -oP 'amount_due": \K([0-9]+)')
 [ "$amount" -eq 0 ]
+
+charge=$(curl -sSfgG -u $SK: $HOST/v1/invoices \
+              -d customer=$cus \
+              -d expand[]=data.charge.refunds \
+         | grep -oE '"charge": null,')
+[ -n "$charge" ]
