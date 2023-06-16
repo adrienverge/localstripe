@@ -439,7 +439,7 @@ code=$(curl -sg -o /dev/null -w "%{http_code}" -u $SK: \
 curl -sSfg -u $SK: $HOST/v1/subscriptions \
      -d customer=$cus \
      -d items[0][plan]=basique-mensuel \
-     -d expand[]=latest_invoice.payment_intent
+     -d expand[]=latest_invoice.payment_intent.latest_charge
 
 res=$(curl -sSfg -u $SK: $HOST/v1/subscriptions \
            -d customer=$cus \
