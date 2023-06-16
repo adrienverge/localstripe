@@ -1235,8 +1235,7 @@ class Invoice(StripeObject):
     def charge(self):
         if self.payment_intent:
             pi = PaymentIntent._api_retrieve(self.payment_intent)
-            if len(pi.charges._list):
-                return pi.charges._list[-1]
+            return pi.latest_charge
 
     def _finalize(self):
         assert self.status == 'draft'
@@ -1804,7 +1803,7 @@ class PaymentIntent(StripeObject):
 
         self.amount = amount
         self.currency = currency
-        self.charges = List('/v1/charges?payment_intent=' + self.id)
+        self.latest_charge = None
         self.client_secret = self.id + '_secret_' + random_id(16)
         self.customer = customer
         self.payment_method = payment_method
@@ -1838,7 +1837,7 @@ class PaymentIntent(StripeObject):
                         currency=self.currency,
                         customer=self.customer,
                         source=self.payment_method)
-        self.charges._list.append(charge)
+        self.latest_charge = charge
         charge._trigger_payment(on_success, on_failure_now, on_failure_later)
 
     @property
@@ -1849,15 +1848,21 @@ class PaymentIntent(StripeObject):
             return 'requires_payment_method'
         if self.next_action:
             return 'requires_action'
-        if len(self.charges._list) == 0:
+        if self.latest_charge is None:
             return 'requires_confirmation'
-        charge = self.charges._list[-1]
-        if charge.status == 'succeeded':
+        if self.latest_charge.status == 'succeeded':
             return 'succeeded'
-        elif charge.status == 'failed':
+        elif self.latest_charge.status == 'failed':
             return 'requires_payment_method'
-        elif charge.status == 'pending':
+        elif self.latest_charge.status == 'pending':
             return 'processing'
+
+    @property
+    def charges(self):
+        charges = List('/v1/charges?payment_intent=' + self.id)
+        if self.latest_charge is not None:
+            charges._list = [self.latest_charge]
+        return charges
 
     @property
     def last_payment_error(self):
@@ -1867,13 +1872,12 @@ class PaymentIntent(StripeObject):
                 'message': (
                     'The provided PaymentMethod has failed authentication.'),
             }
-        if len(self.charges._list):
-            charge = self.charges._list[-1]
-            if charge.status == 'failed':
+        if self.latest_charge:
+            if self.latest_charge.status == 'failed':
                 return {
-                    'charge': charge.id,
-                    'code': charge.failure_code,
-                    'message': charge.failure_message,
+                    'charge': self.latest_charge.id,
+                    'code': self.latest_charge.failure_code,
+                    'message': self.latest_charge.failure_message,
                 }
 
     @classmethod
