@@ -1286,7 +1286,8 @@ class Invoice(StripeObject):
                           subscription_proration_date=None,
                           subscription_tax_percent=None,  # deprecated
                           subscription_default_tax_rates=None,
-                          subscription_trial_end=None):
+                          subscription_trial_end=None,
+                          pending_invoice_items_behavior=None):
         subscription_proration_date = \
             try_convert_to_int(subscription_proration_date)
         try:
@@ -1440,11 +1441,13 @@ class Invoice(StripeObject):
 
     @classmethod
     def _api_create(cls, customer=None, subscription=None, tax_percent=None,
-                    default_tax_rates=None, description=None, metadata=None):
+                    default_tax_rates=None, description=None, metadata=None,
+                    pending_invoice_items_behavior=None):
         return cls._get_next_invoice(
             customer=customer, subscription=subscription,
             tax_percent=tax_percent, default_tax_rates=default_tax_rates,
-            description=description, metadata=metadata)
+            description=description, metadata=metadata,
+            pending_invoice_items_behavior=pending_invoice_items_behavior)
 
     @classmethod
     def _api_delete(cls, id):
@@ -1858,7 +1861,7 @@ class PaymentIntent(StripeObject):
             return 'processing'
 
     @property
-    def charges(self):
+    def charges(self):  # deprecated
         charges = List('/v1/charges?payment_intent=' + self.id)
         if self.latest_charge is not None:
             charges._list = [self.latest_charge]
