@@ -158,7 +158,7 @@ class StripeObject(object):
         if key not in store.keys():
             raise UserError(404, 'Not Found')
         del store[key]
-        return {'deleted': True, 'id': id}
+        return DeletedObject(id, cls.object)
 
     @classmethod
     def _api_list_all(cls, url, limit=None, starting_after=None, **kwargs):
@@ -242,6 +242,14 @@ class StripeObject(object):
             raise UserError(400, 'Bad expand %s' % e)
 
         return obj
+
+
+class DeletedObject(StripeObject):
+    deleted = True
+
+    def __init__(self, id, object):
+        self.id = id
+        self.object = object
 
 
 class Balance(object):
