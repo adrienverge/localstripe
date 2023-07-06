@@ -948,6 +948,29 @@ class Customer(StripeObject):
         return obj.tax_ids
 
     @classmethod
+    def _api_retrieve_tax_id(cls, id, tax_id, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        obj = cls._api_retrieve(id)
+        for txi in obj.tax_ids._list:
+            if txi.id == tax_id:
+                return txi
+        raise UserError(404, 'Customer ' + id + ' does not have a tax ID with '
+                             'ID ' + tax_id)
+
+    @classmethod
+    def _api_delete_tax_id(cls, id, tax_id, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        obj = cls._api_retrieve(id)
+        tax_id_obj = cls._api_retrieve_tax_id(id, tax_id)
+        obj.tax_ids._list.remove(tax_id_obj)
+
+        return DeletedObject(tax_id_obj.id, tax_id_obj.object)
+
+    @classmethod
     def _api_list_subscriptions(cls, id, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
@@ -1042,8 +1065,12 @@ extra_apis.extend((
      Customer._api_update_subscription),
     # This is the old API route:
     ('POST', '/v1/customers/{id}/cards', Customer._api_add_source),
+    ('GET', '/v1/customers/{id}/tax_ids', Customer._api_list_tax_ids),
+    ('GET', '/v1/customers/{id}/tax_ids/{tax_id}',
+     Customer._api_retrieve_tax_id),
     ('POST', '/v1/customers/{id}/tax_ids', Customer._api_add_tax_id),
-    ('GET', '/v1/customers/{id}/tax_ids', Customer._api_list_tax_ids)))
+    ('DELETE', '/v1/customers/{id}/tax_ids/{tax_id}',
+     Customer._api_delete_tax_id)))
 
 
 class Event(StripeObject):
