@@ -37,8 +37,14 @@ cus=$(curl -sSfg -u $SK: $HOST/v1/customers \
       | grep -oE 'cus_\w+' | head -n 1)
 
 curl -sSfg -u $SK: $HOST/v1/customers/$cus/tax_ids \
-     -d type=eu_vat -d value=DE123456789 \
+     -d type=eu_vat \
+     -d value=DE123456789 \
      -d expand[]=customer
+
+tax_id=$(curl -sSfg -u $SK: $HOST/v1/customers/$cus/tax_ids \
+              -d type=eu_vat \
+              -d value=BE00111222333 \
+         | grep -oE 'txi_\w+' | head -n 1)
 
 curl -sSfg -u $SK: $HOST/v1/customers/$cus?expand[]=tax_ids.data.customer
 
@@ -47,6 +53,14 @@ curl -sSfg -u $SK: $HOST/v1/customers/$cus?expand[]=subscriptions.data.items.dat
 code=$(curl -sg -o /dev/null -w '%{http_code}' -u $SK: \
        $HOST/v1/customers/$cus?expand[]=subscriptions.data.items.data.tax_ids)
 [ "$code" -eq 400 ]
+
+curl -sSfg -u $SK: $HOST/v1/customers/$cus/tax_ids/$tax_id
+
+curl -sSfg -u $SK: -X DELETE $HOST/v1/customers/$cus/tax_ids/$tax_id
+
+code=$(curl -sg -o /dev/null -w '%{http_code}' -u $SK: \
+       $HOST/v1/customers/$cus/tax_ids/$tax_id)
+[ "$code" -eq 404 ]
 
 txr1=$(curl -sSfg -u $SK: $HOST/v1/tax_rates \
             -d display_name=VAT \
