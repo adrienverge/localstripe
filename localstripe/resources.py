@@ -82,7 +82,7 @@ def try_convert_to_bool(arg):
 
 
 def try_convert_to_int(arg):
-    if type(arg) == int:
+    if type(arg) is int:
         return arg
     elif type(arg) in (str, float):
         try:
@@ -93,7 +93,7 @@ def try_convert_to_int(arg):
 
 
 def try_convert_to_float(arg):
-    if type(arg) == float:
+    if type(arg) is float:
         return arg
     elif type(arg) in (str, int):
         try:
