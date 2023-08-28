@@ -15,11 +15,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// First, get the domain from which this script is pulled:
-const LOCALSTRIPE_SOURCE = (function () {
+// First, get the URL base from which this script is pulled:
+const LOCALSTRIPE_BASE_API = (function () {
   const scripts = document.getElementsByTagName('script');
   const src = scripts[scripts.length - 1].src;
-  return src.match(/https?:\/\/[^\/]*/)[0];
+  if (src.match(/\/js\.stripe\.com\/v3\/$/)) {
+    return src.replace(/\/js\.stripe\.com\/v3\/$/, '');
+  } else {
+    return src.match(/https?:\/\/[^\/]*/)[0];
+  }
 })();
 
 // Check and warn if the real Stripe is already used in webpage
@@ -210,7 +214,7 @@ Stripe = (apiKey) => {
       body.push('payment_user_agent=localstripe');
       body = body.join('&');
       try {
-        const url = `${LOCALSTRIPE_SOURCE}/v1/tokens`;
+        const url = `${LOCALSTRIPE_BASE_API}/v1/tokens`;
         const response = await fetch(url, {
           method: 'POST',
           headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -233,7 +237,7 @@ Stripe = (apiKey) => {
     createSource: async (source) => {
       console.log('localstripe: Stripe().createSource()');
       try {
-        const url = `${LOCALSTRIPE_SOURCE}/v1/sources`;
+        const url = `${LOCALSTRIPE_BASE_API}/v1/sources`;
         const response = await fetch(url, {
           method: 'POST',
           body: JSON.stringify({
@@ -262,7 +266,7 @@ Stripe = (apiKey) => {
       console.log('localstripe: Stripe().confirmCardSetup()');
       try {
         const seti = clientSecret.match(/^(seti_\w+)_secret_/)[1];
-        const url = `${LOCALSTRIPE_SOURCE}/v1/setup_intents/${seti}/confirm`;
+        const url = `${LOCALSTRIPE_BASE_API}/v1/setup_intents/${seti}/confirm`;
         if (data.payment_method.card instanceof Element) {
           const element = data.payment_method.card;
           data.payment_method.card = element.value.card;
@@ -295,8 +299,8 @@ Stripe = (apiKey) => {
           const url =
             (await openModal('3D Secure\nDo you want to confirm or cancel?',
                              'Complete authentication', 'Fail authentication'))
-            ? `${LOCALSTRIPE_SOURCE}/v1/setup_intents/${seti}/confirm`
-            : `${LOCALSTRIPE_SOURCE}/v1/setup_intents/${seti}/cancel`;
+            ? `${LOCALSTRIPE_BASE_API}/v1/setup_intents/${seti}/confirm`
+            : `${LOCALSTRIPE_BASE_API}/v1/setup_intents/${seti}/cancel`;
           response = await fetch(url, {
             method: 'POST',
             body: JSON.stringify({
@@ -341,7 +345,7 @@ Stripe = (apiKey) => {
           '3D Secure\nDo you want to confirm or cancel?',
           'Complete authentication', 'Fail authentication');
         const pi = clientSecret.match(/^(pi_\w+)_secret_/)[1];
-        const url = `${LOCALSTRIPE_SOURCE}/v1/payment_intents/${pi}` +
+        const url = `${LOCALSTRIPE_BASE_API}/v1/payment_intents/${pi}` +
                     `/_authenticate?success=${success}`;
         const response = await fetch(url, {
           method: 'POST',
@@ -373,7 +377,7 @@ Stripe = (apiKey) => {
       console.log('localstripe: Stripe().confirmSepaDebitSetup()');
       try {
         const seti = clientSecret.match(/^(seti_\w+)_secret_/)[1];
-        const url = `${LOCALSTRIPE_SOURCE}/v1/setup_intents/${seti}/confirm`;
+        const url = `${LOCALSTRIPE_BASE_API}/v1/setup_intents/${seti}/confirm`;
         let response = await fetch(url, {
           method: 'POST',
           body: JSON.stringify({
@@ -407,4 +411,4 @@ Stripe = (apiKey) => {
 
 console.log('localstripe: The Stripe object was just replaced in the page. ' +
             'Stripe elements created from now on will be fake ones, ' +
-            `communicating with the mock server at ${LOCALSTRIPE_SOURCE}.`);
+            `communicating with the mock server at ${LOCALSTRIPE_BASE_API}.`);
