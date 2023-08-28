@@ -277,10 +277,10 @@ class Balance(object):
         schedule_webhook(Event('balance.available', self))
 
     @classmethod
-    def _api_retrieve(self):
-        obj = store.get(self.object)
+    def _api_retrieve(cls):
+        obj = store.get(cls.object)
         if obj is None:
-            return self()
+            return cls()
         return obj
 
     def _export(self, expand=None):
