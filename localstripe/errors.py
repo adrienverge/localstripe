@@ -15,8 +15,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import json
+import traceback
+import os
 
 from aiohttp import web
+
+STRIPE_LOG = os.environ.get("STRIPE_LOG")
 
 
 def json_response(*args, **kwargs):
@@ -32,6 +36,8 @@ class UserError(Exception):
         self.code = code
         self.body = {'error': contents or {}}
         self.body['error']['type'] = 'invalid_request_error'
+        if STRIPE_LOG in ["debug"]:
+            self.body['error']['callstack'] = traceback.format_stack()
         if message is not None:
             self.body['error']['message'] = message
 
