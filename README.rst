@@ -67,6 +67,12 @@ Docker image can be rebuilt using:
  CMD ["localstripe"]
  EOF
 
+Alternatively, you can clone this repository and run:
+
+.. code::
+
+ docker build --no-cache -t adrienverge/localstripe .
+
 Examples
 --------
 
