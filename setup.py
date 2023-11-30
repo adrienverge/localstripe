@@ -15,25 +15,6 @@
 
 from setuptools import setup
 
-from localstripe import __author__, __version__
-
-
-setup(
-    name='localstripe',
-    version=__version__,
-    author=__author__,
-    url='https://github.com/adrienverge/localstripe',
-    description=('A fake but stateful Stripe server that you can run locally, '
-                 'for testing purposes.'),
-
-    packages=['localstripe'],
-    entry_points={'console_scripts':
-                  ['localstripe=localstripe.server:start']},
-    package_data={
-        'localstripe': ['localstripe-v3.js'],
-    },
-    install_requires=[
-        'aiohttp >=2.3.2',
-        'python-dateutil >=2.6.1',
-    ],
-)
+# This is only kept for backward-compatibility with older versions that don't
+# support new packaging standards (e.g. PEP 517 or PEP 660):
+setup()

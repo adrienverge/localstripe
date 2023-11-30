@@ -242,7 +242,7 @@ To quickly build and run localstripe from source:
 
 .. code:: shell
 
- python setup.py sdist
+ python -m build
  pip install --user --upgrade dist/localstripe-*.tar.gz
  localstripe
 

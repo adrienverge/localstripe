@@ -1,0 +1,49 @@
+[project]
+name = "localstripe"
+description = """
+A fake but stateful Stripe server that you can run locally, for \
+testing purposes."""
+readme = {file = "README.rst", content-type = "text/x-rst"}
+requires-python = ">=3.8"
+license = {text = "GPL-3.0-or-later"}
+authors = [{name = "Adrien Vergé"}]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
+]
+dependencies = [
+    "aiohttp >=2.3.2",
+    "python-dateutil >=2.6.1",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = [
+    "doc8",
+    "flake8",
+    "flake8-import-order",
+]
+
+[project.scripts]
+localstripe = "localstripe.server:start"
+
+[project.urls]
+homepage = "https://github.com/adrienverge/localstripe"
+repository = "https://github.com/adrienverge/localstripe"
+documentation = "https://github.com/adrienverge/localstripe"
+
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools >= 61"]
+
+[tool.setuptools]
+packages = ["localstripe"]
+
+[tool.setuptools.package-data]
+localstripe = ["localstripe-v3.js"]
+
+[tool.setuptools.dynamic]
+version = {attr = "localstripe.__version__"}
