@@ -43,9 +43,9 @@ Install localstripe:
 
 .. code:: shell
 
- pip3 install --user -U localstripe
+ pip install --user -U localstripe
  # or, to install globally:
- sudo pip3 install localstripe
+ sudo pip install localstripe
 
 Then simply run the command ``localstripe``. The fake Stripe server is now
 listening on port 8420.
@@ -236,14 +236,14 @@ To quickly run localstripe from source, and reload when a file changed:
 
 .. code:: shell
 
- find -name '*.py' | entr -r python3 -m localstripe --from-scratch
+ find -name '*.py' | entr -r python -m localstripe --from-scratch
 
 To quickly build and run localstripe from source:
 
 .. code:: shell
 
- python3 setup.py sdist
- pip3 install --user --upgrade dist/localstripe-*.tar.gz
+ python setup.py sdist
+ pip install --user --upgrade dist/localstripe-*.tar.gz
  localstripe
 
 If you plan to open a pull request to improve localstripe, that is so cool! To
