@@ -53,5 +53,5 @@ Before opening a pull request, please run the test suite. You can use:
 
 .. code:: shell
 
- find -name '*.py' | entr -r python3 -m localstripe --from-scratch
+ find -name '*.py' | entr -r python -m localstripe --from-scratch
  curl -X DELETE localhost:8420/_config/data && ./test.sh
