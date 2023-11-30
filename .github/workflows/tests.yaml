@@ -14,9 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: 3.12
       - run: pip install flake8 flake8-import-order doc8 Pygments
@@ -36,12 +36,13 @@ jobs:
           - '3.12'
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.pyver }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.pyver }}
-      - run: python setup.py sdist
+      - run: pip install 'pip >=23' build
+      - run: python -m build
       - run: pip install dist/localstripe-*.tar.gz
       - run: python -m localstripe &
       # Wait for server to be up:
