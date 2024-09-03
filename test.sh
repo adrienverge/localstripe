@@ -367,7 +367,7 @@ captured=$(
 refunded=$(
   curl -sSfg -u $SK: $HOST/v1/charges/$charge \
   | grep -oE '"amount_refunded": 0,')
-[ -n "$captured" ]
+[ -n "$refunded" ]
 
 # cannot capture an already captured charge
 code=$(
@@ -375,6 +375,20 @@ code=$(
        -u $SK: $HOST/v1/charges/$charge/capture \
        -X POST)
 [ "$code" = 400 ]
+
+# now refund it:
+succeeded=$(
+  curl -sSfg -u $SK: $HOST/v1/refunds \
+       -d charge=$charge \
+       -X POST \
+  | grep -oE '"status": "succeeded"')
+[ -n "$succeeded" ]
+
+# the charge agrees that it was refunded:
+refunded=$(
+  curl -sSfg -u $SK: $HOST/v1/charges/$charge \
+  | grep -oE '"amount_refunded": 1000,')
+[ -n "$refunded" ]
 
 sepa_cus=$(
   curl -sSfg -u $SK: $HOST/v1/customers \
@@ -965,3 +979,99 @@ charge=$(curl -sSfgG -u $SK: $HOST/v1/invoices \
               -d expand[]=data.charge.refunds \
          | grep -oE '"charge": null,')
 [ -n "$charge" ]
+
+### test payment_intents, which are supported and often preferred instead of
+### charges in many APIs:
+
+# new payment_intents are captured by default
+captured=$(
+  curl -sSfg -u $SK: $HOST/v1/payment_intents \
+       -d customer=$cus \
+       -d payment_method=$card \
+       -d amount=1000 \
+       -d confirm=true \
+       -d currency=usd \
+  | grep -oE '"captured": true,')
+[ -n "$captured" ]
+
+# create a pre-auth payment_intent
+payment_intent=$(
+  curl -sSfg -u $SK: $HOST/v1/payment_intents \
+       -d customer=$cus \
+       -d payment_method=$card \
+       -d amount=1000 \
+       -d confirm=true \
+       -d currency=usd \
+       -d capture_method=manual \
+  | grep -oE 'pi_\w+' | head -n 1)
+
+# payment_intent was not captured
+captured=$(
+  curl -sSfg -u $SK: $HOST/v1/payment_intents/$payment_intent \
+  | grep -oE '"status": "requires_capture"')
+[ -n "$captured" ]
+
+# cannot capture more than pre-authed amount
+code=$(
+  curl -sg -o /dev/null -w "%{http_code}" \
+       -u $SK: $HOST/v1/payment_intents/$payment_intent/capture \
+       -d amount=2000)
+[ "$code" = 400 ]
+
+# can capture less than the pre-auth amount
+captured=$(
+  curl -sSfg -u $SK: $HOST/v1/payment_intents/$payment_intent/capture \
+       -d amount_to_capture=800 \
+  | grep -oE '"status": "succeeded"')
+[ -n "$captured" ]
+
+# difference between pre-auth and capture is refunded
+refunded=$(
+  curl -sSfg -u $SK: $HOST/v1/payment_intents/$payment_intent \
+  | grep -oE '"amount_refunded": 200,')
+[ -n "$captured" ]
+
+# create a pre-auth payment_intent
+payment_intent=$(
+  curl -sSfg -u $SK: $HOST/v1/payment_intents \
+       -d customer=$cus \
+       -d payment_method=$card \
+       -d amount=1000 \
+       -d confirm=true \
+       -d currency=usd \
+       -d capture_method=manual \
+  | grep -oE 'pi_\w+' | head -n 1)
+
+# capture the full amount (default)
+captured=$(
+  curl -sSfg -u $SK: $HOST/v1/payment_intents/$payment_intent/capture \
+       -X POST \
+  | grep -oE '"captured": true,')
+[ -n "$captured" ]
+
+# none is refunded
+refunded=$(
+  curl -sSfg -u $SK: $HOST/v1/payment_intents/$payment_intent \
+  | grep -oE '"amount_refunded": 0,')
+[ -n "$refunded" ]
+
+# cannot capture an already captured payment_intent
+code=$(
+  curl -sg -o /dev/null -w "%{http_code}" \
+       -u $SK: $HOST/v1/payment_intents/$payment_intent/capture \
+       -X POST)
+[ "$code" = 400 ]
+
+# now refund it:
+succeeded=$(
+  curl -sSfg -u $SK: $HOST/v1/refunds \
+       -d payment_intent=$payment_intent \
+       -X POST \
+  | grep -oE '"status": "succeeded"')
+[ -n "$succeeded" ]
+
+# the payment_intent agrees that it was refunded:
+refunded=$(
+  curl -sSfg -u $SK: $HOST/v1/payment_intents/$payment_intent \
+  | grep -oE '"amount_refunded": 1000,')
+[ -n "$refunded" ]

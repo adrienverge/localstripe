@@ -589,25 +589,27 @@ class Charge(StripeObject):
             raise UserError(400, 'Bad request')
 
         obj = cls._api_retrieve(id)
+        obj._capture(amount)
+        return obj
 
+    def _capture(self, amount):
         if amount is None:
-            amount = obj.amount
+            amount = self.amount
 
         amount = try_convert_to_int(amount)
         try:
-            assert type(amount) is int and 0 <= amount <= obj.amount
-            assert obj.captured is False
+            assert type(amount) is int and 0 <= amount <= self.amount
+            assert self.captured is False
         except AssertionError:
             raise UserError(400, 'Bad request')
 
         def on_success():
-            obj.captured = True
-            if amount < obj.amount:
-                refunded = obj.amount - amount
-                Refund(obj.id, refunded)
+            self.captured = True
+            if amount < self.amount:
+                refunded = self.amount - amount
+                Refund(charge=self.id, amount=refunded)
 
-        obj._trigger_payment(on_success)
-        return obj
+        self._trigger_payment(on_success)
 
     @property
     def paid(self):
@@ -1810,7 +1812,8 @@ class PaymentIntent(StripeObject):
     _id_prefix = 'pi_'
 
     def __init__(self, amount=None, currency=None, customer=None,
-                 payment_method=None, metadata=None, **kwargs):
+                 payment_method=None, metadata=None, payment_method_types=None,
+                 capture_method=None, payment_method_options=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -1826,6 +1829,10 @@ class PaymentIntent(StripeObject):
                 assert (payment_method.startswith('pm_') or
                         payment_method.startswith('src_') or
                         payment_method.startswith('card_'))
+            if capture_method is not None:
+                assert capture_method in ('automatic',
+                                          'automatic_async',
+                                          'manual')
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -1847,6 +1854,7 @@ class PaymentIntent(StripeObject):
         self.metadata = metadata or {}
         self.invoice = None
         self.next_action = None
+        self.capture_method = capture_method or 'automatic_async'
 
         self._canceled = False
         self._authentication_failed = False
@@ -1873,7 +1881,8 @@ class PaymentIntent(StripeObject):
         charge = Charge(amount=self.amount,
                         currency=self.currency,
                         customer=self.customer,
-                        source=self.payment_method)
+                        source=self.payment_method,
+                        capture=(self.capture_method != "manual"))
         self.latest_charge = charge
         charge._trigger_payment(on_success, on_failure_now, on_failure_later)
 
@@ -1887,6 +1896,9 @@ class PaymentIntent(StripeObject):
             return 'requires_action'
         if self.latest_charge is None:
             return 'requires_confirmation'
+        if (self.latest_charge.status == 'succeeded' and
+                not self.latest_charge.captured):
+            return 'requires_capture'
         if self.latest_charge.status == 'succeeded':
             return 'succeeded'
         elif self.latest_charge.status == 'failed':
@@ -2020,10 +2032,25 @@ class PaymentIntent(StripeObject):
 
         return obj
 
+    @classmethod
+    def _api_capture(cls, id, amount_to_capture=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        try:
+            assert type(id) is str and id.startswith('pi_')
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        obj = cls._api_retrieve(id)
+        obj.latest_charge._capture(amount=amount_to_capture)
+        return obj
+
 
 extra_apis.extend((
     ('POST', '/v1/payment_intents/{id}/confirm', PaymentIntent._api_confirm),
     ('POST', '/v1/payment_intents/{id}/cancel', PaymentIntent._api_cancel),
+    ('POST', '/v1/payment_intents/{id}/capture', PaymentIntent._api_capture),
     ('POST', '/v1/payment_intents/{id}/_authenticate',
      PaymentIntent._api_authenticate)))
 
@@ -2488,17 +2515,32 @@ class Refund(StripeObject):
     object = 'refund'
     _id_prefix = 're_'
 
-    def __init__(self, charge=None, amount=None, metadata=None, **kwargs):
+    def __init__(self, charge=None, payment_intent=None, amount=None,
+                 metadata=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         amount = try_convert_to_int(amount)
         try:
-            assert type(charge) is str and charge.startswith('ch_')
+            if charge is not None:
+                assert type(charge) is str and charge.startswith('ch_')
+                assert payment_intent is None
+            elif payment_intent is not None:
+                assert (type(payment_intent) is str and
+                        payment_intent.startswith('pi_'))
+            else:
+                raise UserError(400, 'Expected charge or payment_intent')
             if amount is not None:
                 assert type(amount) is int and amount > 0
         except AssertionError:
             raise UserError(400, 'Bad request')
+
+        if payment_intent is not None:
+            payment_intent_obj = PaymentIntent._api_retrieve(payment_intent)
+            if payment_intent_obj.status == 'requires_payment_method':
+                raise UserError(400, 'Cannot refund a failed payment.')
+
+            charge = payment_intent_obj.latest_charge.id
 
         charge_obj = Charge._api_retrieve(charge)
 
@@ -2506,6 +2548,7 @@ class Refund(StripeObject):
         super().__init__()
 
         self.charge = charge
+        self.payment_intent = payment_intent
         self.metadata = metadata or {}
         self.amount = amount
         self.date = self.created
@@ -2525,10 +2568,18 @@ class Refund(StripeObject):
             self.balance_transaction = txn.id
 
     @classmethod
-    def _api_list_all(cls, url, charge=None, limit=None, starting_after=None):
+    def _api_list_all(cls, url, charge=None, payment_intent=None, limit=None,
+                      starting_after=None):
         try:
             if charge is not None:
                 assert type(charge) is str and charge.startswith('ch_')
+                assert payment_intent is None
+            elif payment_intent is not None:
+                assert (type(payment_intent) is str and
+                        payment_intent.startswith('pi_'))
+                payment_intent_obj = PaymentIntent._api_retrieve(
+                    payment_intent)
+                charge = payment_intent_obj.latest_charge.id
         except AssertionError:
             raise UserError(400, 'Bad request')
 
