@@ -17,8 +17,7 @@
 
 // First, get the URL base from which this script is pulled:
 const LOCALSTRIPE_BASE_API = (function () {
-  const scripts = document.getElementsByTagName('script');
-  const src = scripts[scripts.length - 1].src;
+  const src = document.currentScript.src;
   if (src.match(/\/js\.stripe\.com\/v3\/$/)) {
     return src.replace(/\/js\.stripe\.com\/v3\/$/, '');
   } else {
