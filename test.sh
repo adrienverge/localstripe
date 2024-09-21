@@ -560,7 +560,7 @@ cus=$(curl -sSfg -u $SK: $HOST/v1/customers \
            -d email=john.malkovich@example.com \
       | grep -oE 'cus_\w+' | head -n 1)
 
-pm=$(curl -sSfg -u $SK: $HOST/v1/payment_methods \
+pm_card_okay=$(curl -sSfg -u $SK: $HOST/v1/payment_methods \
           -d type=card \
           -d card[number]=4242424242424242 \
           -d card[exp_month]=12 \
@@ -568,19 +568,19 @@ pm=$(curl -sSfg -u $SK: $HOST/v1/payment_methods \
           -d card[cvc]=123 \
      | grep -oE 'pm_\w+' | head -n 1)
 
-curl -sSfg -u $SK: $HOST/v1/payment_methods/$pm/attach \
+curl -sSfg -u $SK: $HOST/v1/payment_methods/$pm_card_okay/attach \
      -d customer=$cus
 
 curl -sSfg -u $SK: $HOST/v1/customers/$cus \
-     -d invoice_settings[default_payment_method]=$pm
+     -d invoice_settings[default_payment_method]=$pm_card_okay
 
 curl -sSfg -u $SK: $HOST/v1/customers/$cus?expand[]=invoice_settings.default_payment_method
 
 curl -sSfg -u $SK: $HOST/v1/payment_methods?customer=$cus\&type=card
 
-curl -sSfg -u $SK: $HOST/v1/payment_methods/$pm/detach -X POST
+curl -sSfg -u $SK: $HOST/v1/payment_methods/$pm_card_okay/detach -X POST
 
-pm=$(curl -sSfg -u $SK: $HOST/v1/payment_methods \
+pm_card_decline_on_attach=$(curl -sSfg -u $SK: $HOST/v1/payment_methods \
           -d type=card \
           -d card[number]=4000000000000002 \
           -d card[exp_month]=4 \
@@ -588,7 +588,7 @@ pm=$(curl -sSfg -u $SK: $HOST/v1/payment_methods \
           -d card[cvc]=123 \
      | grep -oE 'pm_\w+' | head -n 1)
 code=$(curl -sg -o /dev/null -w "%{http_code}" -u $SK: \
-            $HOST/v1/payment_methods/$pm/attach \
+            $HOST/v1/payment_methods/$pm_card_decline_on_attach/attach \
             -d customer=$cus)
 [ "$code" = 402 ]
 
@@ -617,6 +617,53 @@ curl -sSfg $HOST/v1/setup_intents/$seti/confirm \
      -d payment_method_data[card][exp_month]=4 \
      -d payment_method_data[card][exp_year]=24 \
      -d payment_method_data[billing_details][address][postal_code]=42424
+
+# We can also pass a payment method ID to setup_intents/*/confirm:
+res=$(curl -sSfg -u $SK: $HOST/v1/setup_intents -X POST)
+seti=$(echo "$res" | grep '"id"' | grep -oE 'seti_\w+' | head -n 1)
+seti_secret=$(echo $res | grep -oE 'seti_\w+_secret_\w+' | head -n 1)
+status=$(
+  curl -sSfg $HOST/v1/setup_intents/$seti/confirm \
+       -d key=pk_test_sldkjflaksdfj \
+       -d client_secret=$seti_secret \
+       -d payment_method=$pm_card_okay \
+    | grep -oE '"status": "succeeded"')
+[ -n "$status" ]
+
+# ... and payment method IDs on bad cards fail on setup_intents/*/confirm:
+res=$(curl -sSfg -u $SK: $HOST/v1/setup_intents -X POST)
+seti=$(echo "$res" | grep '"id"' | grep -oE 'seti_\w+' | head -n 1)
+seti_secret=$(echo $res | grep -oE 'seti_\w+_secret_\w+' | head -n 1)
+code=$(
+  curl -sg -w "%{http_code}" -o /dev/null $HOST/v1/setup_intents/$seti/confirm \
+       -d key=pk_test_sldkjflaksdfj \
+       -d client_secret=$seti_secret \
+       -d payment_method=$pm_card_decline_on_attach)
+[ "$code" = 402 ]
+
+# We can also pass a special well-known payment method ID to
+# setup_intents/*/confirm:
+res=$(curl -sSfg -u $SK: $HOST/v1/setup_intents -X POST)
+seti=$(echo "$res" | grep '"id"' | grep -oE 'seti_\w+' | head -n 1)
+seti_secret=$(echo $res | grep -oE 'seti_\w+_secret_\w+' | head -n 1)
+status=$(
+  curl -sSfg $HOST/v1/setup_intents/$seti/confirm \
+       -d key=pk_test_sldkjflaksdfj \
+       -d client_secret=$seti_secret \
+       -d payment_method=pm_card_visa \
+    | grep -oE '"status": "succeeded"')
+[ -n "$status" ]
+
+# ... including well-known bad payment method IDs:
+res=$(curl -sSfg -u $SK: $HOST/v1/setup_intents -X POST)
+seti=$(echo "$res" | grep '"id"' | grep -oE 'seti_\w+' | head -n 1)
+seti_secret=$(echo $res | grep -oE 'seti_\w+_secret_\w+' | head -n 1)
+code=$(
+  curl -sg -w "%{http_code}" -o /dev/null $HOST/v1/setup_intents/$seti/confirm \
+       -d key=pk_test_sldkjflaksdfj \
+       -d client_secret=$seti_secret \
+       -d payment_method=pm_card_visa_chargeDeclined)
+[ "$code" = 402 ]
 
 # off_session cannot be used when confirm is false
 code=$(

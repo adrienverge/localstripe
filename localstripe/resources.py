@@ -2203,6 +2203,10 @@ class PaymentMethod(StripeObject):
 
     @classmethod
     def _api_retrieve(cls, id):
+        obj = cls._try_get_canonical_test_article(id)
+        if obj:
+            return obj
+
         # https://stripe.com/docs/payments/payment-methods#transitioning
         # You can retrieve all saved compatible payment instruments through the
         # Payment Methods API.
@@ -2212,6 +2216,41 @@ class PaymentMethod(StripeObject):
             return Source._api_retrieve(id)
 
         return super()._api_retrieve(id)
+
+    @classmethod
+    def _try_get_canonical_test_article(cls, id):
+        """Convert special payment method IDs into payment method objects.
+
+        See https://docs.stripe.com/testing?testing-method=payment-methods.
+
+        Oddly, as we do here, Stripe will convert these special test IDs into
+        actual objects and store them on a GET request, meaning the GET has
+        side effects and is not idempotent."""
+
+        if id == 'pm_card_visa':
+            return PaymentMethod(
+                type='card',
+                card=dict(
+                    number='4242424242424242',
+                    exp_month='12',
+                    exp_year='2030',
+                    cvc='123'))
+        if id == 'pm_card_visa_chargeDeclined':
+            return PaymentMethod(
+                type='card',
+                card=dict(
+                    number='4000000000000002',
+                    exp_month='12',
+                    exp_year='2030',
+                    cvc='123'))
+        if id == 'pm_card_chargeCustomerFail':
+            return PaymentMethod(
+                type='card',
+                card=dict(
+                    number='4000000000000341',
+                    exp_month='12',
+                    exp_year='2030',
+                    cvc='123'))
 
     @classmethod
     def _api_list_all(cls, url, customer=None, type=None, limit=None,
@@ -2704,7 +2743,7 @@ class SetupIntent(StripeObject):
 
     @classmethod
     def _api_confirm(cls, id, use_stripe_sdk=None, client_secret=None,
-                     payment_method_data=None, **kwargs):
+                     payment_method=None, payment_method_data=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -2722,27 +2761,13 @@ class SetupIntent(StripeObject):
         if client_secret and client_secret != obj.client_secret:
             raise UserError(401, 'Unauthorized')
 
-        if payment_method_data:
-            if obj.payment_method is not None:
-                raise UserError(400, 'Bad request')
-
+        if payment_method is not None:
+            assert isinstance(payment_method, str)
+            pm = PaymentMethod._api_retrieve(payment_method)
+            obj._attach_pm(pm)
+        elif payment_method_data is not None:
             pm = PaymentMethod(**payment_method_data)
-            obj.payment_method = pm.id
-
-            if pm._attaching_is_declined():
-                obj.status = 'canceled'
-                obj.next_action = None
-                raise UserError(402, 'Your card was declined.',
-                                {'code': 'card_declined'})
-            elif pm._requires_authentication():
-                obj.status = 'requires_action'
-                obj.next_action = {'type': 'use_stripe_sdk',
-                                   'use_stripe_sdk': {
-                                       'type': 'three_d_secure_redirect',
-                                       'stripe_js': ''}}
-            else:
-                obj.status = 'succeeded'
-                obj.next_action = None
+            obj._attach_pm(pm)
         elif obj.payment_method is None:
             obj.status = 'requires_payment_method'
             obj.next_action = None
@@ -2750,6 +2775,25 @@ class SetupIntent(StripeObject):
             obj.status = 'succeeded'
             obj.next_action = None
         return obj
+
+    def _attach_pm(self, pm):
+        self.payment_method = pm.id
+        self.payment_method_types = [pm.type]
+
+        if pm._attaching_is_declined():
+            self.status = 'canceled'
+            self.next_action = None
+            raise UserError(402, 'Your card was declined.',
+                            {'code': 'card_declined'})
+        elif pm._requires_authentication():
+            self.status = 'requires_action'
+            self.next_action = {'type': 'use_stripe_sdk',
+                                'use_stripe_sdk': {
+                                    'type': 'three_d_secure_redirect',
+                                    'stripe_js': ''}}
+        else:
+            self.status = 'succeeded'
+            self.next_action = None
 
     @classmethod
     def _api_cancel(cls, id, use_stripe_sdk=None, client_secret=None,
