@@ -506,6 +506,7 @@ class Charge(StripeObject):
         self.status = 'pending'
         self.receipt_email = None
         self.receipt_number = None
+        self.payment_intent = None
         self.payment_method = source.id
         self.statement_descriptor = statement_descriptor
         self.failure_code = None
@@ -513,41 +514,29 @@ class Charge(StripeObject):
         self.captured = capture
         self.balance_transaction = None
 
-    def _trigger_payment(self, on_success=None, on_failure_now=None,
-                         on_failure_later=None):
+    def _is_async_payment_method(self):
         pm = PaymentMethod._api_retrieve(self.payment_method)
-        async_payment = pm.type == 'sepa_debit'
+        return pm.type == 'sepa_debit'
 
-        if async_payment:
-            if not self._authorized:
-                async def callback():
-                    await asyncio.sleep(0.5)
-                    self.status = 'failed'
-                    if on_failure_later:
-                        on_failure_later()
-            else:
-                async def callback():
-                    await asyncio.sleep(0.5)
-                    txn = BalanceTransaction(amount=self.amount,
-                                             currency=self.currency,
-                                             description=self.description,
-                                             exchange_rate=1.0,
-                                             reporting_category='charge',
-                                             source=self.id, type='charge')
-                    self.balance_transaction = txn.id
-                    self.status = 'succeeded'
-                    if on_success:
-                        on_success()
-            asyncio.ensure_future(callback())
-
-        else:
-            if not self._authorized:
+    def _handle_auth_failure(self, on_failure_now=None, on_failure_later=None):
+        if self._is_async_payment_method():
+            async def callback():
+                await asyncio.sleep(0.5)
                 self.status = 'failed'
-                self.failure_code = 'card_declined'
-                self.failure_message = 'Your card was declined.'
-                if on_failure_now:
-                    on_failure_now()
-            else:
+                if on_failure_later:
+                    on_failure_later()
+            asyncio.ensure_future(callback())
+        else:
+            self.status = 'failed'
+            self.failure_code = 'card_declined'
+            self.failure_message = 'Your card was declined.'
+            if on_failure_now:
+                on_failure_now()
+
+    def _trigger_payment(self, on_success=None):
+        if self._is_async_payment_method():
+            async def callback():
+                await asyncio.sleep(0.5)
                 txn = BalanceTransaction(amount=self.amount,
                                          currency=self.currency,
                                          description=self.description,
@@ -558,25 +547,43 @@ class Charge(StripeObject):
                 self.status = 'succeeded'
                 if on_success:
                     on_success()
+            asyncio.ensure_future(callback())
+
+        else:
+            txn = BalanceTransaction(amount=self.amount,
+                                     currency=self.currency,
+                                     description=self.description,
+                                     exchange_rate=1.0,
+                                     reporting_category='charge',
+                                     source=self.id, type='charge')
+            self.balance_transaction = txn.id
+            self.status = 'succeeded'
+            if on_success:
+                on_success()
 
     @classmethod
     def _api_create(cls, **data):
         obj = super()._api_create(**data)
 
-        # for successful pre-auth, return unpaid charge
-        if not obj.captured and obj._authorized:
-            return obj
-
         def on_failure():
             raise UserError(402, 'Your card was declined.',
                             {'code': 'card_declined', 'charge': obj.id})
 
-        obj._trigger_payment(
-            on_failure_now=on_failure,
-            on_failure_later=on_failure
-        )
+        obj._initialize_charge(on_failure_now=on_failure)
 
         return obj
+
+    def _initialize_charge(self, on_success=None, on_failure_now=None,
+                           on_failure_later=None):
+        if not self._authorized:
+            self._handle_auth_failure(on_failure_now=on_failure_now,
+                                      on_failure_later=on_failure_later)
+            return
+
+        self.status = 'succeeded'
+
+        if self.captured:
+            self._trigger_payment(on_success)
 
     @classmethod
     def _api_capture(cls, id, amount=None, **kwargs):
@@ -592,24 +599,26 @@ class Charge(StripeObject):
         obj._capture(amount)
         return obj
 
-    def _capture(self, amount):
+    def _capture(self, amount, on_success=None):
         if amount is None:
             amount = self.amount
 
         amount = try_convert_to_int(amount)
         try:
             assert type(amount) is int and 0 <= amount <= self.amount
-            assert self.captured is False
+            assert self.captured is False and self.status == 'succeeded'
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        def on_success():
+        def on_success_capture():
             self.captured = True
             if amount < self.amount:
                 refunded = self.amount - amount
                 Refund(charge=self.id, amount=refunded)
+            if on_success:
+                on_success()
 
-        self._trigger_payment(on_success)
+        self._trigger_payment(on_success=on_success_capture)
 
     @property
     def paid(self):
@@ -1105,7 +1114,6 @@ class Event(StripeObject):
     @classmethod
     def _api_delete(cls, id):
         raise UserError(405, 'Method Not Allowed')
-
 
 class Invoice(StripeObject):
     object = 'invoice'
@@ -1867,32 +1875,34 @@ class PaymentIntent(StripeObject):
         self._canceled = False
         self._authentication_failed = False
 
-    def _trigger_payment(self):
+    def _on_success(self):
+        if self.invoice:
+            invoice = Invoice._api_retrieve(self.invoice)
+            invoice._on_payment_success()
+
+    def _on_failure_now(self):
+        if self.invoice:
+            invoice = Invoice._api_retrieve(self.invoice)
+            invoice._on_payment_failure_now()
+
+    def _on_failure_later(self):
+        if self.invoice:
+            invoice = Invoice._api_retrieve(self.invoice)
+            invoice._on_payment_failure_later()
+
+    def _create_charge(self):
         if self.status != 'requires_confirmation':
             raise UserError(400, 'Bad request')
-
-        def on_success():
-            if self.invoice:
-                invoice = Invoice._api_retrieve(self.invoice)
-                invoice._on_payment_success()
-
-        def on_failure_now():
-            if self.invoice:
-                invoice = Invoice._api_retrieve(self.invoice)
-                invoice._on_payment_failure_now()
-
-        def on_failure_later():
-            if self.invoice:
-                invoice = Invoice._api_retrieve(self.invoice)
-                invoice._on_payment_failure_later()
 
         charge = Charge(amount=self.amount,
                         currency=self.currency,
                         customer=self.customer,
                         source=self.payment_method,
                         capture=(self.capture_method != "manual"))
+        charge.payment_intent = self.id
         self.latest_charge = charge
-        charge._trigger_payment(on_success, on_failure_now, on_failure_later)
+        charge._initialize_charge(self._on_success, self._on_failure_now,
+                                  self._on_failure_later)
 
     @property
     def status(self):
@@ -1984,7 +1994,7 @@ class PaymentIntent(StripeObject):
                                    'stripe_js': ''},
             }
         else:
-            obj._trigger_payment()
+            obj._create_charge()
 
         return obj
 
@@ -2030,7 +2040,7 @@ class PaymentIntent(StripeObject):
 
         obj.next_action = None
         if success:
-            obj._trigger_payment()
+            obj._create_charge()
         else:
             obj._authentication_failed = True
             obj.payment_method = None
@@ -2051,7 +2061,8 @@ class PaymentIntent(StripeObject):
             raise UserError(400, 'Bad request')
 
         obj = cls._api_retrieve(id)
-        obj.latest_charge._capture(amount=amount_to_capture)
+        obj.latest_charge._capture(amount=amount_to_capture,
+                                   on_success=obj._on_success)
         return obj
 
 

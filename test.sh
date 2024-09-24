@@ -344,7 +344,7 @@ captured=$(
 refunded=$(
   curl -sSfg -u $SK: $HOST/v1/charges/$charge \
   | grep -oE '"amount_refunded": 200,')
-[ -n "$captured" ]
+[ -n "$refunded" ]
 
 # create a pre-auth charge
 charge=$(
@@ -797,11 +797,21 @@ charge=$(
        -d capture=false \
   | grep -oE 'ch_\w+' | head -n 1)
 
-# verify charge status pending
+# verify charge status succeeded.
+# pre-authed charges surprisingly show as status=succeeded with
+# charged=false.
+# (To see this in action, run the example charge creation from
+# https://docs.stripe.com/api/charges/create with -d capture=false,
+# and then GET .../v1/charges/$charge.)
 status=$(
   curl -sSfg -u $SK: $HOST/v1/charges/$charge \
-  | grep -oE '"status": "pending"')
+  | grep -oE '"status": "succeeded"')
 [ -n "$status" ]
+
+not_captured=$(
+  curl -sSfg -u $SK: $HOST/v1/charges/$charge \
+  | grep -oE '"captured": false')
+[ -n "$not_captured" ]
 
 # capture the charge
 curl -sSfg -u $SK: $HOST/v1/charges/$charge/capture \
@@ -814,7 +824,7 @@ status=$(
 [ -n "$status" ]
 
 # create a non-chargeable source
-card=$(
+bad_card=$(
   curl -sSfg -u $SK: $HOST/v1/customers/$cus/cards \
        -d source[object]=card \
        -d source[number]=4000000000000341 \
@@ -827,7 +837,7 @@ card=$(
 code=$(
   curl -sg -o /dev/null -w "%{http_code}" \
        -u $SK: $HOST/v1/charges \
-       -d source=$card \
+       -d source=$bad_card \
        -d amount=1000 \
        -d currency=usd)
 [ "$code" = 402 ]
@@ -835,7 +845,7 @@ code=$(
 # create a normal charge
 charge=$(
   curl -sg -u $SK: $HOST/v1/charges \
-       -d source=$card \
+       -d source=$bad_card \
        -d amount=1000 \
        -d currency=usd \
   | grep -oE 'ch_\w+' | head -n 1)
@@ -846,12 +856,11 @@ status=$(
   | grep -oE '"status": "failed"')
 [ -n "$status" ]
 
-
 # create a pre-auth charge, observe 402 response
 code=$(
   curl -sg -o /dev/null -w "%{http_code}" \
        -u $SK: $HOST/v1/charges \
-       -d source=$card \
+       -d source=$bad_card \
        -d amount=1000 \
        -d currency=usd \
        -d capture=false)
@@ -860,7 +869,7 @@ code=$(
 # create a pre-auth charge
 charge=$(
   curl -sg -u $SK: $HOST/v1/charges \
-       -d source=$card \
+       -d source=$bad_card \
        -d amount=1000 \
        -d currency=usd \
        -d capture=false \
@@ -1083,7 +1092,7 @@ captured=$(
 refunded=$(
   curl -sSfg -u $SK: $HOST/v1/payment_intents/$payment_intent \
   | grep -oE '"amount_refunded": 200,')
-[ -n "$captured" ]
+[ -n "$refunded" ]
 
 # create a pre-auth payment_intent
 payment_intent=$(
@@ -1129,3 +1138,13 @@ refunded=$(
   curl -sSfg -u $SK: $HOST/v1/payment_intents/$payment_intent \
   | grep -oE '"amount_refunded": 1000,')
 [ -n "$refunded" ]
+
+# Create a payment intent on a bad card:
+payment_intent=$(
+  curl -sSfg -u $SK: $HOST/v1/payment_intents \
+       -d customer=$cus \
+       -d payment_method=$bad_card \
+       -d amount=1000 \
+       -d confirm=true \
+       -d currency=usd \
+  | grep -oE 'pi_\w+' | head -n 1)
