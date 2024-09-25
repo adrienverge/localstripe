@@ -598,7 +598,14 @@ res=$(curl -sSfg -u $SK: $HOST/v1/setup_intents -X POST)
 seti=$(echo "$res" | grep '"id"' | grep -oE 'seti_\w+' | head -n 1)
 seti_secret=$(echo $res | grep -oE 'seti_\w+_secret_\w+' | head -n 1)
 
-curl -sSfg -u $SK: $HOST/v1/setup_intents/$seti/confirm -X POST
+# If there's no payment_method in the either the SetupIntent creation or the
+# confirm call, the confirm call fails:
+code=$(curl -sg -o /dev/null -w '%{http_code}' -u $SK: \
+       -X POST $HOST/v1/setup_intents/$seti/confirm)
+[ "$code" -eq 400 ]
+
+curl -sSfg -u $SK: $HOST/v1/setup_intents/$seti/confirm -X POST \
+     -d payment_method=pm_card_visa
 
 curl -sSfg -u $SK: $HOST/v1/setup_intents/$seti/cancel -X POST
 

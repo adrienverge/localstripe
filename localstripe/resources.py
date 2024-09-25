@@ -2769,16 +2769,18 @@ class SetupIntent(StripeObject):
             pm = PaymentMethod(**payment_method_data)
             obj._attach_pm(pm)
         elif obj.payment_method is None:
-            obj.status = 'requires_payment_method'
-            obj.next_action = None
+            # If no payment method was specified upon SetupIntent creation, and
+            # none was specified in the confirm request, there's nothing to
+            # confirm. Stripe returns a 400 error in this case:
+            raise UserError(400, 'Bad request')
         else:
             obj.status = 'succeeded'
             obj.next_action = None
+
         return obj
 
     def _attach_pm(self, pm):
         self.payment_method = pm.id
-        self.payment_method_types = [pm.type]
 
         if pm._attaching_is_declined():
             self.status = 'canceled'
