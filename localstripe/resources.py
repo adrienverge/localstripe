@@ -759,8 +759,12 @@ class Customer(StripeObject):
             for data in tax_id_data:
                 assert type(data) is dict
                 assert set(data.keys()) == {'type', 'value'}
-                assert data['type'] in ('eu_vat', 'nz_gst', 'au_abn')
-                assert type(data['value']) is str and len(data['value']) > 10
+                assert data['type'] in ('eu_vat', 'nz_gst', 'au_abn', 'es_cif')
+                assert type(data['value']) is str
+                if data['type'] == 'es_cif':
+                    assert len(data['value']) == 9
+                else:
+                    assert len(data['value']) > 10
             if payment_method is not None:
                 assert type(payment_method) is str
             assert type(balance) is int
@@ -928,8 +932,12 @@ class Customer(StripeObject):
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         try:
-            assert type in ('eu_vat', 'nz_gst', 'au_abn')
-            assert _type(value) is str and len(value) > 10
+            assert type in ('eu_vat', 'nz_gst', 'au_abn', 'es_cif')
+            assert _type(value) is str
+            if type == 'es_cif':
+                assert len(value) == 9
+            else:
+                assert len(value) > 10
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -3273,12 +3281,16 @@ class TaxId(StripeObject):
         try:
             assert _type(customer) is str
             assert customer.startswith('cus_')
-            assert type in ('eu_vat', 'nz_gst', 'au_abn')
-            assert _type(value) is str and len(value) > 10
+            assert type in ('eu_vat', 'nz_gst', 'au_abn', 'es_cif')
+            assert _type(value) is str
+            if type == 'es_cif':
+                assert len(value) == 9
+            else:
+                assert len(value) > 10
             if country is None:
                 if type == 'eu_vat':
                     country = value[0:2]
-                elif type in ('nz_gst', 'au_abn'):
+                elif type in ('nz_gst', 'au_abn', 'es_cif'):
                     country = type[0:2].upper()
                 else:
                     # shouldn't happen because type is checked above
