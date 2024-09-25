@@ -3276,7 +3276,13 @@ class TaxId(StripeObject):
             assert type in ('eu_vat', 'nz_gst', 'au_abn')
             assert _type(value) is str and len(value) > 10
             if country is None:
-                country = value[0:2]
+                if type == 'eu_vat':
+                    country = value[0:2]
+                elif type in ('nz_gst', 'au_abn'):
+                    country = type[0:2].upper()
+                else:
+                    # shouldn't happen because type is checked above
+                    assert False
             assert _type(country) is str
         except AssertionError:
             raise UserError(400, 'Bad request')
