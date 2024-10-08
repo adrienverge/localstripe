@@ -1129,3 +1129,33 @@ refunded=$(
   curl -sSfg -u $SK: $HOST/v1/payment_intents/$payment_intent \
   | grep -oE '"amount_refunded": 1000,')
 [ -n "$refunded" ]
+
+# Create a customer with card 4000000000000341 (that fails upon payment) and
+# make sure creating the subscription doesn't fail (although it creates it with
+# status 'incomplete'). This how Stripe behaves, see
+# https://github.com/adrienverge/localstripe/pull/232#issuecomment-2400000513
+cus=$(curl -sSfg -u $SK: $HOST/v1/customers \
+           -d email=failing-card-no-402-please@example.com \
+      | grep -oE 'cus_\w+' | head -n 1)
+res=$(curl -sSfg -u $SK: -X POST $HOST/v1/setup_intents)
+seti=$(echo "$res" | grep '"id"' | grep -oE 'seti_\w+' | head -n 1)
+seti_secret=$(echo $res | grep -oE 'seti_\w+_secret_\w+' | head -n 1)
+res=$(curl -sSfg $HOST/v1/setup_intents/$seti/confirm \
+           -d key=pk_test_sldkjflaksdfj \
+           -d client_secret=$seti_secret \
+           -d payment_method_data[type]=card \
+           -d payment_method_data[card][number]=4000000000000341 \
+           -d payment_method_data[card][cvc]=242 \
+           -d payment_method_data[card][exp_month]=4 \
+           -d payment_method_data[card][exp_year]=2030 \
+           -d payment_method_data[billing_details][address][postal_code]=42424)
+pm=$(echo "$res" | grep '"payment_method"' | grep -oE 'pm_\w+' | head -n 1)
+curl -u $SK: $HOST/v1/payment_methods/$pm/attach -d customer=$cus
+curl -sSfg -u $SK: $HOST/v1/customers/$cus \
+     -d invoice_settings[default_payment_method]=$pm
+status=$(
+  curl -sSfg -u $SK: $HOST/v1/subscriptions \
+       -d customer=$cus \
+       -d items[0][plan]=basique-annuel \
+  | grep -oE '"status": "incomplete"')
+[ -n "$status" ]
