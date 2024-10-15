@@ -1139,7 +1139,7 @@ refunded=$(
   | grep -oE '"amount_refunded": 1000,')
 [ -n "$refunded" ]
 
-# Create a payment intent on a bad card:
+# create a payment intent on a bad card:
 code=$(
   curl -sg -u $SK: $HOST/v1/payment_intents  -o /dev/null -w "%{http_code}" \
        -d customer=$cus \
@@ -1149,13 +1149,13 @@ code=$(
        -d currency=usd)
 [ "$code" = 402 ]
 
-# Once more with a delayed confirm:
+# once more with a delayed confirm:
 payment_intent=$(
   curl -sSfg -u $SK: $HOST/v1/payment_intents \
        -d customer=$cus \
+       -d payment_method=$bad_card \
        -d amount=1000 \
        -d confirm=false \
-       -d payment_method=$bad_card \
        -d currency=usd \
   | grep -oE 'pi_\w+' | head -n 1)
 
@@ -1165,9 +1165,9 @@ code=$(
        -X POST -o /dev/null -w "%{http_code}")
 [ "$code" = 402 ]
 
-# Create a customer with card 4000000000000341 (that fails upon payment) and
+# create a customer with card 4000000000000341 (that fails upon payment) and
 # make sure creating the subscription doesn't fail (although it creates it with
-# status 'incomplete'). This how Stripe behaves, see
+# status 'incomplete'). this how Stripe behaves, see
 # https://github.com/adrienverge/localstripe/pull/232#issuecomment-2400000513
 cus=$(curl -sSfg -u $SK: $HOST/v1/customers \
            -d email=failing-card-no-402-please@example.com \
