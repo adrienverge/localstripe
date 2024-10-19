@@ -4,7 +4,7 @@ description = """
 A fake but stateful Stripe server that you can run locally, for \
 testing purposes."""
 readme = {file = "README.rst", content-type = "text/x-rst"}
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = {text = "GPL-3.0-or-later"}
 authors = [{name = "Adrien Vergé"}]
 classifiers = [
