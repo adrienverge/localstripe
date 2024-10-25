@@ -856,6 +856,14 @@ status=$(
   | grep -oE '"status": "failed"')
 [ -n "$status" ]
 
+# cannot refund a failed charge
+code=$(
+  curl -sg -o /dev/null -w "%{http_code}" \
+       -u $SK: $HOST/v1/refunds \
+       -d charge=$charge \
+       -X POST)
+[ "$code" = 400 ]
+
 # create a pre-auth charge, observe 402 response
 code=$(
   curl -sg -o /dev/null -w "%{http_code}" \
