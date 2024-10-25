@@ -84,6 +84,23 @@ let handlePaymentMethodSubmit = async (event) => {
 let handlePaymentSubmit = async (event) => {
   event.preventDefault();
 
+  const container = document.getElementById('payment-result-message');
+
+  if (document.getElementById('payment-off-session').checked) {
+    const response = await fetch('/pay_off_session', {
+      method: "POST",
+      body: JSON.stringify({
+        amount: document.getElementById('payment-amount').value,
+      })
+    });
+    if (!response.ok) {
+      container.textContent = "Error making payment: " + await response.text();
+    } else {
+      container.textContent = "Successfully paid!";
+    }
+    return;
+  }
+
   const response = await fetch('/payment_intent', {
     method: "POST",
     body: JSON.stringify({
@@ -94,7 +111,6 @@ let handlePaymentSubmit = async (event) => {
 
   const {error} = await stripe.confirmCardPayment(clientSecret, {});
 
-  const container = document.getElementById('payment-result-message');
   if (error) {
     container.textContent = error.message;
   } else {

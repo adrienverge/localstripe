@@ -120,6 +120,27 @@ async def payment_intent(request):
     ))
 
 
+@routes.post('/pay_off_session')
+async def pay_off_session(request):
+    global customer_state
+
+    body = await request.json()
+
+    pi = stripe.PaymentIntent.create(
+        customer=customer_state.cus,
+        payment_method=customer_state.pm,
+        amount=body['amount'],
+        currency='usd',
+        off_session=True,
+        confirm=True,
+    )
+
+    if pi.status == 'succeeded':
+        return web.Response()
+
+    return web.Response(status=400, text=f'Payment failed; status={pi.status}')
+
+
 app.add_routes(routes)
 
 

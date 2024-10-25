@@ -295,18 +295,14 @@ Stripe = (apiKey) => {
         } else if (body.status === 'succeeded') {
           return {error: null, setupIntent: body};
         } else if (body.status === 'requires_action') {
-          const url =
-            (await openModal('3D Secure\nDo you want to confirm or cancel?',
-                             'Complete authentication', 'Fail authentication'))
-            ? `${LOCALSTRIPE_BASE_API}/v1/setup_intents/${seti}/confirm`
-            : `${LOCALSTRIPE_BASE_API}/v1/setup_intents/${seti}/cancel`;
+          const success = await openModal(
+              '3D Secure\nDo you want to confirm or cancel?',
+              'Complete authentication', 'Fail authentication');
+          let url = `${LOCALSTRIPE_BASE_API}/v1/setup_intents/${seti}` +
+              `/_authenticate?success=${success}`;
           response = await fetch(url, {
             method: 'POST',
-            body: JSON.stringify({
-              key: apiKey,
-              use_stripe_sdk: true,
-              client_secret: clientSecret,
-            }),
+            body: JSON.stringify({key: apiKey}),
           });
           body = await response.json().catch(() => ({}));
           if (response.status !== 200 || body.error) {

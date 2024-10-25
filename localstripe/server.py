@@ -169,6 +169,7 @@ async def auth_middleware(request, handler):
                 r'^/v1/sources$',
                 r'^/v1/payment_intents/\w+/_authenticate\b',
                 r'^/v1/payment_intents/\w+/confirm$',
+                r'^/v1/setup_intents/\w+/_authenticate\b',
                 r'^/v1/setup_intents/\w+/confirm$',
                 r'^/v1/setup_intents/\w+/cancel$',
             )))

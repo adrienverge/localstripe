@@ -434,13 +434,18 @@ class Card(StripeObject):
         self.tokenization_method = None
 
         self.customer = None
+        self._authenticated = False
 
     @property
     def last4(self):
         return self._card_number[-4:]
 
-    def _requires_authentication(self):
-        return PaymentMethod._requires_authentication(self)
+    def _setup_requires_authentication(self, usage=None):
+        return PaymentMethod._setup_requires_authentication(self, usage)
+
+    def _payment_requires_authentication(self, off_session):
+        return PaymentMethod._payment_requires_authentication(
+            self, off_session)
 
     def _attaching_is_declined(self):
         return PaymentMethod._attaching_is_declined(self)
@@ -1830,7 +1835,8 @@ class PaymentIntent(StripeObject):
 
     def __init__(self, amount=None, currency=None, customer=None,
                  payment_method=None, metadata=None, payment_method_types=None,
-                 capture_method=None, payment_method_options=None, **kwargs):
+                 capture_method=None, payment_method_options=None,
+                 off_session=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -1850,6 +1856,8 @@ class PaymentIntent(StripeObject):
                 assert capture_method in ('automatic',
                                           'automatic_async',
                                           'manual')
+            if off_session is not None:
+                assert type(off_session) is bool
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -1872,6 +1880,7 @@ class PaymentIntent(StripeObject):
         self.invoice = None
         self.next_action = None
         self.capture_method = capture_method or 'automatic_async'
+        self.off_session = off_session or False
 
         self._canceled = False
         self._authentication_failed = False
@@ -1963,7 +1972,7 @@ class PaymentIntent(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        obj = super()._api_create(**data)
+        obj = super()._api_create(off_session=off_session, **data)
 
         if confirm:
             obj._confirm(on_failure_now=obj._report_failure)
@@ -2001,7 +2010,7 @@ class PaymentIntent(StripeObject):
     def _confirm(self, on_failure_now):
         self._authentication_failed = False
         payment_method = PaymentMethod._api_retrieve(self.payment_method)
-        if payment_method._requires_authentication():
+        if payment_method._payment_requires_authentication(self.off_session):
             self.next_action = {
                 'type': 'use_stripe_sdk',
                 'use_stripe_sdk': {'type': 'three_d_secure_redirect',
@@ -2157,11 +2166,30 @@ class PaymentMethod(StripeObject):
 
         self.customer = None
         self.metadata = metadata or {}
+        self._authenticated = False
 
-    def _requires_authentication(self):
+    def _setup_requires_authentication(self, usage=None):
         if self.type == 'card':
-            return self._card_number in ('4000002500003155',
-                                         '4000002760003184',
+            if self._card_number == '4000002500003155':
+                # For this card, if we're setting up a payment method for
+                # off_session future payments, Stripe proactively forces
+                # 3DS authentication at setup time:
+                return usage == 'off_session'
+
+            return self._card_number in ('4000002760003184',
+                                         '4000008260003178',
+                                         '4000000000003220',
+                                         '4000000000003063',
+                                         '4000008400001629')
+        return False
+
+    def _payment_requires_authentication(self, off_session):
+        if self.type == 'card':
+            if self._card_number == '4000002500003155':
+                # See https://docs.stripe.com/testing#authentication-and-setup
+                return not (off_session and self._authenticated)
+
+            return self._card_number in ('4000002760003184',
                                          '4000008260003178',
                                          '4000000000003220',
                                          '4000000000003063',
@@ -2271,6 +2299,14 @@ class PaymentMethod(StripeObject):
                 type='card',
                 card=dict(
                     number='4000000000000341',
+                    exp_month='12',
+                    exp_year='2030',
+                    cvc='123'))
+        if id == 'pm_card_authenticationRequiredOnSetup':
+            return PaymentMethod(
+                type='card',
+                card=dict(
+                    number='4000002500003155',
                     exp_month='12',
                     exp_year='2030',
                     cvc='123'))
@@ -2715,9 +2751,15 @@ class Source(StripeObject):
                 'mandate_url': 'https://fake/NXDSYREGC9PSMKWY',
             }
 
-    def _requires_authentication(self):
+    def _setup_requires_authentication(self, usage=None):
         if self.type == 'sepa_debit':
-            return PaymentMethod._requires_authentication(self)
+            return PaymentMethod._setup_requires_authentication(self, usage)
+        return False
+
+    def _payment_requires_authentication(self, off_session):
+        if self.type == 'sepa_debit':
+            return PaymentMethod._payment_requires_authentication(
+                self, off_session)
         return False
 
     def _attaching_is_declined(self):
@@ -2812,7 +2854,7 @@ class SetupIntent(StripeObject):
             self.next_action = None
             raise UserError(402, 'Your card was declined.',
                             {'code': 'card_declined'})
-        elif pm._requires_authentication():
+        elif pm._setup_requires_authentication(self.usage):
             self.status = 'requires_action'
             self.next_action = {'type': 'use_stripe_sdk',
                                 'use_stripe_sdk': {
@@ -2844,10 +2886,49 @@ class SetupIntent(StripeObject):
         obj.next_action = None
         return obj
 
+    @classmethod
+    def _api_authenticate(cls, id, success=False, **kwargs):
+        """This is a test-only endpoint to help test payment methods which
+        require authentication during setup.
+
+        E.g., for credit cards which are subject to the 3D Secure protocol,
+        when confirmed, SetupIntent may transition to the 'requires_action'
+        status, with a 'next_action' indicating some flow that usually
+        involves human interaction from the cardholder. This endpoint bypasses
+        that required action for test purposes.
+        """
+
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        success = try_convert_to_bool(success)
+        try:
+            assert type(id) is str and id.startswith('seti_')
+            assert type(success) is bool
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        obj = cls._api_retrieve(id)
+
+        if obj.status != 'requires_action':
+            raise UserError(400, 'Bad request')
+
+        pm = PaymentMethod._api_retrieve(obj.payment_method)
+
+        if success:
+            pm._authenticated = True
+
+            obj.status = 'succeeded'
+            obj.next_action = None
+
+        return obj
+
 
 extra_apis.extend((
     ('POST', '/v1/setup_intents/{id}/confirm', SetupIntent._api_confirm),
-    ('POST', '/v1/setup_intents/{id}/cancel', SetupIntent._api_cancel)))
+    ('POST', '/v1/setup_intents/{id}/cancel', SetupIntent._api_cancel),
+    ('POST', '/v1/setup_intents/{id}/_authenticate',
+     SetupIntent._api_authenticate)))
 
 
 class Subscription(StripeObject):

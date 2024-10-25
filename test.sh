@@ -1220,3 +1220,93 @@ status=$(
        -d items[0][plan]=basique-annuel \
   | grep -oE '"status": "incomplete"')
 [ -n "$status" ]
+
+### test 3D Secure with both on-session and off-session payments
+
+# Set up for on-session payments. Doesn't require authentication at setup time,
+# but does require authentication when we make a payment_intent:
+cus=$(curl -sSfg -u $SK: $HOST/v1/customers \
+           -d email=on_session@example.com \
+      | grep -oE 'cus_\w+' | head -n 1)
+res=$(curl -sSfg -u $SK: -X POST $HOST/v1/setup_intents -d usage=on_session)
+seti=$(echo "$res" | grep '"id"' | grep -oE 'seti_\w+' | head -n 1)
+seti_secret=$(echo $res | grep -oE 'seti_\w+_secret_\w+' | head -n 1)
+res=$(curl -sSfg $HOST/v1/setup_intents/$seti/confirm \
+           -d key=pk_test_sldkjflaksdfj \
+           -d client_secret=$seti_secret \
+           -d payment_method_data[type]=card \
+           -d payment_method_data[card][number]=4000002500003155 \
+           -d payment_method_data[card][cvc]=242 \
+           -d payment_method_data[card][exp_month]=4 \
+           -d payment_method_data[card][exp_year]=2030 \
+           -d payment_method_data[billing_details][address][postal_code]=42424)
+succeeded=$(echo "$res" | grep -oE '"status": "succeeded"' | head -n 1)
+[ -n "$succeeded" ]
+pm=$(echo "$res" | grep '"payment_method"' | grep -oE 'pm_\w+' | head -n 1)
+curl -u $SK: $HOST/v1/payment_methods/$pm/attach -d customer=$cus
+# requires authentication for on-session payments:
+res=$(curl -sSfg -u $SK: $HOST/v1/payment_intents \
+       -d customer=$cus \
+       -d payment_method=$pm \
+       -d amount=1000 \
+       -d confirm=true \
+       -d currency=usd)
+requires_action=$(echo "$res" | grep -oE '"status": "requires_action"' | head -n 1)
+[ -n "$requires_action" ]
+# requires authentication for off-session payments too:
+res=$(curl -sSfg -u $SK: $HOST/v1/payment_intents \
+       -d customer=$cus \
+       -d payment_method=$pm \
+       -d amount=1000 \
+       -d confirm=true \
+       -d off_session=true \
+       -d currency=usd)
+requires_action=$(echo "$res" | grep -oE '"status": "requires_action"' | head -n 1)
+[ -n "$requires_action" ]
+
+# Set up for off-session payments. Does require authentication at setup time,
+# but doesn't require authentication when we make an offline payment_intent:
+cus=$(curl -sSfg -u $SK: $HOST/v1/customers \
+           -d email=off_session@example.com \
+      | grep -oE 'cus_\w+' | head -n 1)
+res=$(curl -sSfg -u $SK: -X POST $HOST/v1/setup_intents -d usage=off_session)
+seti=$(echo "$res" | grep '"id"' | grep -oE 'seti_\w+' | head -n 1)
+seti_secret=$(echo $res | grep -oE 'seti_\w+_secret_\w+' | head -n 1)
+res=$(curl -sSfg $HOST/v1/setup_intents/$seti/confirm \
+           -d key=pk_test_sldkjflaksdfj \
+           -d client_secret=$seti_secret \
+           -d payment_method_data[type]=card \
+           -d payment_method_data[card][number]=4000002500003155 \
+           -d payment_method_data[card][cvc]=242 \
+           -d payment_method_data[card][exp_month]=4 \
+           -d payment_method_data[card][exp_year]=2030 \
+           -d payment_method_data[billing_details][address][postal_code]=42424)
+requires_action=$(echo "$res" | grep -oE '"status": "requires_action"' | head -n 1)
+[ -n "$requires_action" ]
+# Do a backdoor authentication using this test-only authenticate endpoint:
+res=$(curl -f -u $SK: -X POST \
+           $HOST/v1/setup_intents/$seti/_authenticate \
+           -d success=true)
+succeeded=$(echo "$res" | grep -oE '"status": "succeeded"' | head -n 1)
+[ -n "$succeeded" ]
+pm=$(echo "$res" | grep '"payment_method"' | grep -oE 'pm_\w+' | head -n 1)
+curl -u $SK: $HOST/v1/payment_methods/$pm/attach -d customer=$cus
+# still requires authentication for on-session payments:
+res=$(curl -sSfg -u $SK: $HOST/v1/payment_intents \
+       -d customer=$cus \
+       -d payment_method=$pm \
+       -d amount=1000 \
+       -d confirm=true \
+       -d currency=usd)
+requires_action=$(echo "$res" | grep -oE '"status": "requires_action"' | head -n 1)
+[ -n "$requires_action" ]
+# but doesn't require authentication for off-session payments:
+res=$(curl -sSfg -u $SK: $HOST/v1/payment_intents \
+       -d customer=$cus \
+       -d payment_method=$pm \
+       -d amount=1000 \
+       -d confirm=true \
+       -d off_session=true \
+       -d currency=usd)
+succeeded=$(echo "$res" | grep -oE '"status": "succeeded"' | head -n 1)
+[ -n "$succeeded" ]
