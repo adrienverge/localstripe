@@ -1076,6 +1076,12 @@ payment_intent=$(
        -d capture_method=manual \
   | grep -oE 'pi_\w+' | head -n 1)
 
+# we don't get a payment_intent.succeeded event from the pre-auth:
+succeeded_event=$(
+  curl -sSfg -u $SK: "$HOST/v1/events?type=payment_intent.succeeded" \
+  | grep -oE "\"id\": \"$payment_intent\"" || true)
+[ -z "$succeeded_event" ]
+
 # payment_intent was not captured
 captured=$(
   curl -sSfg -u $SK: $HOST/v1/payment_intents/$payment_intent \
@@ -1095,6 +1101,12 @@ captured=$(
        -d amount_to_capture=800 \
   | grep -oE '"status": "succeeded"')
 [ -n "$captured" ]
+
+# we do get a payment_intent.succeeded event from the capture:
+succeeded_event=$(
+  curl -sSfg -u $SK: "$HOST/v1/events?type=payment_intent.succeeded" \
+  | grep -oE "\"id\": \"$payment_intent\"")
+[ -n "$succeeded_event" ]
 
 # difference between pre-auth and capture is refunded
 refunded=$(
@@ -1172,6 +1184,38 @@ code=$(
   curl -sg -u $SK: $HOST/v1/payment_intents/$payment_intent/confirm \
        -X POST -o /dev/null -w "%{http_code}")
 [ "$code" = 402 ]
+
+# we get a payment_intent.payment_failed event:
+failed_event=$(
+  curl -sSfg -u $SK: "$HOST/v1/events?type=payment_intent.payment_failed" \
+  | grep -oE "\"id\": \"$payment_intent\"")
+[ -n "$failed_event" ]
+
+# we don't get a payment_intent.succeeded event:
+succeeded_event=$(
+  curl -sSfg -u $SK: "$HOST/v1/events?type=payment_intent.succeeded" \
+  | grep -oE "\"id\": \"$payment_intent\"" || true)
+[ -z "$succeeded_event" ]
+
+## test event timestamp filtering:
+first_created=$(
+  curl -sSfg -u $SK: "$HOST/v1/events" \
+  | grep -oP -m 1 'created": \K([0-9]+)' || true)
+[ -n "$first_created" ]
+
+total_count=$(curl -sSfg -u $SK: $HOST/v1/events \
+              | grep -oP '^  "total_count": \K([0-9]+)')
+[ "$total_count" -gt 1 ]
+
+count=$(
+  curl -sSfg -u $SK: "$HOST/v1/events?created[lte]=$first_created" \
+  | grep -oP '^  "total_count": \K([0-9]+)')
+[ "$count" -le "$total_count" ]
+
+count=$(
+  curl -sSfg -u $SK: "$HOST/v1/events?created[lte]=$first_created&created[gt]=9999999999" \
+  | grep -oP '^  "total_count": \K([0-9]+)')
+[ "$count" -eq 0 ]
 
 # Create a customer with card 4000000000000341 (that fails upon payment) and
 # make sure creating the subscription doesn't fail (although it creates it with
