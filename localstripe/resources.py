@@ -2607,6 +2607,8 @@ class Refund(StripeObject):
             charge = payment_intent_obj.latest_charge.id
 
         charge_obj = Charge._api_retrieve(charge)
+        if charge_obj.status == 'failed':
+            raise UserError(400, 'Cannot refund a failed payment.')
 
         # All exceptions must be raised before this point.
         super().__init__()
