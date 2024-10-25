@@ -1115,6 +1115,47 @@ class Event(StripeObject):
     def _api_delete(cls, id):
         raise UserError(405, 'Method Not Allowed')
 
+    @classmethod
+    def _api_list_all(cls, url, type=None, created=None, limit=None,
+                      starting_after=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        filters = []
+        try:
+            if type is not None:
+                assert _type(type) is str
+                filters.append(lambda obj: obj.type == type)
+            if created is not None:
+                assert _type(created) is dict
+                gt = try_convert_to_int(created.pop('gt', None))
+                if gt is not None:
+                    filters.append(lambda obj: obj.created > gt)
+
+                gte = try_convert_to_int(created.pop('gte', None))
+                if gte is not None:
+                    filters.append(lambda obj: obj.created >= gte)
+
+                lt = try_convert_to_int(created.pop('lt', None))
+                if lt is not None:
+                    filters.append(lambda obj: obj.created < lt)
+
+                lte = try_convert_to_int(created.pop('lte', None))
+                if lte is not None:
+                    filters.append(lambda obj: obj.created <= lte)
+
+                assert not created  # no other params are supported
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        li = super()._api_list_all(
+            url, limit=limit, starting_after=starting_after
+        )
+
+        li._list = [obj for obj in li._list if all(f(obj) for f in filters)]
+
+        return li
+
 
 class Invoice(StripeObject):
     object = 'invoice'
@@ -1877,18 +1918,21 @@ class PaymentIntent(StripeObject):
         self._authentication_failed = False
 
     def _on_success(self):
+        schedule_webhook(Event('payment_intent.succeeded', self))
         if self.invoice:
             invoice = Invoice._api_retrieve(self.invoice)
             invoice._on_payment_success()
 
     def _report_failure(self):
+        schedule_webhook(Event('payment_intent.payment_failed', self))
         if self.invoice:
             invoice = Invoice._api_retrieve(self.invoice)
             invoice._on_payment_failure_now()
 
         self.latest_charge._raise_failure()
 
-    def _on_failure_later(self):
+    def _report_async_failure(self):
+        schedule_webhook(Event('payment_intent.payment_failed', self))
         if self.invoice:
             invoice = Invoice._api_retrieve(self.invoice)
             invoice._on_payment_failure_later()
@@ -1905,7 +1949,7 @@ class PaymentIntent(StripeObject):
         charge.payment_intent = self.id
         self.latest_charge = charge
         charge._initialize_charge(self._on_success, on_failure_now,
-                                  self._on_failure_later)
+                                  self._report_async_failure)
 
     @property
     def status(self):
