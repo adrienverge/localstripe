@@ -193,6 +193,9 @@ JavaScript source in the web page before it creates card elements:
 
  <script src="http://localhost:8420/js.stripe.com/v3/"></script>
 
+See the ``samples/pm_setup`` directory for an example of this with a
+very minimalistic Stripe elements application.
+
 Use webhooks
 ------------
 
