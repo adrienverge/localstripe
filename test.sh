@@ -1065,6 +1065,24 @@ captured=$(
   | grep -oE '"captured": true,')
 [ -n "$captured" ]
 
+# we can also confirm separately from payment_intent creation
+res=$(
+  curl -sSfg -u $SK: $HOST/v1/payment_intents \
+       -d customer=$cus \
+       -d payment_method=$card \
+       -d amount=1000 \
+       -d confirm=false \
+       -d currency=usd)
+payment_intent=$(echo "$res" | grep '"id"' | grep -oE 'pi_\w+' | head -n 1)
+payment_intent_secret=$(echo $res | grep -oE 'pi_\w+_secret_\w+' | head -n 1)
+
+succeeded=$(
+  curl -sSfg $HOST/v1/payment_intents/$payment_intent/confirm \
+       -d client_secret=$payment_intent_secret \
+       -d key=pk_test_sldkjflaksdfj \
+  | grep -oE '"status": "succeeded"')
+[ -n "$succeeded" ]
+
 # create a pre-auth payment_intent
 payment_intent=$(
   curl -sSfg -u $SK: $HOST/v1/payment_intents \
