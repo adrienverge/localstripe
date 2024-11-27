@@ -295,18 +295,14 @@ Stripe = (apiKey) => {
         } else if (body.status === 'succeeded') {
           return {error: null, setupIntent: body};
         } else if (body.status === 'requires_action') {
-          const url =
-            (await openModal('3D Secure\nDo you want to confirm or cancel?',
-                             'Complete authentication', 'Fail authentication'))
-            ? `${LOCALSTRIPE_BASE_API}/v1/setup_intents/${seti}/confirm`
-            : `${LOCALSTRIPE_BASE_API}/v1/setup_intents/${seti}/cancel`;
+          const success = await openModal(
+              '3D Secure\nDo you want to confirm or cancel?',
+              'Complete authentication', 'Fail authentication');
+          let url = `${LOCALSTRIPE_BASE_API}/v1/setup_intents/${seti}` +
+              `/_authenticate?success=${success}`;
           response = await fetch(url, {
             method: 'POST',
-            body: JSON.stringify({
-              key: apiKey,
-              use_stripe_sdk: true,
-              client_secret: clientSecret,
-            }),
+            body: JSON.stringify({key: apiKey}),
           });
           body = await response.json().catch(() => ({}));
           if (response.status !== 200 || body.error) {
@@ -340,24 +336,45 @@ Stripe = (apiKey) => {
     confirmCardPayment: async (clientSecret, data) => {
       console.log('localstripe: Stripe().confirmCardPayment()');
       try {
-        const success = await openModal(
-          '3D Secure\nDo you want to confirm or cancel?',
-          'Complete authentication', 'Fail authentication');
         const pi = clientSecret.match(/^(pi_\w+)_secret_/)[1];
-        const url = `${LOCALSTRIPE_BASE_API}/v1/payment_intents/${pi}` +
-                    `/_authenticate?success=${success}`;
-        const response = await fetch(url, {
+        let url = `${LOCALSTRIPE_BASE_API}/v1/payment_intents/${pi}/confirm`;
+        let response = await fetch(url, {
           method: 'POST',
-          body: JSON.stringify({
+          body: new URLSearchParams({
             key: apiKey,
             client_secret: clientSecret,
           }),
         });
-        const body = await response.json().catch(() => ({}));
+        let body = await response.json().catch(() => ({}));
         if (response.status !== 200 || body.error) {
           return {error: body.error};
-        } else {
+        } else if (body.status === 'succeeded') {
           return {paymentIntent: body};
+        } else if (body.status === 'requires_action') {
+          const success = await openModal(
+              '3D Secure\nDo you want to confirm or cancel?',
+              'Complete authentication', 'Fail authentication');
+          url = `${LOCALSTRIPE_BASE_API}/v1/payment_intents/${pi}` +
+              `/_authenticate?success=${success}`;
+          response = await fetch(url, {
+            method: 'POST',
+            body: JSON.stringify({
+              key: apiKey,
+              client_secret: clientSecret,
+            }),
+          });
+          body = await response.json().catch(() => ({}));
+          if (response.status !== 200 || body.error) {
+            return {error: body.error};
+          } else if (body.status === 'succeeded') {
+            return {paymentIntent: body};
+          } else {  // 3D Secure authentication cancelled by user:
+            return {error: {message:
+              'The latest attempt to confirm the payment has failed ' +
+              'because authentication failed.'}};
+          }
+        } else {
+          return {error: {message: `payment_intent has status ${body.status}`}};
         }
       } catch (err) {
         if (typeof err === 'object' && err.error) {
