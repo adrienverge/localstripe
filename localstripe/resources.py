@@ -1208,6 +1208,7 @@ class Invoice(StripeObject):
         super().__init__()
 
         self.customer = customer
+        self.customer_email = cus.email
         self.subscription = subscription
         self.tax_percent = tax_percent
         self.default_tax_rates = default_tax_rates
@@ -1334,6 +1335,7 @@ class Invoice(StripeObject):
     def _finalize(self):
         assert self.status == 'draft'
         self._draft = False
+        self.customer_email = Customer._api_retrieve(self.customer).email
         self.status_transitions['finalized_at'] = int(time.time())
 
     def _on_payment_success(self):
