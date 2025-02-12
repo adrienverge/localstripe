@@ -2017,7 +2017,8 @@ class PaymentIntent(StripeObject):
         return obj
 
     @classmethod
-    def _api_confirm(cls, id, payment_method=None, **kwargs):
+    def _api_confirm(cls, id, payment_method=None, client_secret=None,
+                     **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -2026,10 +2027,15 @@ class PaymentIntent(StripeObject):
 
         try:
             assert type(id) is str and id.startswith('pi_')
+            if client_secret is not None:
+                assert type(client_secret) is str
         except AssertionError:
             raise UserError(400, 'Bad request')
 
         obj = cls._api_retrieve(id)
+
+        if client_secret and client_secret != obj.client_secret:
+            raise UserError(401, 'Unauthorized')
 
         if obj.status != 'requires_confirmation':
             raise UserError(400, 'Bad request')
