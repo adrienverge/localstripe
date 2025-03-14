@@ -3250,6 +3250,15 @@ class Subscription(StripeObject):
             self._create_invoice()
 
     @classmethod
+    def _api_update(cls, id, **data):
+        obj = cls._api_retrieve(id)
+        obj._update(**data)
+        schedule_webhook(
+            Event('customer.subscription.updated', obj)
+        )
+        return obj
+
+    @classmethod
     def _api_delete(cls, id):
         obj = Subscription._api_retrieve(id)
         obj.ended_at = int(time.time())
