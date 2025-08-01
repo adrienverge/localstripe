@@ -78,6 +78,14 @@ txr2=$(curl -sSfg -u $SK: $HOST/v1/tax_rates \
             -d inclusive=false \
       | grep -oE 'txr_\w+' | head -n 1)
 
+txr3=$(curl -sSfg -u $SK: $HOST/v1/tax_rates \
+            -d display_name=VAT \
+            -d description='TVA DOM taux normal' \
+            -d jurisdiction=FR \
+            -d percentage=8.5 \
+            -d inclusive=false \
+      | grep -oE 'txr_\w+' | head -n 1)
+
 curl -sSfg -u $SK: $HOST/v1/plans \
    -d id=basique-mensuel \
    -d product[name]='Abonnement basique (mensuel)' \
@@ -1246,3 +1254,28 @@ status=$(
        -d items[0][plan]=basique-annuel \
   | grep -oE '"status": "incomplete"')
 [ -n "$status" ]
+
+cus=$(curl -sSfg -u $SK: $HOST/v1/customers \
+           -d description='This customer will have a subscription with a discount' \
+           -d email=discount@bar.com \
+      | grep -oE 'cus_\w+' | head -n 1)
+
+curl -sSfg -u $SK: $HOST/v1/customers/$cus/sources \
+     -d source=$tok
+
+curl -sSfg -u $SK: $HOST/v1/invoiceitems \
+     -d customer=$cus \
+     -d amount=-4900 \
+     -d currency=eur \
+     -d description="One time discount" \
+     -d tax_rates[]=$txr3
+
+inv=$(curl -sSfg -u $SK: $HOST/v1/subscriptions \
+           -d customer=$cus \
+           -d items[0][plan]=basique-annuel \
+           -d items[0][tax_rates][0]=$txr3 \
+      | grep -oE 'in_\w+' | head -n 1)
+
+total=$(curl -sSfg -u $SK: $HOST/v1/invoices/$inv \
+        | grep -oP '"total": \K([0-9]+)' )
+[ "$total" -eq 16383 ]

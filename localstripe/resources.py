@@ -15,6 +15,7 @@
 
 import asyncio
 from datetime import datetime, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 import hashlib
 import pickle
 import random
@@ -3467,7 +3468,8 @@ class TaxRate(StripeObject):
         self.metadata = metadata or {}
 
     def _tax_amount(self, amount):
-        return {'amount': int(amount * self.percentage / 100.0),
+        decimal = Decimal(str(amount * self.percentage / 100.0))
+        return {'amount': int(decimal.quantize(Decimal('1.'), ROUND_HALF_UP)),
                 'inclusive': self.inclusive,
                 'tax_rate': self.id}
 
