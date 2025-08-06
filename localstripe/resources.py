@@ -3310,8 +3310,8 @@ class Subscription(StripeObject):
                                 proration=True,
                                 description='Unused time',
                                 subscription=self.id,
-                                plan=old_plan.id,
-                                price=old_price.id
+                                plan=old_plan.id if old_plan else None,
+                                price=old_price.id if old_price else None,
                                 tax_rates=previous_tax_rates,
                                 customer=self.customer)
 
