@@ -2551,6 +2551,40 @@ class Payout(StripeObject):
 extra_apis.append(('POST', '/v1/payouts/{id}/cancel', Payout._api_cancel))
 
 
+class Price(StripeObject):
+    object = 'price'
+    _id_prefix = 'price_'
+
+    def __init__(self, id=None, product=None, currency=None, unit_amount=None,
+                 recurring=None, **kwargs):
+        if kwargs:
+            raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
+
+        assert id is None or type(id) is str
+        assert product is None or type(product) is str
+        assert currency is None or type(currency) is str
+        if unit_amount is not None:
+            unit_amount = try_convert_to_int(unit_amount)
+            assert type(unit_amount) is int and unit_amount >= 0
+        if recurring is not None:
+            assert type(recurring) is dict
+            assert 'interval' in recurring
+            assert recurring['interval'] in ('day', 'week', 'month', 'year')
+            if 'interval_count' in recurring:
+                interval_count = try_convert_to_int(recurring['interval_count'])
+                assert type(interval_count) is int and interval_count > 0
+
+        if product is not None:
+            Product._api_retrieve(product)  # to return 404 if not existant
+
+        super().__init__(id)
+
+        self.product = product
+        self.currency = currency
+        self.unit_amount = unit_amount
+        self.recurring = recurring or {}
+
+
 class Product(StripeObject):
     object = 'product'
     _id_prefix = 'prod_'
