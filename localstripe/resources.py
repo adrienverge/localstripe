@@ -2577,14 +2577,21 @@ class Price(StripeObject):
     object = 'price'
     _id_prefix = 'price_'
 
-    def __init__(self, id=None, product=None, currency=None, unit_amount=None,
-                 recurring=None, **kwargs):
+    def __init__(self, id=None, active=None, currency=None, metadata=None,
+                 nickname=None, product=None, recurring=None, unit_amount=None,
+                 **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
         assert id is None or type(id) is str
-        assert product is None or type(product) is str
-        assert currency is None or type(currency) is str
+        if active is None:
+            active = True
+        else:
+            active = try_convert_to_bool(active)
+        assert currency is None or type(currency) is str and currency
+        assert metadata is None or type(metadata) is dict
+        assert nickname is None or type(nickname) is str
+        assert product is None or type(product) is str and product
         if unit_amount is not None:
             unit_amount = try_convert_to_int(unit_amount)
             assert type(unit_amount) is int and unit_amount >= 0
@@ -2595,16 +2602,19 @@ class Price(StripeObject):
             if 'interval_count' in recurring:
                 interval_count = try_convert_to_int(recurring['interval_count'])
                 assert type(interval_count) is int and interval_count > 0
-
+            # TODO: Add support for "meter" and "usage_type".
         if product is not None:
             Product._api_retrieve(product)  # to return 404 if not existant
 
         super().__init__(id)
 
-        self.product = product
+        self.active = active
         self.currency = currency
-        self.unit_amount = unit_amount
+        self.metadata = metadata
+        self.nickname = nickname
+        self.product = product
         self.recurring = recurring or {}
+        self.unit_amount = unit_amount
 
         schedule_webhook(Event('price.created', self))
 
