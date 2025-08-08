@@ -2581,8 +2581,8 @@ class Price(StripeObject):
     _id_prefix = 'price_'
 
     def __init__(self, id=None, active=None, currency=None, metadata=None,
-                 nickname=None, product=None, recurring=None, unit_amount=None,
-                 **kwargs):
+                 nickname=None, product=None, product_data=None,
+                 recurring=None, unit_amount=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -2609,6 +2609,10 @@ class Price(StripeObject):
             # TODO: Add support for "meter" and "usage_type".
         if product is not None:
             Product._api_retrieve(product)  # to return 404 if not existant
+        if product_data is not None:
+            assert isinstance(product_data, dict)
+            assert 'name' in product_data
+            product = Product(name=product_data['name']).id
 
         super().__init__(id)
 
@@ -3357,8 +3361,10 @@ class Subscription(StripeObject):
         ) or (
             self.price and
             (
-                self.price.interval != old_price.interval or
-                self.price.interval_count != old_price.interval_count
+                self.price.recurring.get('interval') !=
+                old_price.recurring.get('interval') or
+                self.price.recurring.get('interval_count') !=
+                old_price.recurring.get('interval_count')
             )
         )
         if create_an_invoice:
@@ -3458,7 +3464,7 @@ class SubscriptionItem(StripeObject):
                 'week': timedelta(weeks=1),
                 'month': relativedelta(months=1),
                 'year': relativedelta(years=1)
-            }[self.price.interval]
+            }[self.price.recurring['interval']]
         if self.price is None:
             assert self.plan is not None
             if self.plan.interval == 'day':
