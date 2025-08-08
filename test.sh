@@ -1279,3 +1279,24 @@ inv=$(curl -sSfg -u $SK: $HOST/v1/subscriptions \
 total=$(curl -sSfg -u $SK: $HOST/v1/invoices/$inv \
         | grep -oP '"total": \K([0-9]+)' )
 [ "$total" -eq 16383 ]
+
+# Create a price under an existing product.
+curl -sSfg -u $SK: $HOST/v1/prices \
+  -d id=price_abc001 \
+  -d currency=usd \
+  -d unit_amount=1000 \
+  -d recurring[interval]=month \
+  -d product=PRODUCT1234
+
+# Create a price and create a new product as a side-effect.
+curl -sSfg -u $SK: $HOST/v1/prices \
+  -d id=price_abc002 \
+  -d currency=usd \
+  -d unit_amount=10000 \
+  -d recurring[interval]=year \
+  -d product_data[name]=Gold\ Plan
+
+# Subscribe a user to an existing price.
+curl -sSfg -u $SK: $HOST/v1/subscriptions \
+  -d customer=$cus \
+  -d items[0][price]=price_abc001
