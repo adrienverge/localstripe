@@ -1420,9 +1420,9 @@ class Invoice(StripeObject):
         if subscription_items:
             for si in subscription_items:
                 if 'plan' in si:
-                    Plan._api_retrieve(si['plan'])  # to return 404 if not existant
+                    Plan._api_retrieve(si['plan'])
                 if 'price' in si:
-                    Price._api_retrieve(si['price']) # to return 404 if not existant
+                    Price._api_retrieve(si['price'])
                 # To return 404 if not existant:
                 if len(si['tax_rates']):
                     [TaxRate._api_retrieve(tr) for tr in si['tax_rates']]
@@ -1733,7 +1733,7 @@ class InvoiceItem(StripeObject):
         if plan is not None:
             plan = Plan._api_retrieve(plan)  # to return 404 if not existant
         if price is not None:
-            price = Price._api_retrieve(price) # to return 404 if not existant
+            price = Price._api_retrieve(price)
         if len(tax_rates):
             # To return 404 if not existant:
             tax_rates = [TaxRate._api_retrieve(tr) for tr in tax_rates]
@@ -1798,7 +1798,10 @@ class InvoiceLineItem(StripeObject):
             self.plan = item.plan
             self.price = item.price
             self.proration = False
-            self.currency = item.plan.currency if item.plan else item.price.currency
+            self.currency = (
+                item.plan.currency if item.plan else
+                item.price.currency
+            )
             self.description = item.plan.name if item.plan else None
             self.amount = item._calculate_amount()
             self.period = item._current_period()
@@ -2600,7 +2603,8 @@ class Price(StripeObject):
             assert 'interval' in recurring
             assert recurring['interval'] in ('day', 'week', 'month', 'year')
             if 'interval_count' in recurring:
-                interval_count = try_convert_to_int(recurring['interval_count'])
+                interval_count = \
+                    try_convert_to_int(recurring['interval_count'])
                 assert type(interval_count) is int and interval_count > 0
             # TODO: Add support for "meter" and "usage_type".
         if product is not None:
@@ -3053,9 +3057,9 @@ class Subscription(StripeObject):
         Customer._api_retrieve(customer)  # to return 404 if not existant
         for item in items:
             if 'price' in item:
-                Price._api_retrieve(item['price'])  # to return 404 if not existant
+                Price._api_retrieve(item['price'])
             elif 'plan' in item:
-                Plan._api_retrieve(item['plan'])  # to return 404 if not existant
+                Plan._api_retrieve(item['plan'])
             # To return 404 if not existant:
             if len(item['tax_rates']):
                 [TaxRate._api_retrieve(tr) for tr in item['tax_rates']]
@@ -3110,7 +3114,7 @@ class Subscription(StripeObject):
     @property
     def plan(self):
         return self.items._list[0].plan
-    
+
     @property
     def price(self):
         return self.items._list[0].price
@@ -3262,11 +3266,11 @@ class Subscription(StripeObject):
             if old_plan:
                 if not items[0].get('plan'):
                     items[0]['plan'] = self.plan.id
-                Plan._api_retrieve(items[0]['plan']) # to return 404 if not existant
+                Plan._api_retrieve(items[0]['plan'])
             elif old_price:
                 if not items[0].get('price'):
                     items[0]['price'] = self.price.id
-                Price._api_retrieve(items[0]['price']) # to return 404 if not existant
+                Price._api_retrieve(items[0]['price'])
 
             # To return 404 if not existant:
             if len(items[0]['tax_rates']):
@@ -3352,8 +3356,10 @@ class Subscription(StripeObject):
             )
         ) or (
             self.price and
-            self.price.interval != old_price.interval or
-            self.price.interval_count != old_price.interval_count
+            (
+                self.price.interval != old_price.interval or
+                self.price.interval_count != old_price.interval_count
+            )
         )
         if create_an_invoice:
             self._create_invoice()
