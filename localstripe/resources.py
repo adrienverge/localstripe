@@ -1603,6 +1603,40 @@ class Invoice(StripeObject):
         return invoice
 
     @classmethod
+    def _api_create_preview_invoice(cls, customer=None, subscription=None,
+                                    subscription_details=None):
+        try:
+            if subscription_details is not None:
+                assert type(subscription_details) is dict
+        except AssertionError:
+            raise UserError(400, 'Bad request')
+
+        details = subscription_details or {}
+        default_tax_rates = details.get('default_tax_rates')
+        items = details.get('items')
+        proration_date = details.get('proration_date')
+        trial_end = details.get('trial_end')
+
+        invoice = cls._get_next_invoice(
+            customer=customer,
+            subscription=subscription,
+            upcoming=True,
+            subscription_default_tax_rates=default_tax_rates,
+            subscription_items=items,
+            subscription_proration_date=proration_date,
+            subscription_trial_end=trial_end)
+
+        # Do not store this invoice but real Stripe server do for a limited
+        # amount of time (72 hours) which make it possible to retrieve it
+        # on route /v1/invoices/:id:
+        # https://docs.stripe.com/invoicing/preview
+        del store[cls.object + ':' + invoice.id]
+
+        invoice.id = f'upcoming_{invoice.id}'
+
+        return invoice
+
+    @classmethod
     def _api_pay_invoice(cls, id):
         obj = Invoice._api_retrieve(id)
 
@@ -1664,6 +1698,8 @@ class Invoice(StripeObject):
 
 extra_apis.extend((
     ('GET', '/v1/invoices/upcoming', Invoice._api_upcoming_invoice),
+    ('POST', '/v1/invoices/create_preview',
+     Invoice._api_create_preview_invoice),
     ('POST', '/v1/invoices/{id}/pay', Invoice._api_pay_invoice),
     ('POST', '/v1/invoices/{id}/void', Invoice._api_void_invoice),
     ('GET', '/v1/invoices/{id}/lines', Invoice._api_list_lines)))

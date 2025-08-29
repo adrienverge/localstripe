@@ -472,6 +472,11 @@ code=$(curl -sg -o /dev/null -w "%{http_code}" -u $SK: \
             $HOST/v1/invoices/upcoming?customer=$cus)
 [ "$code" = 404 ]
 
+code=$(curl -sg -o /dev/null -w "%{http_code}" -u $SK: \
+            $HOST/v1/invoices/create_preview \
+            -d customer=$cus)
+[ "$code" = 404 ]
+
 curl -sSfg -u $SK: $HOST/v1/subscriptions \
      -d customer=$cus \
      -d items[0][plan]=basique-mensuel \
@@ -491,6 +496,17 @@ curl -sSfg -u $SK: $HOST/v1/invoices/upcoming?customer=$cus
 curl -sSfg -u $SK: $HOST/v1/invoices/upcoming?customer=$cus\&subscription_items[0][plan]=pro-annuel\&subscription_tax_percent=20
 
 curl -sSfg -u $SK: $HOST/v1/invoices/upcoming?customer=$cus\&subscription=$sub\&subscription_items[0][id]=si_RBrVStcKDimMnp\&subscription_items[0][plan]=basique-annuel\&subscription_proration_date=1504182686\&subscription_tax_percent=20
+
+curl -sSfg -u $SK: $HOST/v1/invoices/create_preview \
+     -d customer=$cus
+
+curl -sSfg -u $SK: $HOST/v1/invoices/create_preview \
+     -d customer=$cus \
+     -d subscription=$sub \
+     -d subscription_details[default_tax_rates][0]=$txr1 \
+     -d subscription_details[items][0][id]=si_RBrVStcKDimMnp \
+     -d subscription_details[items][0][plan]=basique-annuel \
+     -d subscription_details[proration_date]=1504182686
 
 curl -sSfg -u $SK: $HOST/v1/invoices/$in/lines
 
