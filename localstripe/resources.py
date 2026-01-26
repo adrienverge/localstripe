@@ -1333,6 +1333,14 @@ class Invoice(StripeObject):
             pi = PaymentIntent._api_retrieve(self.payment_intent)
             return pi.latest_charge
 
+    @property
+    def parent(self):
+        if self.subscription:
+            return {
+                'type': 'subscription_details',
+                'subscription_details': {'subscription': self.subscription},
+            }
+
     def _finalize(self):
         assert self.status == 'draft'
         self._draft = False
