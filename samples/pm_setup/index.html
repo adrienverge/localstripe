@@ -1,0 +1,33 @@
+<head>
+  <title>
+    localstripe sample: Set up a payment method for future payments
+  </title>
+  <!-- this is a proxy script which chooses whether to load the real Stripe.js
+  or localstripe's mock: -->
+  <script src="stripe.js"></script>
+  <script type="module" src="pm_setup.js"></script>
+</head>
+<body>
+  <h1>
+    localstripe sample: Set up a payment method for future payments
+  </h1>
+  <form id="setup-form">
+    <input type="submit" name="setup-submit" value="Start adding a payment method!"/>
+  </form>
+  <fieldset disabled="disabled" id="payment-method-form-fieldset">
+    <form id="payment-method-form">
+      <p>Enter your (test) card information:</p>
+      <div id="payment-method-element"></div>
+      <input type="submit" name="payment-method-submit" value="Submit"/>
+      <div id="payment-method-result-message"></div>
+    </form>
+  </fieldset>
+  <fieldset disabled="disabled" id="payment-form-fieldset">
+    <form id="payment-form">
+      <label for="payment-amount">Make a payment in cents:</label>
+      <input id="payment-amount" name="amount" type="number"/>
+      <input type="submit" name="payment-submit" value="Submit"/>
+      <div id="payment-result-message"></div>
+    </form>
+  </fieldset>
+</body>
