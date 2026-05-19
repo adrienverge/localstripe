@@ -774,7 +774,7 @@ class Customer(StripeObject):
                 if data['type'] == 'es_cif':
                     assert len(data['value']) == 9
                 else:
-                    assert len(data['value']) > 10
+                    assert len(data['value']) >= 10
             if payment_method is not None:
                 assert type(payment_method) is str
             assert type(balance) is int
@@ -947,7 +947,7 @@ class Customer(StripeObject):
             if type == 'es_cif':
                 assert len(value) == 9
             else:
-                assert len(value) > 10
+                assert len(value) >= 10
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -3442,7 +3442,7 @@ class TaxId(StripeObject):
             if type == 'es_cif':
                 assert len(value) == 9
             else:
-                assert len(value) > 10
+                assert len(value) >= 10
             if country is None:
                 if type == 'eu_vat':
                     country = value[0:2]
