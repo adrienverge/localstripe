@@ -211,8 +211,8 @@ Only those events types are currently supported:
 - Plan: ``plan.created``
 - Customer: ``customer.created``, ``customer.updated`` and ``customer.deleted``
 - Source: ``customer.source.created``
-- Subscription: ``customer.subscription.created`` and
-  ``customer.subscription.deleted``
+- Subscription: ``customer.subscription.created``,
+  ``customer.subscription.updated`` and ``customer.subscription.deleted``
 - Invoice: ``invoice.created``, ``invoice.payment_succeeded`` and
   ``invoice.payment_failed``
 
