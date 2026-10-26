@@ -1221,6 +1221,61 @@ succeeded_event=$(
   | grep -oE "\"id\": \"$payment_intent\"" || true)
 [ -z "$succeeded_event" ]
 
+## test the browser-side confirmCardPayment() flow (see issue #253):
+## Stripe.js confirms the PaymentIntent with the publishable key, attaching the
+## card via payment_method_data, then authenticates only if 3D Secure is needed.
+PK=pk_test_browser
+
+# A non-3DS card completes without any 3D Secure step:
+res=$(curl -sSfg -u $SK: $HOST/v1/payment_intents \
+           -d amount=1000 -d currency=usd -d confirm=false)
+pi=$(echo "$res" | grep -oE 'pi_\w+' | head -n 1)
+cs=$(echo "$res" | grep -oE 'pi_\w+_secret_\w+' | head -n 1)
+succeeded=$(
+  curl -sSfg -X POST $HOST/v1/payment_intents/$pi/confirm \
+       -d key=$PK -d client_secret=$cs \
+       -d payment_method_data[type]=card \
+       -d payment_method_data[card][number]=4242424242424242 \
+       -d payment_method_data[card][cvc]=123 \
+       -d payment_method_data[card][exp_month]=4 \
+       -d payment_method_data[card][exp_year]=2030 \
+  | grep -oE '"status": "succeeded"')
+[ -n "$succeeded" ]
+
+# A 3D Secure card first moves to requires_action, then succeeds after
+# authentication:
+res=$(curl -sSfg -u $SK: $HOST/v1/payment_intents \
+           -d amount=1000 -d currency=usd -d confirm=false)
+pi=$(echo "$res" | grep -oE 'pi_\w+' | head -n 1)
+cs=$(echo "$res" | grep -oE 'pi_\w+_secret_\w+' | head -n 1)
+requires_action=$(
+  curl -sSfg -X POST $HOST/v1/payment_intents/$pi/confirm \
+       -d key=$PK -d client_secret=$cs \
+       -d payment_method_data[type]=card \
+       -d payment_method_data[card][number]=4000000000003220 \
+       -d payment_method_data[card][cvc]=123 \
+       -d payment_method_data[card][exp_month]=4 \
+       -d payment_method_data[card][exp_year]=2030 \
+  | grep -oE '"status": "requires_action"')
+[ -n "$requires_action" ]
+succeeded=$(
+  curl -sSfg -X POST "$HOST/v1/payment_intents/$pi/_authenticate?success=true" \
+       -d key=$PK -d client_secret=$cs \
+  | grep -oE '"status": "succeeded"')
+[ -n "$succeeded" ]
+
+# Confirming with the publishable key requires a matching client_secret:
+code=$(
+  curl -sg -o /dev/null -w "%{http_code}" \
+       -X POST $HOST/v1/payment_intents/$pi/confirm \
+       -d key=$PK -d client_secret=pi_wrong_secret \
+       -d payment_method_data[type]=card \
+       -d payment_method_data[card][number]=4242424242424242 \
+       -d payment_method_data[card][cvc]=123 \
+       -d payment_method_data[card][exp_month]=4 \
+       -d payment_method_data[card][exp_year]=2030)
+[ "$code" = 401 ]
+
 ## test event timestamp filtering:
 first_created=$(
   curl -sSfg -u $SK: "$HOST/v1/events" \

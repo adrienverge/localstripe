@@ -2062,19 +2062,41 @@ class PaymentIntent(StripeObject):
         return obj
 
     @classmethod
-    def _api_confirm(cls, id, payment_method=None, **kwargs):
+    def _api_confirm(cls, id, payment_method=None, payment_method_data=None,
+                     client_secret=None, use_stripe_sdk=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
-        if payment_method is not None:
-            raise UserError(500, 'Not implemented')
-
         try:
             assert type(id) is str and id.startswith('pi_')
+            if client_secret is not None:
+                assert type(client_secret) is str
+            if payment_method is not None:
+                assert type(payment_method) is str
+            if payment_method_data is not None:
+                assert type(payment_method_data) is dict
         except AssertionError:
             raise UserError(400, 'Bad request')
 
         obj = cls._api_retrieve(id)
+
+        if client_secret is not None and client_secret != obj.client_secret:
+            raise UserError(401, 'Unauthorized')
+
+        # A payment method can be attached at confirmation time (this is what
+        # Stripe.js does when `confirmCardPayment()` is given a card element or
+        # a `payment_method` id), in addition to being set at creation time.
+        if payment_method is not None:
+            pm = PaymentMethod._api_retrieve(payment_method)
+            obj.payment_method = pm.id
+        elif payment_method_data is not None:
+            pm = PaymentMethod(**payment_method_data)
+            obj.payment_method = pm.id
+
+        # If the PaymentIntent is already awaiting 3D Secure authentication,
+        # confirmation is a no-op: the client should proceed to authenticate.
+        if obj.status == 'requires_action':
+            return obj
 
         if obj.status != 'requires_confirmation':
             raise UserError(400, 'Bad request')
