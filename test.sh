@@ -633,6 +633,25 @@ curl -sSfg -u $SK: $HOST/v1/setup_intents/$seti/confirm -X POST \
 
 curl -sSfg -u $SK: $HOST/v1/setup_intents/$seti/cancel -X POST
 
+# SetupIntents accept automatic_payment_methods and payment_method_options:
+res=$(curl -sSfg -u $SK: $HOST/v1/setup_intents -X POST \
+           -d customer=$cus \
+           -d usage=off_session \
+           -d automatic_payment_methods[enabled]=true \
+           -d payment_method_options[us_bank_account][verification_method]=instant)
+echo "$res" | grep -q '"enabled": true'
+echo "$res" | grep -q '"verification_method": "instant"'
+
+code=$(curl -sg -o /dev/null -w '%{http_code}' -u $SK: \
+            $HOST/v1/setup_intents -X POST \
+            -d automatic_payment_methods[enabled]=maybe)
+[ "$code" = 400 ]
+
+code=$(curl -sg -o /dev/null -w '%{http_code}' -u $SK: \
+            $HOST/v1/setup_intents -X POST \
+            -d payment_method_options[card]=any)
+[ "$code" = 400 ]
+
 res=$(curl -sSfg -u $SK: $HOST/v1/setup_intents -X POST)
 seti=$(echo "$res" | grep '"id"' | grep -oE 'seti_\w+' | head -n 1)
 seti_secret=$(echo $res | grep -oE 'seti_\w+_secret_\w+' | head -n 1)

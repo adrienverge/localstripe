@@ -2821,7 +2821,8 @@ class SetupIntent(StripeObject):
     _id_prefix = 'seti_'
 
     def __init__(self, customer=None, usage=None, payment_method_types=None,
-                 metadata=None, **kwargs):
+                 metadata=None, automatic_payment_methods=None,
+                 payment_method_options=None, **kwargs):
         if kwargs:
             raise UserError(400, 'Unexpected ' + ', '.join(kwargs.keys()))
 
@@ -2836,6 +2837,20 @@ class SetupIntent(StripeObject):
             assert type(payment_method_types) is list
             assert all(t in ('card', 'sepa_debit', 'ideal')
                        for t in payment_method_types)
+            if automatic_payment_methods is not None:
+                assert type(automatic_payment_methods) is dict
+                assert set(automatic_payment_methods.keys()).issubset({
+                    'enabled', 'allow_redirects'})
+                automatic_payment_methods['enabled'] = try_convert_to_bool(
+                    automatic_payment_methods.get('enabled'))
+                assert type(automatic_payment_methods['enabled']) is bool
+                if 'allow_redirects' in automatic_payment_methods:
+                    assert automatic_payment_methods['allow_redirects'] in (
+                        'always', 'never')
+            if payment_method_options is not None:
+                assert type(payment_method_options) is dict
+                assert all(type(o) is dict
+                           for o in payment_method_options.values())
         except AssertionError:
             raise UserError(400, 'Bad request')
 
@@ -2847,6 +2862,8 @@ class SetupIntent(StripeObject):
         self.metadata = metadata or {}
         self.client_secret = self.id + '_secret_' + random_id(16)
         self.payment_method_types = payment_method_types
+        self.automatic_payment_methods = automatic_payment_methods
+        self.payment_method_options = payment_method_options or {}
         self.payment_method = None
         self.status = 'requires_payment_method'
         self.next_action = None
